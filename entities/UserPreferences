@@ -1,0 +1,44 @@
+{
+  "name": "UserPreferences",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email of the user"
+    },
+    "language": {
+      "type": "string",
+      "default": "en",
+      "description": "Preferred language code"
+    },
+    "download_quality": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "max"
+      ],
+      "default": "high",
+      "description": "Preferred download quality"
+    },
+    "auto_download": {
+      "type": "boolean",
+      "default": false,
+      "description": "Auto start download when link detected"
+    },
+    "notifications_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable push notifications"
+    },
+    "download_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Total downloads by user"
+    }
+  },
+  "required": [
+    "user_email"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "workspace": ["./"],
+  "imports": {},
+  "fmt": {
+    "exclude": ["node_modules", "dist"]
+  },
+  "lint": {
+    "exclude": ["node_modules", "dist"]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "DownloadDash",
+  "short_name": "DownloadDash",
+  "description": "Fast and easy multi-platform video downloader",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "en-US",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/download-dash-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View your download history",
+      "url": "/dashboard",
+      "icons": [{ "src": "/download-dash-logo.svg", "sizes": "any" }]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "name": "DownloadHistory",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email of the user who downloaded"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "tiktok",
+        "instagram",
+        "facebook",
+        "twitter",
+        "whatsapp",
+        "telegram",
+        "snapchat",
+        "youtube",
+        "pinterest",
+        "reddit"
+      ],
+      "description": "Social media platform"
+    },
+    "content_type": {
+      "type": "string",
+      "enum": [
+        "video",
+        "image",
+        "story",
+        "status",
+        "reel"
+      ],
+      "description": "Type of content downloaded"
+    },
+    "original_url": {
+      "type": "string",
+      "description": "Original URL of the content"
+    },
+    "download_url": {
+      "type": "string",
+      "description": "URL to download the content"
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "description": "Thumbnail image URL"
+    },
+    "title": {
+      "type": "string",
+      "description": "Title or description of the content"
+    },
+    "is_saved": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether user saved this to favorites"
+    }
+  },
+  "required": [
+    "user_email",
+    "platform",
+    "original_url"
+  ]
+}

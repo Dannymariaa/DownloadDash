@@ -1,0 +1,16 @@
+# Minimal runtime deps (aims to work on Python 3.13 with prebuilt wheels)
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+python-multipart>=0.0.9,<1.0.0
+
+# Pydantic v2 (choose versions that publish cp313 wheels to avoid Rust builds)
+pydantic>=2.10.0,<3.0.0
+pydantic-settings>=2.6.0,<3.0.0
+
+yt-dlp>=2024.8.0
+aiofiles>=23.2.1,<25.0.0
+httpx>=0.27.0,<1.0.0
+python-dotenv>=1.0.0,<2.0.0
+loguru>=0.7.2,<1.0.0
+
+# For more features (DB, auth, queues, etc.), see requirements-full.txt

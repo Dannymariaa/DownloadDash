@@ -1,0 +1,58 @@
+{
+  "name": "SavedContent",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "description": "Email of the user"
+    },
+    "platform": {
+      "type": "string",
+      "enum": [
+        "tiktok",
+        "instagram",
+        "facebook",
+        "twitter",
+        "whatsapp",
+        "telegram",
+        "snapchat",
+        "youtube",
+        "pinterest",
+        "reddit"
+      ],
+      "description": "Social media platform"
+    },
+    "content_type": {
+      "type": "string",
+      "enum": [
+        "video",
+        "image",
+        "story",
+        "status",
+        "reel"
+      ],
+      "description": "Type of content"
+    },
+    "content_url": {
+      "type": "string",
+      "description": "URL of the saved content"
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "description": "Thumbnail image"
+    },
+    "title": {
+      "type": "string",
+      "description": "Title or description"
+    },
+    "notes": {
+      "type": "string",
+      "description": "User notes about the content"
+    }
+  },
+  "required": [
+    "user_email",
+    "platform",
+    "content_url"
+  ]
+}

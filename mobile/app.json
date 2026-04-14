@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "DownloadDash",
+    "slug": "downloaddash",
+    "version": "1.0.0",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTabletMode": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to save downloaded content."
+      }
+    },
+    "android": {
+      "package": "com.downloaddash.app",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-ads-admob",
+        {
+          "userTrackingPermission": "This app needs permission to track your behavior to show personalized ads based on your activity."
+        }
+      ]
+    ],
+    "extra": {
+      "admob": {
+        "appId": "ca-app-pub-2390460896724446~4738934082",
+        "android": {
+          "bannerBottom": "ca-app-pub-2390460896724446/3282382183",
+          "interstitialAfterSave": "ca-app-pub-2390460896724446/5625668013",
+          "rewardedUnlockPremium": "ca-app-pub-2390460896724446/9213559236",
+          "rewardedInterstitial": "ca-app-pub-2390460896724446/3045081919"
+        },
+        "ios": {
+          "bannerBottom": "ca-app-pub-2390460896724446/8088179829",
+          "interstitialAfterSave": "ca-app-pub-2390460896724446/5789319547",
+          "rewardedUnlockPremium": "ca-app-pub-2390460896724446/2835853148",
+          "rewardedInterstitial": "ca-app-pub-2390460896724446/6792755235"
+        }
+      }
+    }
+  }
+}
