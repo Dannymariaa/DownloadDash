@@ -12,9 +12,9 @@
   "categories": ["utilities", "productivity"],
   "icons": [
     {
-      "src": "/download-dash-logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/download-dash-logo.png?v=20260414",
+      "sizes": "1024x1024",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ],
@@ -24,7 +24,7 @@
       "short_name": "Dashboard",
       "description": "View your download history",
       "url": "/dashboard",
-      "icons": [{ "src": "/download-dash-logo.svg", "sizes": "any" }]
+      "icons": [{ "src": "/download-dash-logo.png?v=20260414", "sizes": "1024x1024" }]
     }
   ]
 }

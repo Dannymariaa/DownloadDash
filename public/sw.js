@@ -1,8 +1,8 @@
-const CACHE_NAME = 'downloaddash-v1';
+const CACHE_NAME = 'downloaddash-v2';
 const urlsToCache = [
   '/',
   '/manifest.json',
-  '/download-dash-logo.svg',
+  '/download-dash-logo.png?v=20260414',
   '/robots.txt',
   '/sitemap.xml'
 ];
