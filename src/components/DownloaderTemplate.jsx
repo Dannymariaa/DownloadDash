@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
-import RewardedAdModal from './ads/RewardedAdModal';
-import SkippableAdModal from './ads/SkippableAdModal';
-import ShortAdModal from './ads/ShortAdModal';
+import RewardedAdModal from './Ads/RewardedAdModal';
+import SkippableAdModal from './Ads/SkippableAdModal';
+import ShortAdModal from './Ads/ShortAdModal';
 
 // Platform URL validation
 const urlPatterns = {

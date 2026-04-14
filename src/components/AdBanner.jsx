@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useAdPlatform } from './ads/useAdPlatform';
+import { useAdPlatform } from './Ads/useAdPlatform';
 
 /**
  * Smart Ad Banner – shows AdSense on web, leaves space for AdMob on native app.

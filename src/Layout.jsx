@@ -7,7 +7,7 @@ import { YouTubeIcon } from '@/components/PlatformIcons';
 import { Button } from '@/components/ui/button';
 import downloadDash from '@/api/downloadDashClient';
 import LanguageSelector from '@/components/LanguageSelector';
-import AutoAdManager from '@/components/ads/AutoAdManager';
+import AutoAdManager from '@/components/Ads/AutoAdManager.jsx';
 
 export default function Layout({ children, currentPageName: _currentPageName }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

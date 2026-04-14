@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import { useAdPlatform } from '@/components/ads/useAdPlatform';
+import { useAdPlatform } from '@/components/Ads/useAdPlatform';
 
 // Platform navigation interstitial: skip after 5s, then navigates to chosen platform
 const SKIP_DELAY = 5;
