@@ -35,8 +35,8 @@ const postJson = async (path, body) => {
     });
   } catch (error) {
     throw new Error(
-      `Failed to fetch from API (${baseUrl}). ` +
-        `Make sure the API is running and that VITE_SMD_API_BASE_URL points to the correct backend.`
+      `Unable to reach the DownloadDash API at ${baseUrl}. ` +
+        `Check that https://api.downloaddash.store is live and that VITE_SMD_API_BASE_URL is set correctly in Vercel.`
     );
   }
 
