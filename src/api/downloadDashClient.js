@@ -134,7 +134,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
     include_metadata: true,
   };
 
-  const data = await postJson('/download', payload);
+  const data = await postJson(`/${normalizedPlatform}/download`, payload);
 
   if (data?.success === false) {
     const message = data?.error || data?.message || 'Resolve failed';
