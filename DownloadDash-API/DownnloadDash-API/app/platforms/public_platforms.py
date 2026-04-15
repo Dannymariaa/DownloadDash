@@ -5,6 +5,7 @@ import os
 import uuid
 import re
 import httpx
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from ..models.schemas import Platform, Quality
 
 class PublicPlatformDownloader:
@@ -93,6 +94,49 @@ class PublicPlatformDownloader:
             opts["cookiefile"] = self.cookiefile
 
         return opts
+
+    def _normalize_youtube_url(self, url: str) -> str:
+        if "youtube.com" not in url and "youtu.be" not in url:
+            return url
+
+        parsed = urlparse(url)
+
+        if "youtu.be" in parsed.netloc:
+            video_id = parsed.path.lstrip("/").split("/")[0]
+            if not video_id:
+                return url
+            query = parse_qs(parsed.query)
+            cleaned_query = {}
+            if query.get("t"):
+                cleaned_query["t"] = query["t"][-1]
+            return urlunparse(
+                (
+                    parsed.scheme or "https",
+                    "www.youtube.com",
+                    "/watch",
+                    "",
+                    urlencode({"v": video_id, **cleaned_query}),
+                    "",
+                )
+            )
+
+        query = parse_qs(parsed.query)
+        if query.get("v"):
+            cleaned_query = {"v": query["v"][-1]}
+            if query.get("t"):
+                cleaned_query["t"] = query["t"][-1]
+            return urlunparse(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    parsed.path,
+                    "",
+                    urlencode(cleaned_query),
+                    "",
+                )
+            )
+
+        return url
     
     async def get_media_info(self, url: str) -> Dict[str, Any]:
         """Extract media information without downloading"""
@@ -131,6 +175,7 @@ class PublicPlatformDownloader:
     async def resolve_media(self, url: str, quality: Quality, extract_audio: bool = False) -> Dict[str, Any]:
         """Resolve a direct media URL without downloading or saving files."""
         loop = asyncio.get_event_loop()
+        url = self._normalize_youtube_url(url)
 
         # Instagram photo posts often fail with yt-dlp "No video formats found".
         # Try Instagram-specific fallbacks first for non-audio requests.
@@ -177,11 +222,17 @@ class PublicPlatformDownloader:
             retried_successfully = False
             if "requested format is not available" in lowered:
                 relaxed_opts = dict(ydl_opts)
-                relaxed_opts.pop("format", None)
+                relaxed_opts["format"] = "bestvideo*+bestaudio/best"
                 try:
                     info = await loop.run_in_executor(None, lambda: extract_info(relaxed_opts))
                 except Exception:
                     info = None
+                if info is None and not extract_audio:
+                    relaxed_opts["format"] = "best"
+                    try:
+                        info = await loop.run_in_executor(None, lambda: extract_info(relaxed_opts))
+                    except Exception:
+                        info = None
                 if info is not None:
                     retried_successfully = True
                     msg = ""
