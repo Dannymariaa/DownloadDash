@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     # Export browser cookies to a Netscape cookies file and set this path to enable
     # downloads that require login (e.g. stories).
     YTDLP_COOKIEFILE: Optional[str] = None
+    YTDLP_COOKIE_DATA: Optional[str] = None
     
     # Platform API Keys
     INSTAGRAM_USERNAME: Optional[str] = None
