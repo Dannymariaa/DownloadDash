@@ -1,5 +1,9 @@
+from pathlib import Path
+
 from fastapi import FastAPI, Request
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 import time
 
 from app.config import settings
@@ -26,12 +30,15 @@ from app.state import telegram_downloader, whatsapp_downloader, whatsapp_busines
 
 # Create FastAPI app
 app = FastAPI(
-    title="Social Media Downloader API",
+    title="DownloadDash API",
     version="1.0.0",
     description="API for downloading content from various social media platforms",
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url=None,
+    redoc_url=None
 )
+
+static_dir = Path(__file__).resolve().parent.parent / "static"
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 # Track request counts for rate limiting
 request_counts = {}
@@ -153,13 +160,32 @@ async def shutdown_event():
     print("="*60 + "\n")
 
 
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=f"{app.title} - Docs",
+        swagger_favicon_url="/static/downloaddash-api-logo.png",
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+async def custom_redoc():
+    return get_redoc_html(
+        openapi_url=app.openapi_url,
+        title=f"{app.title} - ReDoc",
+        redoc_favicon_url="/static/downloaddash-api-logo.png",
+    )
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API information"""
     return {
-        "name": "Social Media Downloader API",
+        "name": "DownloadDash API",
         "version": "1.0.0",
         "description": "Download content from various social media platforms",
+        "logo_url": "/static/downloaddash-api-logo.png",
         "endpoints": {
             "instagram": "/instagram/download",
             "tiktok": "/tiktok/download",
