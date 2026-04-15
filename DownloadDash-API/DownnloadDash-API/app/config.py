@@ -76,7 +76,12 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "https://downloaddash.store",
+        "https://www.downloaddash.store",
     ]
+    BACKEND_CORS_ORIGIN_REGEX: Optional[str] = (
+        r"https://([a-z0-9-]+\.)?downloaddash\.store|https://([a-z0-9-]+\.)?vercel\.app"
+    )
     
     # Logging
     LOG_LEVEL: str = "INFO"
