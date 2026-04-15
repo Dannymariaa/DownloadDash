@@ -174,6 +174,7 @@ class PublicPlatformDownloader:
         except Exception as e:
             msg = _strip_ansi(str(e))
             lowered = msg.lower()
+            retried_successfully = False
             if "requested format is not available" in lowered:
                 relaxed_opts = dict(ydl_opts)
                 relaxed_opts.pop("format", None)
@@ -182,9 +183,12 @@ class PublicPlatformDownloader:
                 except Exception:
                     info = None
                 if info is not None:
+                    retried_successfully = True
                     msg = ""
                     lowered = ""
-            if (
+            if retried_successfully:
+                pass
+            elif (
                 ("youtube.com" in url or "youtu.be" in url)
                 and ("sign in to confirm you're not a bot" in lowered or "use --cookies-from-browser or --cookies" in lowered)
             ):
@@ -192,27 +196,27 @@ class PublicPlatformDownloader:
                     "YouTube is temporarily blocking downloads from the API server. "
                     "Please try again in a bit. If this keeps happening, the API needs fresh YouTube cookies configured on the backend."
                 )
-            if "403" in lowered and "forbidden" in lowered:
+            elif "403" in lowered and "forbidden" in lowered:
                 raise Exception(
                     "403 Forbidden from the platform. "
                     "TikTok/Instagram often block server IPs or require cookies/login. "
                     "Fix: export your browser cookies (Netscape format) and set SMD_YTDLP_COOKIEFILE to that file path, "
                     "or run the API from a different network/VPN."
                 )
-            if "varnish" in lowered or "error 54113" in lowered:
+            elif "varnish" in lowered or "error 54113" in lowered:
                 raise Exception(
                     "Blocked by an upstream cache (Varnish / Error 54113). "
                     "This is usually an IP/rate-limit block. Try a different network/VPN, or configure cookies via SMD_YTDLP_COOKIEFILE."
                 )
             # Retry with relaxed format selection for image-only posts.
-            if ("no video formats found" in lowered or "no formats found" in lowered) and not extract_audio:
+            elif ("no video formats found" in lowered or "no formats found" in lowered) and not extract_audio:
                 relaxed_opts = dict(ydl_opts)
                 relaxed_opts["format"] = "best"
                 try:
                     info = await loop.run_in_executor(None, lambda: extract_info(relaxed_opts))
                 except Exception:
                     info = None
-            else:
+            elif not retried_successfully:
                 raise Exception(f"Resolve failed: {msg}")
 
             if info is None and ("no video formats found" in lowered or "no formats found" in lowered) and not extract_audio:
