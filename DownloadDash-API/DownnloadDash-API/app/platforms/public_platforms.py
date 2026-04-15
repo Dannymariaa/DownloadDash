@@ -174,6 +174,16 @@ class PublicPlatformDownloader:
         except Exception as e:
             msg = _strip_ansi(str(e))
             lowered = msg.lower()
+            if "requested format is not available" in lowered:
+                relaxed_opts = dict(ydl_opts)
+                relaxed_opts.pop("format", None)
+                try:
+                    info = await loop.run_in_executor(None, lambda: extract_info(relaxed_opts))
+                except Exception:
+                    info = None
+                if info is not None:
+                    msg = ""
+                    lowered = ""
             if (
                 ("youtube.com" in url or "youtu.be" in url)
                 and ("sign in to confirm you're not a bot" in lowered or "use --cookies-from-browser or --cookies" in lowered)
