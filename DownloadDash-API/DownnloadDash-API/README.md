@@ -1,4 +1,6 @@
-# Social Media Downloader API
+![DownloadDash API](../assets/downloaddash-api-logo.png)
+
+# DownloadDash API
 
 ## Run locally (Windows / PowerShell)
 

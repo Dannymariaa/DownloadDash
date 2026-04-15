@@ -1,4 +1,6 @@
-# Social Media Downloader (Local Dev)
+![DownloadDash API](./assets/downloaddash-api-logo.png)
+
+# DownloadDash API (Local Dev)
 
 ## Start (Windows / PowerShell)
 
@@ -28,4 +30,4 @@ Troubleshoot:
 npm run doctor
 ```
 
-More details: `social-media-downloader-api/README.md`
+More details: `DownnloadDash-API/README.md`
