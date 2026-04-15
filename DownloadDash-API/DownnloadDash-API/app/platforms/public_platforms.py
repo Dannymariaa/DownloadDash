@@ -174,6 +174,14 @@ class PublicPlatformDownloader:
         except Exception as e:
             msg = _strip_ansi(str(e))
             lowered = msg.lower()
+            if (
+                ("youtube.com" in url or "youtu.be" in url)
+                and ("sign in to confirm you're not a bot" in lowered or "use --cookies-from-browser or --cookies" in lowered)
+            ):
+                raise Exception(
+                    "YouTube is temporarily blocking downloads from the API server. "
+                    "Please try again in a bit. If this keeps happening, the API needs fresh YouTube cookies configured on the backend."
+                )
             if "403" in lowered and "forbidden" in lowered:
                 raise Exception(
                     "403 Forbidden from the platform. "
