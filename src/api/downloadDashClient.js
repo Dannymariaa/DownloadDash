@@ -1,6 +1,5 @@
 // @ts-nocheck
 
-// In local dev we proxy `/api` -> http://127.0.0.1:8000 via Vite.
 const DEFAULT_API_BASE_URL = '/api';
 
 const getApiBaseUrl = () => {
@@ -37,8 +36,7 @@ const postJson = async (path, body) => {
   } catch (error) {
     throw new Error(
       `Failed to fetch from API (${baseUrl}). ` +
-        `Make sure the API is running (local dev: start the Social Media Downloader API on http://127.0.0.1:8000), ` +
-        `or remove/adjust VITE_SMD_API_BASE_URL to use the Vite proxy (/api).`
+        `Make sure the API is running and that VITE_SMD_API_BASE_URL points to the correct backend.`
     );
   }
 
