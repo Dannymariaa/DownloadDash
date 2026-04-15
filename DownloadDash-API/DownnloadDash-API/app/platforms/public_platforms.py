@@ -201,11 +201,10 @@ class PublicPlatformDownloader:
         ydl_opts["noplaylist"] = True
         ydl_opts["http_headers"] = self._build_http_headers(url)
 
-        if extract_audio:
-            ydl_opts["format"] = "bestaudio/best"
-        else:
-            ydl_opts["format"] = ydl_opts.get("format") or "best"
-            ydl_opts["format"] = f"{ydl_opts['format']}[acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/best"
+        # We only need metadata and the list of available formats here.
+        # Let yt-dlp expose everything first, then we choose the best URL ourselves.
+        extract_opts = dict(ydl_opts)
+        extract_opts.pop("format", None)
 
         def extract_info(opts):
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -215,13 +214,13 @@ class PublicPlatformDownloader:
             return re.sub(r"\x1b\[[0-9;]*m", "", text or "")
 
         try:
-            info = await loop.run_in_executor(None, lambda: extract_info(ydl_opts))
+            info = await loop.run_in_executor(None, lambda: extract_info(extract_opts))
         except Exception as e:
             msg = _strip_ansi(str(e))
             lowered = msg.lower()
             retried_successfully = False
             if "requested format is not available" in lowered:
-                relaxed_opts = dict(ydl_opts)
+                relaxed_opts = dict(extract_opts)
                 relaxed_opts["format"] = "bestvideo*+bestaudio/best"
                 try:
                     info = await loop.run_in_executor(None, lambda: extract_info(relaxed_opts))
