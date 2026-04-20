@@ -205,6 +205,8 @@ class PublicPlatformDownloader:
         # Let yt-dlp expose everything first, then we choose the best URL ourselves.
         extract_opts = dict(ydl_opts)
         extract_opts.pop("format", None)
+        if "youtube.com" in url or "youtu.be" in url:
+            extract_opts["format"] = "bestaudio[ext=m4a]/bestaudio/best" if extract_audio else "best[ext=mp4]/best"
 
         def extract_info(opts):
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -221,17 +223,19 @@ class PublicPlatformDownloader:
             retried_successfully = False
             if "requested format is not available" in lowered:
                 relaxed_opts = dict(extract_opts)
-                relaxed_opts["format"] = "bestvideo*+bestaudio/best"
-                try:
-                    info = await loop.run_in_executor(None, lambda: extract_info(relaxed_opts))
-                except Exception:
-                    info = None
-                if info is None and not extract_audio:
-                    relaxed_opts["format"] = "best"
+                fallback_formats = (
+                    ["bestaudio[ext=m4a]/bestaudio/best", "bestaudio/best", "best"]
+                    if extract_audio
+                    else ["best[ext=mp4]/best", "best", "bestvideo*+bestaudio/best"]
+                )
+                for fallback_format in fallback_formats:
+                    relaxed_opts["format"] = fallback_format
                     try:
                         info = await loop.run_in_executor(None, lambda: extract_info(relaxed_opts))
                     except Exception:
                         info = None
+                    if info is not None:
+                        break
                 if info is not None:
                     retried_successfully = True
                     msg = ""
@@ -336,21 +340,23 @@ class PublicPlatformDownloader:
         selected_audio = pick_best_audio()
         selected_hd = pick_best_av() or pick_best_video_only()
         selected_sd = pick_best_max_height(480) or pick_best_max_height(720)
+        selected_info_url = info.get("url")
+        selected_info_ext = info.get("ext")
 
         # Decide kind and primary direct_url.
         if extract_audio:
-            primary = selected_audio
+            primary = selected_audio or info
             kind = "audio"
         elif selected_image and not selected_hd:
             primary = selected_image
             kind = "image"
         else:
-            primary = selected_hd
+            primary = selected_hd or info
             kind = "video"
 
         downloads: Dict[str, str] = {}
 
-        direct_url = primary.get("url") if primary else info.get("url")
+        direct_url = selected_info_url or (primary.get("url") if primary else info.get("url"))
         if not direct_url and thumbnail:
             # Some Instagram photo posts only expose thumbnails.
             direct_url = thumbnail
@@ -363,13 +369,19 @@ class PublicPlatformDownloader:
 
         if selected_hd and selected_hd.get("url"):
             downloads["videoHD"] = selected_hd["url"]
+        elif kind == "video" and selected_info_url:
+            downloads["videoHD"] = selected_info_url
         if selected_sd and selected_sd.get("url"):
             downloads["videoSD"] = selected_sd["url"]
         elif selected_hd and selected_hd.get("url"):
             # Fallback: expose SD option even when only one video stream is available
             downloads["videoSD"] = selected_hd["url"]
+        elif kind == "video" and selected_info_url:
+            downloads["videoSD"] = selected_info_url
         if selected_audio and selected_audio.get("url"):
             downloads["audio"] = selected_audio["url"]
+        elif kind == "audio" and selected_info_url:
+            downloads["audio"] = selected_info_url
         if selected_image and selected_image.get("url"):
             downloads["image"] = selected_image["url"]
         elif thumbnail:
@@ -383,7 +395,7 @@ class PublicPlatformDownloader:
             "direct_url": direct_url,
             "title": title,
             "thumbnail": thumbnail,
-            "ext": primary.get("ext") if primary else info.get("ext"),
+            "ext": selected_info_ext or (primary.get("ext") if primary else info.get("ext")),
             "filesize": (primary.get("filesize") or primary.get("filesize_approx")) if primary else info.get("filesize") or info.get("filesize_approx"),
             "kind": kind,
             "downloads": downloads,
