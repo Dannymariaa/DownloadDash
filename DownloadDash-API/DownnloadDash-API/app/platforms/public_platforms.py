@@ -224,12 +224,15 @@ class PublicPlatformDownloader:
             if "requested format is not available" in lowered:
                 relaxed_opts = dict(extract_opts)
                 fallback_formats = (
-                    ["bestaudio[ext=m4a]/bestaudio/best", "bestaudio/best", "best"]
+                    ["bestaudio[ext=m4a]/bestaudio/best", "bestaudio/best", "best", None]
                     if extract_audio
-                    else ["best[ext=mp4]/best", "best", "bestvideo*+bestaudio/best"]
+                    else ["best[ext=mp4]/best", "best", "best/worst", "bestvideo*+bestaudio/best", None]
                 )
                 for fallback_format in fallback_formats:
-                    relaxed_opts["format"] = fallback_format
+                    if fallback_format is None:
+                        relaxed_opts.pop("format", None)
+                    else:
+                        relaxed_opts["format"] = fallback_format
                     try:
                         info = await loop.run_in_executor(None, lambda: extract_info(relaxed_opts))
                     except Exception:
