@@ -205,8 +205,6 @@ class PublicPlatformDownloader:
         # Let yt-dlp expose everything first, then we choose the best URL ourselves.
         extract_opts = dict(ydl_opts)
         extract_opts.pop("format", None)
-        if "youtube.com" in url or "youtu.be" in url:
-            extract_opts["format"] = "bestaudio[ext=m4a]/bestaudio/best" if extract_audio else "best[ext=mp4]/best"
 
         def extract_info(opts):
             with yt_dlp.YoutubeDL(opts) as ydl:
