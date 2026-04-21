@@ -44,6 +44,7 @@ def _resolve_cookiefile() -> str | None:
 public_downloader = PublicPlatformDownloader(
     download_path=settings.DOWNLOAD_PATH,
     cookiefile=_resolve_cookiefile(),
+    proxy_url=settings.YTDLP_PROXY,
 )
 universal_downloader = UniversalMediaDownloader(public_downloader=public_downloader)
 whatsapp_downloader = WhatsAppDownloader(bridge_url=settings.WHATSAPP_BRIDGE_URL)

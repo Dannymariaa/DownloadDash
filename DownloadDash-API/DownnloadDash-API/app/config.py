@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     # downloads that require login (e.g. stories).
     YTDLP_COOKIEFILE: Optional[str] = None
     YTDLP_COOKIE_DATA: Optional[str] = None
+    YTDLP_PROXY: Optional[str] = None
     
     # Platform API Keys
     INSTAGRAM_USERNAME: Optional[str] = None

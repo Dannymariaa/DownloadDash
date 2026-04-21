@@ -11,9 +11,15 @@ from ..models.schemas import Platform, Quality
 class PublicPlatformDownloader:
     """Handles downloads from public social media platforms using yt-dlp"""
     
-    def __init__(self, download_path: str = "./downloads", cookiefile: str | None = None):
+    def __init__(
+        self,
+        download_path: str = "./downloads",
+        cookiefile: str | None = None,
+        proxy_url: str | None = None,
+    ):
         self.download_path = download_path
         self.cookiefile = cookiefile
+        self.proxy_url = proxy_url
         self.user_agent = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -92,6 +98,8 @@ class PublicPlatformDownloader:
 
         if self.cookiefile and os.path.exists(self.cookiefile):
             opts["cookiefile"] = self.cookiefile
+        if self.proxy_url:
+            opts["proxy"] = self.proxy_url
 
         return opts
 
