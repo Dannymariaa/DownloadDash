@@ -181,7 +181,9 @@ export default function DownloaderTemplate({
     alert('Saved to your collection!');
   };
 
-  const isImage = result?.type === 'image';
+  const isImage =
+    result?.type === 'image' &&
+    !(result?.downloads?.videoHD || result?.downloads?.videoSD || result?.downloads?.audio);
 
   const downloadOptionsVariants = {
     hidden: { opacity: 0 },

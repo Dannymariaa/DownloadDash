@@ -145,11 +145,15 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
     data?.media_info?.preview_url ||
     null;
 
-  const downloads = data?.downloads || {};
+  const downloads = { ...(data?.downloads || {}) };
+  if (!downloads.videoHD && downloads.video) downloads.videoHD = downloads.video;
+  if (!downloads.videoSD && downloads.video) downloads.videoSD = downloads.video;
+  if (!downloads.audio && downloads.audio_url) downloads.audio = downloads.audio_url;
   const mediaType = data?.media_type || data?.media_info?.media_type || null;
   const downloadUrl =
     downloads.videoHD ||
     downloads.videoSD ||
+    downloads.video ||
     downloads.audio ||
     downloads.image ||
     data?.download_url ||
@@ -170,10 +174,16 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   }
   const finalDownloadUrl = downloadUrl || fallbackImage;
 
+  const hasVideo = !!(downloads.videoHD || downloads.videoSD || downloads.video);
+  const hasAudio = !!downloads.audio;
+  const hasImage = !!downloads.image;
   let kind = extractAudio
     ? 'audio'
-    : (mediaType ||
-      (downloads.audio && !downloads.videoHD && !downloads.videoSD ? 'audio' : 'video'));
+    : hasVideo
+      ? 'video'
+      : hasAudio && !hasImage
+        ? 'audio'
+        : (mediaType || 'video');
 
   if (kind === 'photo' || kind === 'image') kind = 'image';
   if (kind === 'album' || kind === 'carousel') kind = 'album';

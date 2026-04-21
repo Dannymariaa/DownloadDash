@@ -68,6 +68,26 @@ async def download_public(
 
     download_id = str(uuid.uuid4())
 
+    downloads = dict(result.get("downloads") or {})
+    direct_url = result.get("direct_url")
+    thumbnail = result.get("thumbnail")
+    kind = (result.get("kind") or "").lower()
+
+    # Normalize download keys so frontend always gets a stable shape.
+    if downloads.get("video") and not downloads.get("videoHD"):
+        downloads["videoHD"] = downloads["video"]
+    if downloads.get("video") and not downloads.get("videoSD"):
+        downloads["videoSD"] = downloads["video"]
+    if downloads.get("audio_url") and not downloads.get("audio"):
+        downloads["audio"] = downloads["audio_url"]
+    if kind == "video" and direct_url and not (downloads.get("videoHD") or downloads.get("videoSD")):
+        downloads["videoHD"] = direct_url
+        downloads["videoSD"] = direct_url
+    if kind == "audio" and direct_url and not downloads.get("audio"):
+        downloads["audio"] = direct_url
+    if kind == "image" and not downloads.get("image"):
+        downloads["image"] = direct_url or thumbnail
+
     media_type = request.media_type
     if not media_type:
         if request.extract_audio:
@@ -75,10 +95,12 @@ async def download_public(
         else:
             # Prefer image when the resolved payload is clearly an image.
             ext = (result.get("ext") or "").lower()
-            downloads = result.get("downloads") or {}
-            has_video = bool(downloads.get("videoHD") or downloads.get("videoSD"))
+            has_video = bool(downloads.get("videoHD") or downloads.get("videoSD") or downloads.get("video"))
+            has_audio = bool(downloads.get("audio"))
             has_image = bool(downloads.get("image"))
-            if result.get("kind") == "image" or (has_image and not has_video) or ext in ("jpg", "jpeg", "png", "webp"):
+            if kind == "audio" or (has_audio and not has_video and not has_image):
+                media_type = MediaType.AUDIO
+            elif kind == "image" or (has_image and not has_video) or ext in ("jpg", "jpeg", "png", "webp"):
                 media_type = MediaType.IMAGE
             else:
                 media_type = MediaType.VIDEO
@@ -89,8 +111,8 @@ async def download_public(
         media_type=media_type,
         url=url_str,
         title=result.get("title"),
-        thumbnail_url=result.get("thumbnail"),
-        download_url=result.get("direct_url"),
+        thumbnail_url=thumbnail,
+        download_url=downloads.get("videoHD") or downloads.get("audio") or downloads.get("image") or direct_url,
         file_size=result.get("filesize"),
         file_format=result.get("ext"),
     )
@@ -101,8 +123,8 @@ async def download_public(
         download_id=download_id,
         status=DownloadStatus.COMPLETED,
         media_info=media_info,
-        download_url=result.get("direct_url"),
-        downloads=result.get("downloads") or None,
+        download_url=downloads.get("videoHD") or downloads.get("audio") or downloads.get("image") or direct_url,
+        downloads=downloads or None,
         expires_at=datetime.utcnow() + timedelta(hours=1),
         warnings=[],
     )
