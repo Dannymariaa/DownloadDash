@@ -18,32 +18,62 @@ def _count_cookie_rows(cookie_text: str) -> int:
     return count
 
 
-def _resolve_cookiefile() -> str | None:
-    if settings.YTDLP_COOKIEFILE:
-        print(f"Info: yt-dlp cookie file configured from path: {settings.YTDLP_COOKIEFILE}")
-        return settings.YTDLP_COOKIEFILE
+def _resolve_cookiefile(
+    label: str,
+    cookiefile: str | None,
+    cookie_data: str | None,
+    filename: str,
+) -> str | None:
+    if cookiefile:
+        print(f"Info: yt-dlp {label} cookie file configured from path: {cookiefile}")
+        return cookiefile
 
-    if not settings.YTDLP_COOKIE_DATA:
-        print("Info: yt-dlp cookies not configured")
+    if not cookie_data:
+        print(f"Info: yt-dlp {label} cookies not configured")
         return None
 
-    cookie_text = settings.YTDLP_COOKIE_DATA.replace("\\n", "\n").strip()
+    cookie_text = cookie_data.replace("\\n", "\n").strip()
     if not cookie_text:
-        print("Warning: SMD_YTDLP_COOKIE_DATA is set but empty after parsing")
+        print(f"Warning: yt-dlp {label} cookie data is set but empty after parsing")
         return None
 
-    cookie_path = Path(settings.TEMP_PATH) / "yt-dlp-cookies.txt"
+    cookie_path = Path(settings.TEMP_PATH) / filename
     cookie_path.write_text(cookie_text + "\n", encoding="utf-8")
     print(
-        f"Info: yt-dlp cookies loaded from environment into {cookie_path} "
+        f"Info: yt-dlp {label} cookies loaded from environment into {cookie_path} "
         f"with {_count_cookie_rows(cookie_text)} valid rows"
     )
     return str(cookie_path)
 
 
+default_cookiefile = _resolve_cookiefile(
+    "default/youtube",
+    settings.YTDLP_COOKIEFILE,
+    settings.YTDLP_COOKIE_DATA,
+    "yt-dlp-cookies.txt",
+)
+
+cookiefiles = {
+    "default": default_cookiefile,
+    "youtube": default_cookiefile,
+    "instagram": _resolve_cookiefile(
+        "instagram",
+        settings.YTDLP_COOKIEFILE_INSTAGRAM,
+        settings.YTDLP_COOKIE_DATA_INSTAGRAM,
+        "yt-dlp-instagram-cookies.txt",
+    ),
+    "tiktok": _resolve_cookiefile(
+        "tiktok",
+        settings.YTDLP_COOKIEFILE_TIKTOK,
+        settings.YTDLP_COOKIE_DATA_TIKTOK,
+        "yt-dlp-tiktok-cookies.txt",
+    ),
+}
+
 public_downloader = PublicPlatformDownloader(
     download_path=settings.DOWNLOAD_PATH,
-    cookiefile=_resolve_cookiefile(),
+    cookiefile=cookiefiles.get("default"),
+    cookiefiles=cookiefiles,
     proxy_url=settings.YTDLP_PROXY,
 )
 universal_downloader = UniversalMediaDownloader(public_downloader=public_downloader)

@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # downloads that require login (e.g. stories).
     YTDLP_COOKIEFILE: Optional[str] = None
     YTDLP_COOKIE_DATA: Optional[str] = None
+    YTDLP_COOKIEFILE_INSTAGRAM: Optional[str] = None
+    YTDLP_COOKIE_DATA_INSTAGRAM: Optional[str] = None
+    YTDLP_COOKIEFILE_TIKTOK: Optional[str] = None
+    YTDLP_COOKIE_DATA_TIKTOK: Optional[str] = None
     YTDLP_PROXY: Optional[str] = None
     
     # Platform API Keys

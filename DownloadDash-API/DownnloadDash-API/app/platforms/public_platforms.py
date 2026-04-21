@@ -15,10 +15,12 @@ class PublicPlatformDownloader:
         self,
         download_path: str = "./downloads",
         cookiefile: str | None = None,
+        cookiefiles: Optional[Dict[str, str | None]] = None,
         proxy_url: str | None = None,
     ):
         self.download_path = download_path
         self.cookiefile = cookiefile
+        self.cookiefiles = cookiefiles or {}
         self.proxy_url = proxy_url
         self.user_agent = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -101,6 +103,31 @@ class PublicPlatformDownloader:
         if self.proxy_url:
             opts["proxy"] = self.proxy_url
 
+        return opts
+
+    def _platform_key_for_url(self, url: str) -> str:
+        url_lower = url.lower()
+        if "instagram.com" in url_lower or "instagr.am" in url_lower:
+            return "instagram"
+        if "tiktok.com" in url_lower:
+            return "tiktok"
+        if "youtube.com" in url_lower or "youtu.be" in url_lower:
+            return "youtube"
+        return "default"
+
+    def _cookiefile_for_url(self, url: str) -> str | None:
+        platform_key = self._platform_key_for_url(url)
+        cookiefile = self.cookiefiles.get(platform_key) or self.cookiefiles.get("default") or self.cookiefile
+        if cookiefile and os.path.exists(cookiefile):
+            return cookiefile
+        return None
+
+    def _apply_cookiefile_for_url(self, opts: Dict[str, Any], url: str) -> Dict[str, Any]:
+        cookiefile = self._cookiefile_for_url(url)
+        if cookiefile:
+            opts["cookiefile"] = cookiefile
+        else:
+            opts.pop("cookiefile", None)
         return opts
 
     def _normalize_youtube_url(self, url: str) -> str:
@@ -205,6 +232,7 @@ class PublicPlatformDownloader:
         file_id = str(uuid.uuid4())
         output_template = os.path.join(self.download_path, f"{file_id}.%(ext)s")
         ydl_opts = self.get_ydl_opts(quality, output_template)
+        self._apply_cookiefile_for_url(ydl_opts, url)
         ydl_opts["extract_flat"] = False
         ydl_opts["noplaylist"] = True
         ydl_opts["http_headers"] = self._build_http_headers(url)
@@ -496,7 +524,7 @@ class PublicPlatformDownloader:
 
     async def _fallback_opengraph(self, url: str) -> Optional[Dict[str, Any]]:
         headers = self._build_http_headers(url)
-        cookies = self._load_cookiefile()
+        cookies = self._load_cookiefile(url)
         try:
             async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers, cookies=cookies) as client:
                 resp = await client.get(url)
@@ -557,7 +585,7 @@ class PublicPlatformDownloader:
             "X-IG-App-ID": "936619743392459",
             "X-Requested-With": "XMLHttpRequest",
         })
-        cookies = self._load_cookiefile()
+        cookies = self._load_cookiefile(url)
         api_url = f"https://www.instagram.com/p/{shortcode}/?__a=1&__d=dis"
 
         try:
@@ -615,7 +643,7 @@ class PublicPlatformDownloader:
 
     async def _fallback_instagram_html(self, url: str) -> Optional[Dict[str, Any]]:
         headers = self._build_http_headers(url)
-        cookies = self._load_cookiefile()
+        cookies = self._load_cookiefile(url)
         try:
             async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers, cookies=cookies) as client:
                 resp = await client.get(url)
@@ -705,12 +733,13 @@ class PublicPlatformDownloader:
         match = re.search(r"instagram\.com/(p|reel|tv)/([^/?#]+)", url)
         return match.group(2) if match else None
 
-    def _load_cookiefile(self) -> httpx.Cookies:
+    def _load_cookiefile(self, url: str | None = None) -> httpx.Cookies:
         jar = httpx.Cookies()
-        if not self.cookiefile or not os.path.exists(self.cookiefile):
+        cookiefile = self._cookiefile_for_url(url or "") if url else self.cookiefile
+        if not cookiefile or not os.path.exists(cookiefile):
             return jar
         try:
-            with open(self.cookiefile, "r", encoding="utf-8") as f:
+            with open(cookiefile, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if not line or line.startswith("#"):
