@@ -181,9 +181,10 @@ export default function DownloaderTemplate({
     alert('Saved to your collection!');
   };
 
-  const isImage =
-    result?.type === 'image' &&
-    !(result?.downloads?.videoHD || result?.downloads?.videoSD || result?.downloads?.audio);
+  const hasVideoHD = !!result?.downloads?.videoHD;
+  const hasVideoSD = !!result?.downloads?.videoSD;
+  const hasAudio = !!result?.downloads?.audio;
+  const hasVideoOrAudio = hasVideoHD || hasVideoSD || hasAudio;
 
   const downloadOptionsVariants = {
     hidden: { opacity: 0 },
@@ -414,7 +415,7 @@ export default function DownloaderTemplate({
                   initial="hidden"
                   animate="visible"
                 >
-                  {!isImage ? (
+                  {hasVideoOrAudio ? (
                     <>
                       {/* HD Video — full rewarded ad */}
                       <motion.button

@@ -187,6 +187,19 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
 
   if (kind === 'photo' || kind === 'image') kind = 'image';
   if (kind === 'album' || kind === 'carousel') kind = 'album';
+
+  // Ensure we always expose at least one actionable download per resolved kind.
+  if (kind === 'video' && !downloads.videoHD && finalDownloadUrl) {
+    downloads.videoHD = finalDownloadUrl;
+    downloads.videoSD = downloads.videoSD || finalDownloadUrl;
+  }
+  if (kind === 'audio' && !downloads.audio && finalDownloadUrl) {
+    downloads.audio = finalDownloadUrl;
+  }
+  if (kind === 'image' && !downloads.image && finalDownloadUrl) {
+    downloads.image = finalDownloadUrl;
+  }
+
   const platformOut = data?.media_info?.platform || platform || 'unknown';
 
   const albumItems = Array.isArray(data?.images)
