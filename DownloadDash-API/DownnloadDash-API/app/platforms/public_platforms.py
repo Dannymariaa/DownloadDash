@@ -353,6 +353,7 @@ class PublicPlatformDownloader:
         selected_sd = pick_best_max_height(480) or pick_best_max_height(720)
         selected_info_url = info.get("url")
         selected_info_ext = info.get("ext")
+        is_youtube = "youtube.com" in url or "youtu.be" in url
 
         # Decide kind and primary direct_url.
         if extract_audio:
@@ -367,11 +368,23 @@ class PublicPlatformDownloader:
 
         downloads: Dict[str, str] = {}
 
+        # If YouTube extraction returns metadata without any real media URL, surface an error.
+        if is_youtube:
+            if extract_audio and not (selected_audio and selected_audio.get("url")) and not selected_info_url:
+                raise Exception(
+                    "Resolve failed: YouTube did not return a downloadable audio format from this server. "
+                    "Try again shortly, refresh backend cookies, or rotate server IP/region."
+                )
+            if not extract_audio and not (selected_hd and selected_hd.get("url")) and not selected_info_url:
+                raise Exception(
+                    "Resolve failed: YouTube did not return downloadable video formats from this server. "
+                    "Try again shortly, refresh backend cookies, or rotate server IP/region."
+                )
+
         direct_url = selected_info_url or (primary.get("url") if primary else info.get("url"))
-        if not direct_url and thumbnail:
-            # Some Instagram photo posts only expose thumbnails.
+        if not direct_url and kind == "image" and thumbnail:
+            # For true image posts, thumbnail can be the only available direct asset.
             direct_url = thumbnail
-            kind = "image"
             if selected_image is None:
                 downloads["image"] = thumbnail
 
