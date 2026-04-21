@@ -205,6 +205,14 @@ class PublicPlatformDownloader:
         # Let yt-dlp expose everything first, then we choose the best URL ourselves.
         extract_opts = dict(ydl_opts)
         extract_opts.pop("format", None)
+        extract_opts["ignore_no_formats_error"] = True
+        extract_opts["skip_download"] = True
+        if "youtube.com" in url or "youtu.be" in url:
+            extract_opts["extractor_args"] = {
+                "youtube": {
+                    "player_client": ["android", "web", "mweb"],
+                }
+            }
 
         def extract_info(opts):
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -231,6 +239,8 @@ class PublicPlatformDownloader:
                         relaxed_opts.pop("format", None)
                     else:
                         relaxed_opts["format"] = fallback_format
+                    relaxed_opts["ignore_no_formats_error"] = True
+                    relaxed_opts["skip_download"] = True
                     try:
                         info = await loop.run_in_executor(None, lambda: extract_info(relaxed_opts))
                     except Exception:
