@@ -368,8 +368,69 @@ class PublicPlatformDownloader:
 
         downloads: Dict[str, str] = {}
 
-        # If YouTube extraction returns metadata without any real media URL, surface an error.
+        def _requested_url_from_info(extracted: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            if not extracted or not isinstance(extracted, dict):
+                return None
+
+            requested_downloads = extracted.get("requested_downloads") or []
+            if isinstance(requested_downloads, list):
+                for item in requested_downloads:
+                    if isinstance(item, dict) and item.get("url"):
+                        return item
+
+            requested_formats = extracted.get("requested_formats") or []
+            if isinstance(requested_formats, list):
+                for item in requested_formats:
+                    if isinstance(item, dict) and item.get("url"):
+                        return item
+
+            if extracted.get("url"):
+                return {
+                    "url": extracted.get("url"),
+                    "ext": extracted.get("ext"),
+                    "height": extracted.get("height"),
+                }
+            return None
+
+        async def _resolve_youtube_requested_url(format_selector: str) -> Optional[Dict[str, Any]]:
+            opts = dict(ydl_opts)
+            opts["extract_flat"] = False
+            opts["noplaylist"] = True
+            opts["skip_download"] = True
+            opts["ignore_no_formats_error"] = True
+            opts["format"] = format_selector
+            opts["extractor_args"] = {
+                "youtube": {
+                    "player_client": ["android", "web", "mweb"],
+                }
+            }
+            try:
+                extracted = await loop.run_in_executor(None, lambda: extract_info(opts))
+            except Exception:
+                return None
+            return _requested_url_from_info(extracted)
+
+        # If YouTube extraction returns metadata without any real media URL, try explicit format extraction.
         if is_youtube:
+            if extract_audio and not (selected_audio and selected_audio.get("url")) and not selected_info_url:
+                requested_audio = await _resolve_youtube_requested_url("bestaudio/best")
+                if requested_audio and requested_audio.get("url"):
+                    selected_audio = requested_audio
+                    selected_info_url = selected_info_url or requested_audio.get("url")
+                    selected_info_ext = selected_info_ext or requested_audio.get("ext")
+
+            if not extract_audio and not (selected_hd and selected_hd.get("url")) and not selected_info_url:
+                requested_video = None
+                for fmt in ("bestvideo+bestaudio/best", "best[ext=mp4]/best", "best"):
+                    requested_video = await _resolve_youtube_requested_url(fmt)
+                    if requested_video and requested_video.get("url"):
+                        break
+                if requested_video and requested_video.get("url"):
+                    selected_hd = requested_video
+                    selected_sd = selected_sd or requested_video
+                    selected_info_url = selected_info_url or requested_video.get("url")
+                    selected_info_ext = selected_info_ext or requested_video.get("ext")
+
             if extract_audio and not (selected_audio and selected_audio.get("url")) and not selected_info_url:
                 raise Exception(
                     "Resolve failed: YouTube did not return a downloadable audio format from this server. "
