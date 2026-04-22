@@ -1,4 +1,5 @@
 import os
+import re
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -32,7 +33,21 @@ async def download_youtube_file(
     try:
         result = await public_downloader.download_youtube_variant(url, variant)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"YouTube file download failed: {e}")
+        raw_error = str(e)
+        lowered = raw_error.lower()
+        if "sign in to confirm" in lowered or "not a bot" in lowered or "captcha" in lowered:
+            message = (
+                "YouTube is blocking this server for the final file download. "
+                "Refresh the YouTube cookies with a full logged-in browser export, then redeploy/restart the API. "
+                "If it still happens, move the API to a less-blocked region/IP."
+            )
+        elif "requested format is not available" in lowered:
+            message = "That YouTube quality is not available for this video. Try SD or audio."
+        else:
+            message = "YouTube file download failed. Please try again."
+
+        safe_detail = re.sub(r"\s+", " ", message).strip()
+        raise HTTPException(status_code=502, detail=safe_detail)
 
     path = result["path"]
     if not os.path.exists(path):

@@ -217,6 +217,10 @@ class PublicPlatformDownloader:
             "videoSD": build_url("sd"),
             "audio": build_url("audio"),
         }
+
+    def _youtube_extractor_args(self, player_clients: list[str]) -> Dict[str, Any]:
+        youtube_args: Dict[str, Any] = {"player_client": player_clients}
+        return {"youtube": youtube_args}
     
     async def get_media_info(self, url: str) -> Dict[str, Any]:
         """Extract media information without downloading"""
@@ -290,15 +294,24 @@ class PublicPlatformDownloader:
                 "skip_download": False,
                 "quiet": True,
                 "no_warnings": True,
+                "http_headers": self._build_http_headers(url),
             }
         )
         client_profiles = [
-            ("default", None),
-            ("android", ["android"]),
-            ("android_vr", ["android_vr"]),
-            ("tv_embedded", ["tv_embedded"]),
-            ("web", ["web"]),
-            ("mweb", ["mweb"]),
+            # Match the locally working yt-dlp flow first: no cookies, default
+            # jsless clients. yt-dlp currently chooses Android VR for many public
+            # videos in this mode.
+            ("default_nocookie", None, False),
+            # API/mobile clients do not support authenticated cookies in yt-dlp,
+            # so try explicit mobile clients without cookies before web clients.
+            ("android_vr_nocookie", ["android_vr"], False),
+            ("android_nocookie", ["android"], False),
+            ("ios_nocookie", ["ios"], False),
+            # Web clients support cookies; use them after the API/mobile clients.
+            ("web_cookie", ["web"], True),
+            ("mweb_cookie", ["mweb"], True),
+            ("web_embedded_cookie", ["web_embedded"], True),
+            ("default_cookie", None, True),
         ]
 
         def run_download(download_opts: Dict[str, Any]):
@@ -308,12 +321,14 @@ class PublicPlatformDownloader:
         info = None
         last_error: Exception | None = None
         try:
-            for profile_name, player_clients in client_profiles:
+            for profile_name, player_clients, use_cookies in client_profiles:
                 opts = dict(base_opts)
                 if player_clients:
-                    opts["extractor_args"] = {"youtube": {"player_client": player_clients}}
+                    opts["extractor_args"] = self._youtube_extractor_args(player_clients)
                 else:
                     opts.pop("extractor_args", None)
+                if not use_cookies:
+                    opts.pop("cookiefile", None)
 
                 self._log_ydl_context(f"youtube.download.{variant}.{profile_name}", url, opts)
                 try:
