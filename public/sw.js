@@ -1,4 +1,4 @@
-const CACHE_NAME = 'downloaddash-v2';
+const CACHE_NAME = 'downloaddash-v3-secure';
 const urlsToCache = [
   '/',
   '/manifest.json',
@@ -19,6 +19,11 @@ self.addEventListener('install', (event) => {
 
 // Fetch Event
 self.addEventListener('fetch', (event) => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(fetch(event.request).catch(() => caches.match('/')));
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {

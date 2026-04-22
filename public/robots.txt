@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://downloaddash.app/sitemap.xml
+Sitemap: https://www.downloaddash.store/sitemap.xml
