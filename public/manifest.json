@@ -3,7 +3,9 @@
   "short_name": "DownloadDash",
   "description": "Fast and easy multi-platform video downloader",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
+  "display_override": ["standalone", "browser"],
   "background_color": "#000000",
   "theme_color": "#3b82f6",
   "orientation": "portrait-primary",
@@ -16,6 +18,18 @@
       "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/download-dash-logo.png?v=20260414",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/download-dash-logo.png?v=20260414",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "shortcuts": [

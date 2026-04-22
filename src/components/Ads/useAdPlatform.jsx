@@ -14,11 +14,19 @@ export function useAdPlatform() {
   const [isMobileApp, setIsMobileApp] = useState(false);
 
   useEffect(() => {
+    const safeNavigator = typeof navigator !== 'undefined' ? navigator : { userAgent: '' };
+    let nativeFlag = false;
+    try {
+      nativeFlag = localStorage.getItem('NATIVE_APP') === 'true';
+    } catch {
+      nativeFlag = false;
+    }
+
     const isNative =
       (typeof window !== 'undefined' && typeof window.Capacitor !== 'undefined') ||
-      /\bwv\b/i.test(navigator.userAgent) ||
-      window.location.protocol === 'capacitor:' ||
-      localStorage.getItem('NATIVE_APP') === 'true';
+      /\bwv\b/i.test(safeNavigator.userAgent || '') ||
+      (typeof window !== 'undefined' && window.location.protocol === 'capacitor:') ||
+      nativeFlag;
 
     setIsMobileApp(isNative);
   }, []);
