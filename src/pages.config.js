@@ -51,6 +51,9 @@ import Home from './pages/Home';
 import YouTubeDownloader from './pages/YouTubeDownloader';
 import Dashboard from './pages/Dashboard';
 import RecommendedApps from './pages/RecommendedApps';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+import Contact from './pages/Contact';
 import __Layout from './Layout.jsx';
 
 
@@ -59,6 +62,9 @@ export const PAGES = {
     "YouTubeDownloader": YouTubeDownloader,
     "Dashboard": Dashboard,
     "RecommendedApps": RecommendedApps,
+    "PrivacyPolicy": PrivacyPolicy,
+    "TermsOfService": TermsOfService,
+    "Contact": Contact,
 }
 
 export const pagesConfig = {

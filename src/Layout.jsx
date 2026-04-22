@@ -164,6 +164,9 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
                 <Link to={createPageUrl('Home')} className="block text-gray-400 hover:text-purple-400 text-sm">Home</Link>
                 <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">Dashboard</Link>
                 <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">Recommended Apps</Link>
+                <Link to={createPageUrl('PrivacyPolicy')} className="block text-gray-400 hover:text-purple-400 text-sm">Privacy Policy</Link>
+                <Link to={createPageUrl('TermsOfService')} className="block text-gray-400 hover:text-purple-400 text-sm">Terms of Service</Link>
+                <Link to={createPageUrl('Contact')} className="block text-gray-400 hover:text-purple-400 text-sm">Contact</Link>
               </div>
             </div>
           </div>
