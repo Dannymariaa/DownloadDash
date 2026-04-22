@@ -32,6 +32,7 @@ def _resolve_cookiefile(
         print(f"Info: yt-dlp {label} cookies not configured")
         return None
 
+    print(f"Info: yt-dlp {label} cookie env length: {len(cookie_data)}")
     cookie_text = cookie_data.replace("\\n", "\n").strip()
     if not cookie_text:
         print(f"Warning: yt-dlp {label} cookie data is set but empty after parsing")
@@ -41,7 +42,7 @@ def _resolve_cookiefile(
     cookie_path.write_text(cookie_text + "\n", encoding="utf-8")
     print(
         f"Info: yt-dlp {label} cookies loaded from environment into {cookie_path} "
-        f"with {_count_cookie_rows(cookie_text)} valid rows"
+        f"with {_count_cookie_rows(cookie_text)} valid rows and parsed length {len(cookie_text)}"
     )
     return str(cookie_path)
 
