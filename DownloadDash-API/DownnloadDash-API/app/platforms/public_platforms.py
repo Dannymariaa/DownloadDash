@@ -141,6 +141,25 @@ class PublicPlatformDownloader:
             f"proxy_applied={bool(opts.get('proxy'))}"
         )
 
+    def _cookie_names_for_url(self, url: str) -> list[str]:
+        cookiefile = self._cookiefile_for_url(url)
+        if not cookiefile:
+            return []
+
+        names: list[str] = []
+        try:
+            with open(cookiefile, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped or stripped.startswith("#"):
+                        continue
+                    parts = stripped.split("\t")
+                    if len(parts) >= 7:
+                        names.append(parts[5])
+        except Exception:
+            return []
+        return names
+
     def _normalize_youtube_url(self, url: str) -> str:
         if "youtube.com" not in url and "youtu.be" not in url:
             return url
@@ -258,6 +277,11 @@ class PublicPlatformDownloader:
         output_template = os.path.join(self.download_path, f"{file_id}.%(ext)s")
         opts = self.get_ydl_opts(Quality.HIGH, output_template)
         self._apply_cookiefile_for_url(opts, url)
+        cookie_names = self._cookie_names_for_url(url)
+        print(
+            "Info: yt-dlp youtube download cookie names: "
+            f"{', '.join(cookie_names) if cookie_names else 'none'}"
+        )
         opts.update(
             {
                 "format": format_selector,
@@ -273,7 +297,17 @@ class PublicPlatformDownloader:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=True)
 
-        info = await loop.run_in_executor(None, run_download)
+        try:
+            info = await loop.run_in_executor(None, run_download)
+        except Exception as e:
+            cookiefile = opts.get("cookiefile")
+            cookie_ok = bool(cookiefile and os.path.exists(cookiefile))
+            raise Exception(
+                f"{e} "
+                f"(cookiefile_applied={cookie_ok}, "
+                f"cookie_count={len(cookie_names)}, "
+                f"cookie_names={','.join(cookie_names) if cookie_names else 'none'})"
+            )
 
         candidates = [
             os.path.join(self.download_path, name)
