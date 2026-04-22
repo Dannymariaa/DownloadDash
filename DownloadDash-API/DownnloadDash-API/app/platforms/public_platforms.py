@@ -130,6 +130,17 @@ class PublicPlatformDownloader:
             opts.pop("cookiefile", None)
         return opts
 
+    def _log_ydl_context(self, label: str, url: str, opts: Dict[str, Any]) -> None:
+        cookiefile = opts.get("cookiefile")
+        cookie_ok = bool(cookiefile and os.path.exists(cookiefile))
+        print(
+            "Info: yt-dlp "
+            f"{label} platform={self._platform_key_for_url(url)} "
+            f"cookiefile_applied={cookie_ok} "
+            f"cookiefile_path={cookiefile if cookie_ok else 'none'} "
+            f"proxy_applied={bool(opts.get('proxy'))}"
+        )
+
     def _normalize_youtube_url(self, url: str) -> str:
         if "youtube.com" not in url and "youtu.be" not in url:
             return url
@@ -181,6 +192,10 @@ class PublicPlatformDownloader:
             'no_warnings': True,
             'extract_flat': True,
         }
+        self._apply_cookiefile_for_url(ydl_opts, url)
+        if self.proxy_url:
+            ydl_opts["proxy"] = self.proxy_url
+        self._log_ydl_context("get_media_info", url, ydl_opts)
         
         def extract_info():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -249,6 +264,7 @@ class PublicPlatformDownloader:
                     "player_client": ["android", "web", "mweb"],
                 }
             }
+        self._log_ydl_context("resolve_media.extract", url, extract_opts)
 
         def extract_info(opts):
             with yt_dlp.YoutubeDL(opts) as ydl:
@@ -440,6 +456,7 @@ class PublicPlatformDownloader:
                     "player_client": ["android", "web", "mweb"],
                 }
             }
+            self._log_ydl_context("youtube.requested_url", url, opts)
             try:
                 extracted = await loop.run_in_executor(None, lambda: extract_info(opts))
             except Exception:
