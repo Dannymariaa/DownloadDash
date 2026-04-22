@@ -72,10 +72,10 @@ export default function Home() {
                   size="lg"
                   variant="outline"
                   className="h-14 px-8 border-purple-500/30 text-purple-400 hover:bg-purple-500/20 rounded-xl text-lg"
-                  onClick={() => window.location.assign(createPageUrl('Contact'))}
+                  onClick={() => window.location.assign(createPageUrl('DownloadApp'))}
                 >
                   <Smartphone className="mr-2 h-5 w-5" />
-                  Contact Support
+                  Get Mobile App
                 </Button>
               </motion.div>
             </div>
@@ -267,18 +267,18 @@ export default function Home() {
                 Download the App
               </h2>
               <p className="text-gray-400 mb-8 max-w-xl mx-auto">
-                Get DownloadDash on your device for the best experience. Available as APK - coming soon to Play Store & App Store!
+                Install DownloadDash from your browser, use it as a mobile web app, or download the Android APK when available.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Button
                     size="lg"
-                    disabled
                     className="h-14 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl"
+                    onClick={() => window.location.assign(createPageUrl('DownloadApp'))}
                   >
                     <Download className="mr-2 h-5 w-5" />
-                    APK Coming Soon
+                    Download / Install App
                   </Button>
                 </motion.div>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>

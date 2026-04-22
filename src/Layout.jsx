@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Home, Download, User, LogIn, Bookmark, History } from 'lucide-react';
+import { Menu, X, Home, Download, User, LogIn, Bookmark, History, Smartphone } from 'lucide-react';
 import { YouTubeIcon } from '@/components/PlatformIcons';
 import { Button } from '@/components/ui/button';
 import downloadDash from '@/api/downloadDashClient';
@@ -79,6 +79,9 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
               <Link to={createPageUrl('RecommendedApps')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
                 <Bookmark className="h-4 w-4" /> Apps
               </Link>
+              <Link to={createPageUrl('DownloadApp')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
+                <Smartphone className="h-4 w-4" /> Mobile App
+              </Link>
               {user && (
                 <Link to={createPageUrl('Dashboard')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
                   <History className="h-4 w-4" /> Dashboard
@@ -120,6 +123,9 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
                 </Link>
                 <Link to={createPageUrl('RecommendedApps')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                   <Bookmark className="h-5 w-5" /> Recommended Apps
+                </Link>
+                <Link to={createPageUrl('DownloadApp')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
+                  <Smartphone className="h-5 w-5" /> Mobile App
                 </Link>
                 {user ? (
                   <Link to={createPageUrl('Dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
@@ -164,6 +170,7 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
                 <Link to={createPageUrl('Home')} className="block text-gray-400 hover:text-purple-400 text-sm">Home</Link>
                 <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">Dashboard</Link>
                 <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">Recommended Apps</Link>
+                <Link to={createPageUrl('DownloadApp')} className="block text-gray-400 hover:text-purple-400 text-sm">Download Mobile App</Link>
                 <Link to={createPageUrl('PrivacyPolicy')} className="block text-gray-400 hover:text-purple-400 text-sm">Privacy Policy</Link>
                 <Link to={createPageUrl('TermsOfService')} className="block text-gray-400 hover:text-purple-400 text-sm">Terms of Service</Link>
                 <Link to={createPageUrl('Contact')} className="block text-gray-400 hover:text-purple-400 text-sm">Contact</Link>
