@@ -71,11 +71,18 @@ cookiefiles = {
     ),
 }
 
+if settings.YTDLP_PROXY_YOUTUBE or settings.YTDLP_PROXY:
+    proxy_source = "SMD_YTDLP_PROXY_YOUTUBE" if settings.YTDLP_PROXY_YOUTUBE else "SMD_YTDLP_PROXY"
+    print(f"Info: yt-dlp YouTube proxy fallback configured from {proxy_source}")
+else:
+    print("Info: yt-dlp YouTube proxy fallback not configured")
+
 public_downloader = PublicPlatformDownloader(
     download_path=settings.DOWNLOAD_PATH,
     cookiefile=cookiefiles.get("default"),
     cookiefiles=cookiefiles,
     proxy_url=settings.YTDLP_PROXY,
+    youtube_proxy_url=settings.YTDLP_PROXY_YOUTUBE or settings.YTDLP_PROXY,
 )
 universal_downloader = UniversalMediaDownloader(public_downloader=public_downloader)
 whatsapp_downloader = WhatsAppDownloader(bridge_url=settings.WHATSAPP_BRIDGE_URL)

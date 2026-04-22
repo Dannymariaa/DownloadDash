@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     YTDLP_COOKIEFILE_TIKTOK: Optional[str] = None
     YTDLP_COOKIE_DATA_TIKTOK: Optional[str] = None
     YTDLP_PROXY: Optional[str] = None
+    YTDLP_PROXY_YOUTUBE: Optional[str] = None
     
     # Platform API Keys
     INSTAGRAM_USERNAME: Optional[str] = None

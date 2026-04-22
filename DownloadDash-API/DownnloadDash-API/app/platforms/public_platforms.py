@@ -17,11 +17,13 @@ class PublicPlatformDownloader:
         cookiefile: str | None = None,
         cookiefiles: Optional[Dict[str, str | None]] = None,
         proxy_url: str | None = None,
+        youtube_proxy_url: str | None = None,
     ):
         self.download_path = download_path
         self.cookiefile = cookiefile
         self.cookiefiles = cookiefiles or {}
         self.proxy_url = proxy_url
+        self.youtube_proxy_url = youtube_proxy_url
         self.user_agent = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -221,6 +223,37 @@ class PublicPlatformDownloader:
     def _youtube_extractor_args(self, player_clients: list[str]) -> Dict[str, Any]:
         youtube_args: Dict[str, Any] = {"player_client": player_clients}
         return {"youtube": youtube_args}
+
+    def _youtube_client_profiles(self) -> list[tuple[str, list[str] | None, bool, bool]]:
+        base_profiles: list[tuple[str, list[str] | None, bool]] = [
+            # Match the locally working yt-dlp flow first: no cookies, default
+            # jsless clients. yt-dlp currently chooses Android VR for many public
+            # videos in this mode.
+            ("default_nocookie", None, False),
+            # API/mobile clients do not support authenticated cookies in yt-dlp,
+            # so try explicit mobile clients without cookies before web clients.
+            ("android_vr_nocookie", ["android_vr"], False),
+            ("android_nocookie", ["android"], False),
+            ("ios_nocookie", ["ios"], False),
+            # Web clients support cookies; use them after the API/mobile clients.
+            ("web_cookie", ["web"], True),
+            ("mweb_cookie", ["mweb"], True),
+            ("web_embedded_cookie", ["web_embedded"], True),
+            ("default_cookie", None, True),
+        ]
+
+        profiles: list[tuple[str, list[str] | None, bool, bool]] = [
+            (name, clients, use_cookies, False)
+            for name, clients, use_cookies in base_profiles
+        ]
+
+        if self.youtube_proxy_url:
+            profiles.extend(
+                (f"{name}_proxy", clients, use_cookies, True)
+                for name, clients, use_cookies in base_profiles
+            )
+
+        return profiles
     
     async def get_media_info(self, url: str) -> Dict[str, Any]:
         """Extract media information without downloading"""
@@ -297,22 +330,7 @@ class PublicPlatformDownloader:
                 "http_headers": self._build_http_headers(url),
             }
         )
-        client_profiles = [
-            # Match the locally working yt-dlp flow first: no cookies, default
-            # jsless clients. yt-dlp currently chooses Android VR for many public
-            # videos in this mode.
-            ("default_nocookie", None, False),
-            # API/mobile clients do not support authenticated cookies in yt-dlp,
-            # so try explicit mobile clients without cookies before web clients.
-            ("android_vr_nocookie", ["android_vr"], False),
-            ("android_nocookie", ["android"], False),
-            ("ios_nocookie", ["ios"], False),
-            # Web clients support cookies; use them after the API/mobile clients.
-            ("web_cookie", ["web"], True),
-            ("mweb_cookie", ["mweb"], True),
-            ("web_embedded_cookie", ["web_embedded"], True),
-            ("default_cookie", None, True),
-        ]
+        client_profiles = self._youtube_client_profiles()
 
         def run_download(download_opts: Dict[str, Any]):
             with yt_dlp.YoutubeDL(download_opts) as ydl:
@@ -321,7 +339,7 @@ class PublicPlatformDownloader:
         info = None
         last_error: Exception | None = None
         try:
-            for profile_name, player_clients, use_cookies in client_profiles:
+            for profile_name, player_clients, use_cookies, use_proxy in client_profiles:
                 opts = dict(base_opts)
                 if player_clients:
                     opts["extractor_args"] = self._youtube_extractor_args(player_clients)
@@ -329,6 +347,10 @@ class PublicPlatformDownloader:
                     opts.pop("extractor_args", None)
                 if not use_cookies:
                     opts.pop("cookiefile", None)
+                if use_proxy and self.youtube_proxy_url:
+                    opts["proxy"] = self.youtube_proxy_url
+                else:
+                    opts.pop("proxy", None)
 
                 self._log_ydl_context(f"youtube.download.{variant}.{profile_name}", url, opts)
                 try:
