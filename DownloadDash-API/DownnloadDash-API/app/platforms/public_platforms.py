@@ -258,12 +258,6 @@ class PublicPlatformDownloader:
         extract_opts.pop("format", None)
         extract_opts["ignore_no_formats_error"] = True
         extract_opts["skip_download"] = True
-        if "youtube.com" in url or "youtu.be" in url:
-            extract_opts["extractor_args"] = {
-                "youtube": {
-                    "player_client": ["android", "web", "mweb"],
-                }
-            }
         self._log_ydl_context("resolve_media.extract", url, extract_opts)
 
         def extract_info(opts):
@@ -361,6 +355,12 @@ class PublicPlatformDownloader:
         formats = info.get("formats") or []
         thumbnail = info.get("thumbnail")
         title = info.get("title", "Untitled")
+        if "youtube.com" in url or "youtu.be" in url:
+            direct_format_count = sum(1 for f in formats if f.get("url"))
+            print(
+                "Info: yt-dlp youtube formats "
+                f"total={len(formats)} direct_urls={direct_format_count}"
+            )
 
         def pick_best(predicate):
             candidates = [f for f in formats if f.get("url") and predicate(f)]
@@ -451,11 +451,6 @@ class PublicPlatformDownloader:
             opts["skip_download"] = True
             opts["ignore_no_formats_error"] = True
             opts["format"] = format_selector
-            opts["extractor_args"] = {
-                "youtube": {
-                    "player_client": ["android", "web", "mweb"],
-                }
-            }
             self._log_ydl_context("youtube.requested_url", url, opts)
             try:
                 extracted = await loop.run_in_executor(None, lambda: extract_info(opts))
