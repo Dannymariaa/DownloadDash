@@ -30,6 +30,11 @@ const tryParseJson = async (res) => {
   }
 };
 
+const getResponseMessage = async (res, fallback) => {
+  const data = await tryParseJson(res);
+  return data?.detail || data?.error || data?.message || fallback;
+};
+
 const postJson = async (path, body) => {
   const baseUrl = getApiBaseUrl();
   let res;
@@ -67,10 +72,18 @@ const sanitizeFilename = (name) =>
 
 export const downloadToDevice = async (fileUrl, filename) => {
   const safeName = sanitizeFilename(filename);
+  const absoluteFileUrl = absolutizeApiUrl(fileUrl);
+  const baseUrl = getApiBaseUrl();
+  const isApiManagedDownload =
+    typeof absoluteFileUrl === 'string' &&
+    absoluteFileUrl.startsWith(`${baseUrl}/youtube/file`);
 
   try {
-    const res = await fetch(fileUrl, { method: 'GET' });
-    if (!res.ok) throw new Error(`Failed to fetch file (${res.status})`);
+    const res = await fetch(absoluteFileUrl, { method: 'GET' });
+    if (!res.ok) {
+      const message = await getResponseMessage(res, `Failed to fetch file (${res.status})`);
+      throw new Error(message);
+    }
     const blob = await res.blob();
 
     const objectUrl = URL.createObjectURL(blob);
@@ -83,20 +96,18 @@ export const downloadToDevice = async (fileUrl, filename) => {
     URL.revokeObjectURL(objectUrl);
     return true;
   } catch (error) {
+    if (isApiManagedDownload) {
+      throw error;
+    }
+
     // Fallback: proxy download through API to avoid CORS blocks
-    const baseUrl = getApiBaseUrl();
     const proxyRes = await fetch(`${baseUrl}/download/file`, {
       method: 'POST',
       headers: buildHeaders(),
-      body: JSON.stringify({ url: fileUrl, filename: safeName || 'download' }),
+      body: JSON.stringify({ url: absoluteFileUrl, filename: safeName || 'download' }),
     });
     if (!proxyRes.ok) {
-      const data = await tryParseJson(proxyRes);
-      const message =
-        data?.detail ||
-        data?.error ||
-        data?.message ||
-        `Proxy download failed (${proxyRes.status})`;
+      const message = await getResponseMessage(proxyRes, `Proxy download failed (${proxyRes.status})`);
       throw new Error(message);
     }
     const blob = await proxyRes.blob();
