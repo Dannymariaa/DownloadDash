@@ -54,7 +54,6 @@ import RecommendedApps from './pages/RecommendedApps';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import Contact from './pages/Contact';
-import DownloadApp from './pages/DownloadApp';
 import __Layout from './Layout.jsx';
 
 
@@ -66,7 +65,6 @@ export const PAGES = {
     "PrivacyPolicy": PrivacyPolicy,
     "TermsOfService": TermsOfService,
     "Contact": Contact,
-    "DownloadApp": DownloadApp,
 }
 
 export const pagesConfig = {

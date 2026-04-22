@@ -34,13 +34,6 @@
   ],
   "shortcuts": [
     {
-      "name": "Download App",
-      "short_name": "App",
-      "description": "Install DownloadDash on your device",
-      "url": "/DownloadApp",
-      "icons": [{ "src": "/download-dash-logo.png?v=20260414", "sizes": "1024x1024" }]
-    },
-    {
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "View your download history",

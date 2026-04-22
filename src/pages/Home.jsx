@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Download, Zap, Shield, Globe, Star, ArrowDown, Smartphone, FileText, Mail, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,81 @@ const stats = [
   { value: 'Help', label: 'Support Available' },
 ];
 
+const APK_URL = '/downloads/DownloadDash.apk';
+
+const getDeviceType = () => {
+  const userAgent = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+
+  return {
+    isAndroid: /Android/i.test(userAgent),
+    isIOS:
+      /iPhone|iPad|iPod/i.test(userAgent) ||
+      (platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+  };
+};
+
 export default function Home() {
+  const [installPrompt, setInstallPrompt] = useState(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const downloadApkIfAvailable = async () => {
+    try {
+      const response = await fetch(APK_URL, { method: 'HEAD', cache: 'no-store' });
+      const contentType = response.headers.get('content-type') || '';
+      const isApk =
+        contentType.includes('application/vnd.android.package-archive') ||
+        contentType.includes('application/octet-stream');
+
+      if (!response.ok || !isApk) {
+        alert('The Android APK has not been uploaded yet. Add it at public/downloads/DownloadDash.apk and redeploy.');
+        return;
+      }
+
+      const link = document.createElement('a');
+      link.href = APK_URL;
+      link.download = 'DownloadDash.apk';
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch {
+      alert('The Android APK could not be reached right now. Please try again after redeploy.');
+    }
+  };
+
+  const handleAppDownload = async () => {
+    const device = getDeviceType();
+
+    if (installPrompt) {
+      installPrompt.prompt();
+      await installPrompt.userChoice;
+      setInstallPrompt(null);
+      return;
+    }
+
+    if (device.isAndroid) {
+      await downloadApkIfAvailable();
+      return;
+    }
+
+    if (device.isIOS) {
+      alert('iPhone and iPad do not allow one-click APK installs. Open this site in Safari, tap Share, then tap Add to Home Screen.');
+      return;
+    }
+
+    alert('Use your browser install button/menu to install DownloadDash. On Chrome or Edge, look for Install app in the address bar or browser menu.');
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
       <AdBanner position="top" size="small" />
@@ -72,10 +146,10 @@ export default function Home() {
                   size="lg"
                   variant="outline"
                   className="h-14 px-8 border-purple-500/30 text-purple-400 hover:bg-purple-500/20 rounded-xl text-lg"
-                  onClick={() => window.location.assign(createPageUrl('DownloadApp'))}
+                  onClick={handleAppDownload}
                 >
                   <Smartphone className="mr-2 h-5 w-5" />
-                  Get Mobile App
+                  Download App
                 </Button>
               </motion.div>
             </div>
@@ -275,7 +349,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     className="h-14 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl"
-                    onClick={() => window.location.assign(createPageUrl('DownloadApp'))}
+                    onClick={handleAppDownload}
                   >
                     <Download className="mr-2 h-5 w-5" />
                     Download / Install App
