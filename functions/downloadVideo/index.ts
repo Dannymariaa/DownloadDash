@@ -11,11 +11,16 @@ Deno.serve(async (req) => {
     const apiBaseUrlRaw =
       Deno.env.get("SMD_API_BASE_URL") ||
       Deno.env.get("SOCIAL_DOWNLOADER_API_BASE_URL") ||
-      "http://127.0.0.1:8000";
+      "https://api.downloaddash.store";
     const apiBaseUrl = apiBaseUrlRaw.replace(/\/+$/, "");
     const apiKey = Deno.env.get("SMD_API_KEY") || Deno.env.get("SOCIAL_DOWNLOADER_API_KEY") || "";
+    const normalizedPlatform =
+      platform === "whatsappbusiness"
+        ? "whatsapp_business"
+        : platform;
 
-    const upstreamRes = await fetch(`${apiBaseUrl}/download`, {
+    const upstreamPath = normalizedPlatform ? `/${normalizedPlatform}/download` : "/download";
+    const upstreamRes = await fetch(`${apiBaseUrl}${upstreamPath}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -23,7 +28,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         url,
-        platform,
+        platform: normalizedPlatform,
         quality: quality || "highest",
         extract_audio: !!extractAudio,
         include_metadata: true,

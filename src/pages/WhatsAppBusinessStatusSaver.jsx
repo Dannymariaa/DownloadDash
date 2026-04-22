@@ -10,7 +10,7 @@ import { downloadDash } from '@/api/downloadDashClient';
 import AdBanner from '@/components/AdBanner';
 import VideoAdOverlay from '@/components/VideoAdOverlay';
 
-const BRIDGE_BASE_URL = import.meta.env.VITE_WA_BUSINESS_BRIDGE_URL || 'http://127.0.0.1:3005';
+const BRIDGE_BASE_URL = (import.meta.env.VITE_WA_BUSINESS_BRIDGE_URL || '').replace(/\/+$/, '');
 
 export default function WhatsAppBusinessStatusSaver() {
   const [user, setUser] = useState(null);
@@ -28,6 +28,9 @@ export default function WhatsAppBusinessStatusSaver() {
     setStatusLoadError('');
 
     try {
+      if (!BRIDGE_BASE_URL) {
+        throw new Error('WhatsApp Business bridge URL is not configured.');
+      }
       const res = await fetch(`${BRIDGE_BASE_URL}/downloads`);
       if (!res.ok) throw new Error(`Bridge request failed (${res.status})`);
       const data = await res.json();
@@ -57,7 +60,7 @@ export default function WhatsAppBusinessStatusSaver() {
       setStatusItems({ images: [], videos: [] });
       console.log('[DownloadDash] WhatsApp bridge /downloads failed:', e);
       setStatusLoadError(
-        'No statuses found. Make sure the WhatsApp Business bridge is running on port 3003 and you are connected.'
+        'WhatsApp Business bridge is not connected. On the public website, configure an HTTPS bridge URL before using this saver.'
       );
     } finally {
       setIsStatusLoading(false);
