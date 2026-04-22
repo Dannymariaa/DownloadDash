@@ -282,7 +282,8 @@ class PublicPlatformDownloader:
             "Info: yt-dlp youtube download cookie names: "
             f"{', '.join(cookie_names) if cookie_names else 'none'}"
         )
-        opts.update(
+        base_opts = dict(opts)
+        base_opts.update(
             {
                 "format": format_selector,
                 "noplaylist": True,
@@ -291,19 +292,45 @@ class PublicPlatformDownloader:
                 "no_warnings": True,
             }
         )
-        self._log_ydl_context(f"youtube.download.{variant}", url, opts)
+        client_profiles = [
+            ("default", None),
+            ("android", ["android"]),
+            ("android_vr", ["android_vr"]),
+            ("tv_embedded", ["tv_embedded"]),
+            ("web", ["web"]),
+            ("mweb", ["mweb"]),
+        ]
 
-        def run_download():
-            with yt_dlp.YoutubeDL(opts) as ydl:
+        def run_download(download_opts: Dict[str, Any]):
+            with yt_dlp.YoutubeDL(download_opts) as ydl:
                 return ydl.extract_info(url, download=True)
 
+        info = None
+        last_error: Exception | None = None
         try:
-            info = await loop.run_in_executor(None, run_download)
+            for profile_name, player_clients in client_profiles:
+                opts = dict(base_opts)
+                if player_clients:
+                    opts["extractor_args"] = {"youtube": {"player_client": player_clients}}
+                else:
+                    opts.pop("extractor_args", None)
+
+                self._log_ydl_context(f"youtube.download.{variant}.{profile_name}", url, opts)
+                try:
+                    info = await loop.run_in_executor(None, lambda opts=opts: run_download(opts))
+                    last_error = None
+                    break
+                except Exception as e:
+                    last_error = e
+                    print(f"Warning: yt-dlp youtube download profile {profile_name} failed: {e}")
         except Exception as e:
-            cookiefile = opts.get("cookiefile")
+            last_error = e
+
+        if info is None:
+            cookiefile = base_opts.get("cookiefile")
             cookie_ok = bool(cookiefile and os.path.exists(cookiefile))
             raise Exception(
-                f"{e} "
+                f"{last_error or 'yt-dlp did not return download info'} "
                 f"(cookiefile_applied={cookie_ok}, "
                 f"cookie_count={len(cookie_names)}, "
                 f"cookie_names={','.join(cookie_names) if cookie_names else 'none'})"
