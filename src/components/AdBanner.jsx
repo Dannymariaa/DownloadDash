@@ -2,13 +2,11 @@ import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAdPlatform } from './Ads/useAdPlatform';
 
+const ADSENSE_CLIENT_ID = 'ca-pub-2390460896724446';
+
 /**
  * Smart Ad Banner – shows AdSense on web, leaves space for AdMob on native app.
  * AdSense and AdMob will NEVER show at the same time.
- *
- * To activate AdSense: replace ca-pub-XXXXXXXXXXXXXXXX with your publisher ID
- * and add the AdSense script to index.html:
- *   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
  *
  * To activate AdMob: set localStorage.setItem('NATIVE_APP', 'true') in Capacitor init.
  */
@@ -52,8 +50,7 @@ export default function AdBanner({ position = 'top', size = 'medium' }) {
       <ins
         className="adsbygoogle"
         style={{ display: 'block', width: '100%', ...sizeStyles[size] }}
-        data-ad-client="ca-pub-XXXXXXXXXXXXXXXX"
-        data-ad-slot="XXXXXXXXXX"
+        data-ad-client={ADSENSE_CLIENT_ID}
         data-ad-format="auto"
         data-full-width-responsive="true"
       />
@@ -61,7 +58,7 @@ export default function AdBanner({ position = 'top', size = 'medium' }) {
       <div className="absolute inset-0 -z-10 bg-gradient-to-r from-purple-900/25 via-black/40 to-purple-900/25 border border-purple-500/20 rounded-xl flex items-center justify-center">
         <div className="text-center">
           <p className="text-purple-400/50 text-xs font-medium">Advertisement</p>
-          <p className="text-gray-600 text-xs">ca-pub-XXXXXXXXXXXXXXXX</p>
+          <p className="text-gray-600 text-xs">{ADSENSE_CLIENT_ID}</p>
         </div>
       </div>
     </motion.div>

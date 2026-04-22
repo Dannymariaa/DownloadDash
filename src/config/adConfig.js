@@ -80,16 +80,19 @@ export const getPlatformAdConfig = () => {
   }
 };
 
-// Initialize Google Mobile Ads SDK
+const ADSENSE_CLIENT_ID = 'ca-pub-2390460896724446';
+
+// Initialize Google AdSense for web. Native AdMob uses the platform unit IDs above.
 export const initializeAdMob = () => {
   if (typeof window !== 'undefined' && !window.adsbygoogle) {
     const script = document.createElement('script');
     script.async = true;
-    script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-app-pub-2390460896724446';
+    script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`;
+    script.crossOrigin = 'anonymous';
     script.onload = () => {
       window.adsbygoogle = window.adsbygoogle || [];
       window.adsbygoogle.push({
-        google_ad_client: 'ca-app-pub-2390460896724446',
+        google_ad_client: ADSENSE_CLIENT_ID,
         enable_page_level_ads: true
       });
     };
