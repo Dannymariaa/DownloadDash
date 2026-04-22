@@ -250,7 +250,7 @@ export default function DownloaderTemplate({
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
             {platformName} Downloader
           </h1>
-          <p className="text-gray-400 text-lg mb-3">Download videos, stories, and images without watermark</p>
+          <p className="text-gray-400 text-lg mb-3">Save supported public media links for personal, permitted use</p>
           <div className="flex flex-wrap justify-center gap-2 mb-8">
             {supportedTypes.map((t, i) => (
               <span key={i} className="px-4 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-sm">{t}</span>
@@ -270,7 +270,7 @@ export default function DownloaderTemplate({
                 <LinkIcon className="h-6 w-6 text-purple-400" />
               </div>
               <h3 className="font-semibold text-white">1. Paste URL</h3>
-              <p className="text-gray-500 text-sm">Copy the {platformName} video link</p>
+              <p className="text-gray-500 text-sm">Copy a public {platformName} link you are allowed to save</p>
             </motion.div>
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -290,7 +290,7 @@ export default function DownloaderTemplate({
                 <Film className="h-6 w-6 text-blue-400" />
               </div>
               <h3 className="font-semibold text-white">3. Download</h3>
-              <p className="text-gray-500 text-sm">Choose quality and download</p>
+              <p className="text-gray-500 text-sm">Choose an available format for lawful personal use</p>
             </motion.div>
           </div>
         </motion.div>
@@ -401,7 +401,7 @@ export default function DownloaderTemplate({
                   <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-white mb-1 truncate">{result.title || `${platformName} Content`}</h3>
                     <div className="flex flex-wrap gap-2 text-sm text-gray-400">
-                      <span className="text-green-400 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> No Watermark</span>
+                      <span className="text-green-400 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Ready</span>
                       <span>•</span>
                       <span className="capitalize">{result.type || 'video'}</span>
                     </div>
@@ -540,8 +540,8 @@ export default function DownloaderTemplate({
         <div className="mt-8 grid md:grid-cols-3 gap-4">
           {[
             { icon: <Zap className="h-6 w-6 text-yellow-400" />, bg: 'bg-yellow-500/10', title: 'Fast Downloads', desc: 'Lightning-fast processing' },
-            { icon: <Target className="h-6 w-6 text-purple-400" />, bg: 'bg-purple-500/10', title: 'No Watermark', desc: 'Clean, original quality' },
-            { icon: <Lock className="h-6 w-6 text-green-400" />, bg: 'bg-green-500/10', title: 'Secure', desc: 'Public links only, no login' },
+            { icon: <Target className="h-6 w-6 text-purple-400" />, bg: 'bg-purple-500/10', title: 'Format Options', desc: 'HD, SD, audio, or image when available' },
+            { icon: <Lock className="h-6 w-6 text-green-400" />, bg: 'bg-green-500/10', title: 'Responsible Use', desc: 'Public links only; respect copyright' },
           ].map((f, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 + i * 0.1 }}
@@ -567,11 +567,11 @@ export default function DownloaderTemplate({
             </div>
             <div className="bg-gray-900/50 rounded-xl p-4 border border-purple-500/10">
               <h3 className="font-semibold text-white mb-2">Is it safe and secure?</h3>
-              <p className="text-gray-500 text-sm">Absolutely! We only process public links and don't store your personal data.</p>
+              <p className="text-gray-500 text-sm">We only process public links and provide clear privacy, terms, and contact information.</p>
             </div>
             <div className="bg-gray-900/50 rounded-xl p-4 border border-purple-500/10">
-              <h3 className="font-semibold text-white mb-2">How fast are the downloads?</h3>
-              <p className="text-gray-500 text-sm">Downloads start immediately after processing. Speed depends on your internet connection.</p>
+              <h3 className="font-semibold text-white mb-2">Can I download copyrighted content?</h3>
+              <p className="text-gray-500 text-sm">Only download content you own, have permission to use, or are legally allowed to save.</p>
             </div>
           </div>
         </motion.div>

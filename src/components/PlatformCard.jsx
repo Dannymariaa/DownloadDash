@@ -6,7 +6,7 @@ import { ArrowRight, Download } from 'lucide-react';
 import { getPlatformIcon } from './PlatformIcons';
 
 const platformConfig = {
-  tiktok:    { gradient: 'from-pink-500 via-purple-500 to-cyan-500',    features: ['Videos', 'Stories', 'No Watermark'] },
+  tiktok:    { gradient: 'from-pink-500 via-purple-500 to-cyan-500',    features: ['Videos', 'Stories', 'Public Links'] },
   instagram: { gradient: 'from-purple-600 via-pink-500 to-orange-400', features: ['Reels', 'Stories', 'Posts', 'IGTV'] },
   facebook:  { gradient: 'from-blue-600 to-blue-400',                   features: ['Videos', 'Stories', 'Reels'] },
   twitter:   { gradient: 'from-gray-800 to-gray-600',                   features: ['Videos', 'GIFs', 'Images'] },
@@ -57,7 +57,7 @@ export default function PlatformCard({ platform, name, description }) {
 
           <div className="mt-4 flex items-center gap-2 text-green-400 text-sm">
             <Download className="h-4 w-4" />
-            <span>Free Download</span>
+            <span>Open Tool</span>
           </div>
         </div>
 

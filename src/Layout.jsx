@@ -148,7 +148,7 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
                 </div>
                 <span className="text-xl font-bold text-white">DownloadDash</span>
               </div>
-              <p className="text-gray-400 text-sm">The #1 YouTube downloader. Save videos, shorts, and audio in HD quality for free.</p>
+              <p className="text-gray-400 text-sm">A simple media utility for public links, personal use, and content you have permission to save.</p>
             </div>
             <div>
               <h4 className="text-white font-semibold mb-4">Platform</h4>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Download, Zap, Shield, Globe, Star, ArrowDown, Smartphone } from 'lucide-react';
+import { Download, Zap, Shield, Globe, Star, ArrowDown, Smartphone, FileText, Mail, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import AdBanner from '@/components/AdBanner';
 import { Link } from 'react-router-dom';
@@ -8,10 +8,10 @@ import { createPageUrl } from '@/utils';
 import { YouTubeIcon } from '@/components/PlatformIcons';
 
 const stats = [
-  { value: '10M+', label: 'Downloads' },
-  { value: '500K+', label: 'Users' },
-  { value: '4.9', label: 'Rating' },
-  { value: '24/7', label: 'Support' },
+  { value: 'HD', label: 'Quality Options' },
+  { value: 'Web', label: 'Mobile Friendly' },
+  { value: 'Safe', label: 'Public Links Only' },
+  { value: 'Help', label: 'Support Available' },
 ];
 
 export default function Home() {
@@ -37,7 +37,7 @@ export default function Home() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-sm mb-8"
             >
               <Zap className="h-4 w-4" />
-              <span>The #1 YouTube Downloader of 2026</span>
+              <span>Fast media saving for public, permitted content</span>
             </motion.div>
 
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
@@ -50,19 +50,21 @@ export default function Home() {
             </h1>
 
             <p className="text-xl md:text-2xl text-gray-400 mb-8 max-w-2xl mx-auto">
-              Download YouTube videos, shorts & music in HD quality.
-              <span className="text-purple-400"> No watermarks. Free forever.</span>
+              Save publicly available videos, shorts, and audio for personal use when you have the right to do so.
+              <span className="text-purple-400"> Simple, mobile-friendly, and transparent.</span>
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button
-                  size="lg"
-                  className="h-14 px-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/25 text-lg"
-                >
-                  <Download className="mr-2 h-5 w-5" />
-                  Start Downloading
-                </Button>
+                <Link to={createPageUrl('YouTubeDownloader')}>
+                  <Button
+                    size="lg"
+                    className="h-14 px-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/25 text-lg"
+                  >
+                    <Download className="mr-2 h-5 w-5" />
+                    Open Downloader
+                  </Button>
+                </Link>
               </motion.div>
               
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -70,9 +72,10 @@ export default function Home() {
                   size="lg"
                   variant="outline"
                   className="h-14 px-8 border-purple-500/30 text-purple-400 hover:bg-purple-500/20 rounded-xl text-lg"
+                  onClick={() => window.location.assign(createPageUrl('Contact'))}
                 >
                   <Smartphone className="mr-2 h-5 w-5" />
-                  Download APK
+                  Contact Support
                 </Button>
               </motion.div>
             </div>
@@ -122,7 +125,7 @@ export default function Home() {
               YouTube Downloader
             </h2>
             <p className="text-gray-400 max-w-xl mx-auto mb-8">
-              Download YouTube videos, shorts & audio in HD quality — no watermark, free forever.
+              Process public YouTube links and choose available video or audio formats. Please respect copyright and platform rules.
             </p>
             <Link to={createPageUrl('YouTubeDownloader')}>
               <motion.div
@@ -161,13 +164,13 @@ export default function Home() {
               { 
                 icon: <Zap className="h-8 w-8" />, 
                 title: 'Lightning Fast', 
-                desc: 'Download videos in seconds with our optimized servers',
+                desc: 'Process supported public links quickly with a clean, simple flow',
                 gradient: 'from-yellow-500 to-orange-500'
               },
               { 
                 icon: <Shield className="h-8 w-8" />, 
                 title: 'Secure & Private', 
-                desc: 'Your data is never stored or shared with third parties',
+                desc: 'Designed for public links with clear privacy and contact information',
                 gradient: 'from-green-500 to-emerald-500'
               },
               { 
@@ -197,6 +200,56 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Compliance Section */}
+      <section className="py-16 px-4">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="rounded-3xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-8 md:p-10"
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+                Responsible Use & Site Trust
+              </h2>
+              <p className="text-gray-400 max-w-3xl mx-auto">
+                DownloadDash is built for lawful personal use, public links, and content you own or have permission to save.
+                We do not encourage copyright infringement, harmful content, or misuse of third-party platforms.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-5">
+              {[
+                {
+                  icon: <CheckCircle className="h-6 w-6" />,
+                  title: 'Copyright Respect',
+                  desc: 'Only save content you own, have permission to use, or are legally allowed to download.',
+                },
+                {
+                  icon: <FileText className="h-6 w-6" />,
+                  title: 'Clear Policies',
+                  desc: 'Privacy Policy, Terms of Service, and Contact pages are available from every page.',
+                },
+                {
+                  icon: <Mail className="h-6 w-6" />,
+                  title: 'Support & Contact',
+                  desc: 'Users and rights holders can contact us for support, privacy, copyright, or compliance requests.',
+                },
+              ].map((item, idx) => (
+                <div key={idx} className="rounded-2xl border border-purple-500/10 bg-white/[0.03] p-5">
+                  <div className="w-12 h-12 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center mb-4">
+                    {item.icon}
+                  </div>
+                  <h3 className="text-white font-semibold mb-2">{item.title}</h3>
+                  <p className="text-gray-400 text-sm">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* Download App Section */}
       <section className="py-16 px-4">
         <div className="max-w-4xl mx-auto">
@@ -221,10 +274,11 @@ export default function Home() {
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                   <Button
                     size="lg"
+                    disabled
                     className="h-14 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl"
                   >
                     <Download className="mr-2 h-5 w-5" />
-                    Download APK
+                    APK Coming Soon
                   </Button>
                 </motion.div>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>

@@ -27,7 +27,7 @@ export default function TikTokDownloader() {
       platformIcon="🎵"
       gradientFrom="from-pink-500"
       gradientTo="to-cyan-500"
-      supportedTypes={['Videos', 'Stories', 'No Watermark', 'HD Quality']}
+      supportedTypes={['Videos', 'Stories', 'Public Links', 'Format Options']}
       placeholderUrl="https://www.tiktok.com/@username/photo/video/..."
       user={user}
     />
