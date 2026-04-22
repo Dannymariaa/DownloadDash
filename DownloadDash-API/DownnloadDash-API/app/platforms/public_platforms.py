@@ -5,7 +5,7 @@ import os
 import uuid
 import re
 import httpx
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse, urlunparse
 from ..models.schemas import Platform, Quality
 
 class PublicPlatformDownloader:
@@ -183,6 +183,21 @@ class PublicPlatformDownloader:
             )
 
         return url
+
+    def _youtube_api_downloads(self, url: str, variant: str | None = None) -> Dict[str, str]:
+        encoded_url = quote(url, safe="")
+
+        def build_url(kind: str) -> str:
+            return f"/youtube/file?url={encoded_url}&variant={kind}"
+
+        if variant == "audio":
+            return {"audio": build_url("audio")}
+
+        return {
+            "videoHD": build_url("hd"),
+            "videoSD": build_url("sd"),
+            "audio": build_url("audio"),
+        }
     
     async def get_media_info(self, url: str) -> Dict[str, Any]:
         """Extract media information without downloading"""
@@ -221,6 +236,60 @@ class PublicPlatformDownloader:
             }
         except Exception as e:
             raise Exception(f"Failed to extract info: {str(e)}")
+
+    async def download_youtube_variant(self, url: str, variant: str = "hd") -> Dict[str, str]:
+        """Download a YouTube variant to a temp file and return its path metadata."""
+        loop = asyncio.get_event_loop()
+        url = self._normalize_youtube_url(url)
+
+        variant = (variant or "hd").lower()
+        if variant == "audio":
+            format_selector = "bestaudio[ext=m4a]/bestaudio/best"
+            extension = "m4a"
+        elif variant == "sd":
+            format_selector = "18/best[height<=480][vcodec!=none][acodec!=none]/best[height<=480]/best"
+            extension = "mp4"
+        else:
+            format_selector = "22/best[height<=720][vcodec!=none][acodec!=none]/18/best[height<=720]/best"
+            extension = "mp4"
+
+        os.makedirs(self.download_path, exist_ok=True)
+        file_id = str(uuid.uuid4())
+        output_template = os.path.join(self.download_path, f"{file_id}.%(ext)s")
+        opts = self.get_ydl_opts(Quality.HIGH, output_template)
+        self._apply_cookiefile_for_url(opts, url)
+        opts.update(
+            {
+                "format": format_selector,
+                "noplaylist": True,
+                "skip_download": False,
+                "quiet": True,
+                "no_warnings": True,
+            }
+        )
+        self._log_ydl_context(f"youtube.download.{variant}", url, opts)
+
+        def run_download():
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                return ydl.extract_info(url, download=True)
+
+        info = await loop.run_in_executor(None, run_download)
+
+        candidates = [
+            os.path.join(self.download_path, name)
+            for name in os.listdir(self.download_path)
+            if name.startswith(file_id + ".")
+        ]
+        if not candidates:
+            raise Exception("YouTube download finished but no output file was created")
+
+        filepath = max(candidates, key=os.path.getmtime)
+        actual_ext = os.path.splitext(filepath)[1].lstrip(".") or extension
+        title = info.get("title") if isinstance(info, dict) else "youtube"
+        safe_title = re.sub(r'[\\/:*?"<>|]+', "_", title or "youtube").strip() or "youtube"
+        filename = f"{safe_title}.{actual_ext}"
+        media_type = "audio/mp4" if variant == "audio" else "video/mp4"
+        return {"path": filepath, "filename": filename, "media_type": media_type}
     
     async def resolve_media(self, url: str, quality: Quality, extract_audio: bool = False) -> Dict[str, Any]:
         """Resolve a direct media URL without downloading or saving files."""
@@ -480,15 +549,27 @@ class PublicPlatformDownloader:
                     selected_info_ext = selected_info_ext or requested_video.get("ext")
 
             if extract_audio and not (selected_audio and selected_audio.get("url")) and not selected_info_url:
-                raise Exception(
-                    "Resolve failed: YouTube did not return a downloadable audio format from this server. "
-                    "Try again shortly, refresh backend cookies, or rotate server IP/region."
-                )
+                downloads = self._youtube_api_downloads(url, "audio")
+                return {
+                    "direct_url": downloads["audio"],
+                    "title": title,
+                    "thumbnail": thumbnail,
+                    "ext": "m4a",
+                    "filesize": None,
+                    "kind": "audio",
+                    "downloads": downloads,
+                }
             if not extract_audio and not (selected_hd and selected_hd.get("url")) and not selected_info_url:
-                raise Exception(
-                    "Resolve failed: YouTube did not return downloadable video formats from this server. "
-                    "Try again shortly, refresh backend cookies, or rotate server IP/region."
-                )
+                downloads = self._youtube_api_downloads(url)
+                return {
+                    "direct_url": downloads["videoHD"],
+                    "title": title,
+                    "thumbnail": thumbnail,
+                    "ext": "mp4",
+                    "filesize": None,
+                    "kind": "video",
+                    "downloads": downloads,
+                }
 
         direct_url = selected_info_url or (primary.get("url") if primary else info.get("url"))
         if not direct_url and kind == "image" and thumbnail:

@@ -9,6 +9,12 @@ const getApiBaseUrl = () => {
 
 const getApiKey = () => import.meta.env.VITE_SMD_API_KEY || '';
 
+const absolutizeApiUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+  if (!url.startsWith('/')) return url;
+  return `${getApiBaseUrl()}${url}`;
+};
+
 const buildHeaders = () => {
   const headers = { 'Content-Type': 'application/json' };
   const apiKey = getApiKey();
@@ -149,6 +155,11 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   if (!downloads.videoHD && downloads.video) downloads.videoHD = downloads.video;
   if (!downloads.videoSD && downloads.video) downloads.videoSD = downloads.video;
   if (!downloads.audio && downloads.audio_url) downloads.audio = downloads.audio_url;
+  downloads.videoHD = absolutizeApiUrl(downloads.videoHD);
+  downloads.videoSD = absolutizeApiUrl(downloads.videoSD);
+  downloads.video = absolutizeApiUrl(downloads.video);
+  downloads.audio = absolutizeApiUrl(downloads.audio);
+  downloads.image = absolutizeApiUrl(downloads.image);
   const mediaType = data?.media_type || data?.media_info?.media_type || null;
   const downloadUrl =
     downloads.videoHD ||
