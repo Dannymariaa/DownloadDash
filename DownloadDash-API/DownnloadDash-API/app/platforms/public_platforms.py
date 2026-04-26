@@ -352,13 +352,22 @@ class PublicPlatformDownloader:
 
         variant = (variant or "hd").lower()
         if variant == "audio":
-            format_selector = "bestaudio[ext=m4a]/bestaudio/best"
+            format_selectors = [
+                "bestaudio[ext=m4a]/bestaudio/best",
+                "140/251/250/249/bestaudio/best",
+            ]
             extension = "m4a"
         elif variant == "sd":
-            format_selector = "18/best[height<=480][vcodec!=none][acodec!=none]/best[height<=480]/best"
+            format_selectors = [
+                "18/best[height<=480][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none][height<=480]/best[vcodec!=none][acodec!=none]/best",
+                "18/best[vcodec!=none][acodec!=none]/best",
+            ]
             extension = "mp4"
         else:
-            format_selector = "22/best[height<=720][vcodec!=none][acodec!=none]/18/best[height<=720]/best"
+            format_selectors = [
+                "22/18/best[height<=720][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none][height<=720]/best[vcodec!=none][acodec!=none]/best",
+                "18/best[vcodec!=none][acodec!=none]/best",
+            ]
             extension = "mp4"
 
         os.makedirs(self.download_path, exist_ok=True)
@@ -374,12 +383,12 @@ class PublicPlatformDownloader:
         base_opts = dict(opts)
         base_opts.update(
             {
-                "format": format_selector,
                 "noplaylist": True,
                 "skip_download": False,
                 "quiet": True,
                 "no_warnings": True,
                 "http_headers": self._build_http_headers(url),
+                "concurrent_fragment_downloads": 1,
             }
         )
         client_profiles = self._youtube_client_profiles()
@@ -391,27 +400,38 @@ class PublicPlatformDownloader:
         info = None
         last_error: Exception | None = None
         try:
-            for profile_name, player_clients, use_cookies, use_proxy in client_profiles:
-                opts = dict(base_opts)
-                if player_clients:
-                    opts["extractor_args"] = self._youtube_extractor_args(player_clients)
-                else:
-                    opts.pop("extractor_args", None)
-                if not use_cookies:
-                    opts.pop("cookiefile", None)
-                if use_proxy and self.youtube_proxy_url:
-                    opts["proxy"] = self.youtube_proxy_url
-                else:
-                    opts.pop("proxy", None)
+            for format_selector in format_selectors:
+                for profile_name, player_clients, use_cookies, use_proxy in client_profiles:
+                    opts = dict(base_opts)
+                    opts["format"] = format_selector
+                    if player_clients:
+                        opts["extractor_args"] = self._youtube_extractor_args(player_clients)
+                    else:
+                        opts.pop("extractor_args", None)
+                    if not use_cookies:
+                        opts.pop("cookiefile", None)
+                    if use_proxy and self.youtube_proxy_url:
+                        opts["proxy"] = self.youtube_proxy_url
+                    else:
+                        opts.pop("proxy", None)
 
-                self._log_ydl_context(f"youtube.download.{variant}.{profile_name}", url, opts)
-                try:
-                    info = await loop.run_in_executor(None, lambda opts=opts: run_download(opts))
-                    last_error = None
+                    self._log_ydl_context(
+                        f"youtube.download.{variant}.{profile_name}.{format_selector}",
+                        url,
+                        opts,
+                    )
+                    try:
+                        info = await loop.run_in_executor(None, lambda opts=opts: run_download(opts))
+                        last_error = None
+                        break
+                    except Exception as e:
+                        last_error = e
+                        print(
+                            "Warning: yt-dlp youtube download "
+                            f"profile {profile_name} format {format_selector} failed: {e}"
+                        )
+                if info is not None:
                     break
-                except Exception as e:
-                    last_error = e
-                    print(f"Warning: yt-dlp youtube download profile {profile_name} failed: {e}")
         except Exception as e:
             last_error = e
 

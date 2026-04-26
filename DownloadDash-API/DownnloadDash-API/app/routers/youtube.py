@@ -43,6 +43,21 @@ async def download_youtube_file(
             )
         elif "requested format is not available" in lowered:
             message = "That YouTube quality is not available for this video. Try SD or audio."
+        elif "tunnel connection failed" in lowered or ("proxy" in lowered and "403" in lowered):
+            message = (
+                "The configured YouTube proxy rejected the connection. "
+                "Check the proxy username/password/session settings in Render, then redeploy the API."
+            )
+        elif "proxy" in lowered and ("407" in lowered or "authentication" in lowered):
+            message = (
+                "The configured YouTube proxy needs valid authentication. "
+                "Update the proxy URL in Render and redeploy the API."
+            )
+        elif "ffmpeg" in lowered:
+            message = (
+                "The server could not finish the YouTube file conversion step. "
+                "Install ffmpeg on the API server or use a direct progressive format fallback."
+            )
         else:
             message = "YouTube file download failed. Please try again."
 
