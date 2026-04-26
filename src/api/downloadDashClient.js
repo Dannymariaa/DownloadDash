@@ -8,6 +8,10 @@ const getApiBaseUrl = () => {
 };
 
 const getApiKey = () => import.meta.env.VITE_SMD_API_KEY || '';
+const useRapidApiForYoutube = () => {
+  const flag = String(import.meta.env.VITE_USE_RAPIDAPI_YOUTUBE || '').toLowerCase();
+  return flag === '1' || flag === 'true' || flag === 'yes';
+};
 
 const absolutizeApiUrl = (url) => {
   if (!url || typeof url !== 'string') return url;
@@ -136,6 +140,51 @@ const saveToHistory = async (entry) => {
 };
 
 const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
+  if (platform === 'youtube' && useRapidApiForYoutube()) {
+    const rapidRes = await fetch('/api/rapid-youtube', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, quality, extractAudio: !!extractAudio }),
+    });
+
+    const rapidData = await tryParseJson(rapidRes);
+    if (!rapidRes.ok || rapidData?.success === false) {
+      throw new Error(
+        rapidData?.error ||
+          rapidData?.detail ||
+          rapidData?.message ||
+          'RapidAPI YouTube request failed'
+      );
+    }
+
+    const downloads = { ...(rapidData?.downloads || {}) };
+    return {
+      success: true,
+      title: rapidData?.title || 'YouTube Media',
+      thumbnail: rapidData?.thumbnail || null,
+      platform: 'youtube',
+      type: rapidData?.type || (extractAudio ? 'audio' : 'video'),
+      author_username: null,
+      author_display_name: null,
+      like_count: null,
+      comment_count: null,
+      quality: quality || undefined,
+      downloads: {
+        videoHD: downloads.videoHD,
+        videoSD: downloads.videoSD,
+        audio: downloads.audio,
+        image: undefined,
+        items: undefined,
+      },
+      raw: rapidData?.raw || rapidData,
+      downloadUrl:
+        downloads.videoHD ||
+        downloads.videoSD ||
+        downloads.audio ||
+        rapidData?.downloadUrl,
+    };
+  }
+
   const normalizedPlatform =
     platform === 'whatsappbusiness'
       ? 'whatsapp_business'
