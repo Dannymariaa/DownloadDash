@@ -22,6 +22,13 @@ const PROGRESS_PATH =
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const DOWNLOAD_PATH_CANDIDATES = [
+  DOWNLOAD_PATH,
+  '/download',
+  '/convert',
+  '/video_info',
+];
+
 const json = (res, status, body) => {
   res.status(status).setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(body));
@@ -138,8 +145,8 @@ const buildAttemptBodies = ({ url, quality, extractAudio }) => {
   ];
 };
 
-const callRapidAttempt = async ({ url, body, method }) => {
-  const target = new URL(`${RAPIDAPI_BASE_URL}${DOWNLOAD_PATH}`);
+const callRapidAttempt = async ({ body, method, path }) => {
+  const target = new URL(`${RAPIDAPI_BASE_URL}${path}`);
 
   let response;
   if (method === 'GET') {
@@ -179,14 +186,17 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
   let initPayload = null;
   let lastError = null;
 
-  for (const body of attempts) {
-    for (const method of methods) {
-      try {
-        initPayload = await callRapidAttempt({ url, body, method });
-        if (initPayload) break;
-      } catch (error) {
-        lastError = error;
+  for (const path of DOWNLOAD_PATH_CANDIDATES) {
+    for (const body of attempts) {
+      for (const method of methods) {
+        try {
+          initPayload = await callRapidAttempt({ body, method, path });
+          if (initPayload) break;
+        } catch (error) {
+          lastError = error;
+        }
       }
+      if (initPayload) break;
     }
     if (initPayload) break;
   }
@@ -260,7 +270,7 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
 };
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
+  if (!['POST', 'GET'].includes(req.method)) {
     return json(res, 405, { success: false, error: 'Method not allowed' });
   }
 
@@ -272,7 +282,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { url, quality = 'high', extractAudio = false } = req.body || {};
+    const input = req.method === 'GET' ? req.query || {} : req.body || {};
+    const { url, quality = 'high', extractAudio = false } = input;
     if (!url || typeof url !== 'string') {
       return json(res, 400, { success: false, error: 'url is required' });
     }
