@@ -26,7 +26,6 @@ const DOWNLOAD_PATH_CANDIDATES = [
   DOWNLOAD_PATH,
   '/download',
   '/convert',
-  '/video_info',
 ];
 
 const json = (res, status, body) => {
@@ -202,7 +201,11 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
   }
 
   if (!initPayload) {
-    throw new Error(lastError?.message || 'RapidAPI YouTube request could not be started');
+    const baseMessage = lastError?.message || 'RapidAPI YouTube request could not be started';
+    throw new Error(
+      `${baseMessage}. ` +
+      `If your RapidAPI provider uses a different start endpoint, set RAPIDAPI_YOUTUBE_DOWNLOAD_PATH in Vercel.`
+    );
   }
 
   const directUrl = extractDownloadUrl(initPayload);
