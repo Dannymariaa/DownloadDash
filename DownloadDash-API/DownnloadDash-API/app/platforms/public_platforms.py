@@ -254,6 +254,45 @@ class PublicPlatformDownloader:
             )
 
         return profiles
+
+    def _is_youtube_url(self, url: str) -> bool:
+        return "youtube.com" in url or "youtu.be" in url
+
+    async def _extract_youtube_with_profiles(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        url: str,
+        base_opts: Dict[str, Any],
+        extract_info_fn,
+        label: str,
+    ) -> Dict[str, Any] | None:
+        last_error: Exception | None = None
+
+        for profile_name, player_clients, use_cookies, use_proxy in self._youtube_client_profiles():
+            opts = dict(base_opts)
+            if player_clients:
+                opts["extractor_args"] = self._youtube_extractor_args(player_clients)
+            else:
+                opts.pop("extractor_args", None)
+
+            if not use_cookies:
+                opts.pop("cookiefile", None)
+
+            if use_proxy and self.youtube_proxy_url:
+                opts["proxy"] = self.youtube_proxy_url
+            else:
+                opts.pop("proxy", None)
+
+            self._log_ydl_context(f"{label}.{profile_name}", url, opts)
+            try:
+                return await loop.run_in_executor(None, lambda opts=opts: extract_info_fn(opts))
+            except Exception as e:
+                last_error = e
+                print(f"Warning: yt-dlp {label} profile {profile_name} failed: {e}")
+
+        if last_error:
+            raise last_error
+        return None
     
     async def get_media_info(self, url: str) -> Dict[str, Any]:
         """Extract media information without downloading"""
@@ -273,7 +312,20 @@ class PublicPlatformDownloader:
                 return ydl.extract_info(url, download=False)
         
         try:
-            info = await loop.run_in_executor(None, extract_info)
+            if self._is_youtube_url(url):
+                def extract_info_with_opts(opts):
+                    with yt_dlp.YoutubeDL(opts) as ydl:
+                        return ydl.extract_info(url, download=False)
+
+                info = await self._extract_youtube_with_profiles(
+                    loop,
+                    url,
+                    ydl_opts,
+                    extract_info_with_opts,
+                    "get_media_info",
+                )
+            else:
+                info = await loop.run_in_executor(None, extract_info)
             return {
                 'title': info.get('title', 'Untitled'),
                 'uploader': info.get('uploader', 'Unknown'),
@@ -435,7 +487,16 @@ class PublicPlatformDownloader:
             return re.sub(r"\x1b\[[0-9;]*m", "", text or "")
 
         try:
-            info = await loop.run_in_executor(None, lambda: extract_info(extract_opts))
+            if self._is_youtube_url(url):
+                info = await self._extract_youtube_with_profiles(
+                    loop,
+                    url,
+                    extract_opts,
+                    extract_info,
+                    "resolve_media.extract",
+                )
+            else:
+                info = await loop.run_in_executor(None, lambda: extract_info(extract_opts))
         except Exception as e:
             msg = _strip_ansi(str(e))
             lowered = msg.lower()
@@ -618,9 +679,14 @@ class PublicPlatformDownloader:
             opts["skip_download"] = True
             opts["ignore_no_formats_error"] = True
             opts["format"] = format_selector
-            self._log_ydl_context("youtube.requested_url", url, opts)
             try:
-                extracted = await loop.run_in_executor(None, lambda: extract_info(opts))
+                extracted = await self._extract_youtube_with_profiles(
+                    loop,
+                    url,
+                    opts,
+                    extract_info,
+                    "youtube.requested_url",
+                )
             except Exception:
                 return None
             return _requested_url_from_info(extracted)
