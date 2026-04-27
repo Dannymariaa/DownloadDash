@@ -25,7 +25,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const DOWNLOAD_PATH_CANDIDATES = [
   DOWNLOAD_PATH,
   '/download',
-  '/convert',
 ];
 
 const json = (res, status, body) => {
@@ -124,23 +123,50 @@ const sanitizeFilename = (name, fallbackExt = 'mp4') => {
   return base ? `${base}.${fallbackExt}` : `youtube-media.${fallbackExt}`;
 };
 
-const buildAttemptBodies = ({ url, quality, extractAudio }) => {
-  const numericQuality =
-    quality === 'lowest' ? 360 :
-    quality === 'low' ? 360 :
-    quality === 'medium' ? 480 :
-    quality === 'high' ? 720 :
-    quality === 'highest' ? 1080 :
-    Number.isFinite(Number(quality)) ? Number(quality) : 720;
+const extractYoutubeId = (inputUrl) => {
+  try {
+    const parsed = new URL(inputUrl);
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'youtu.be') {
+      return parsed.pathname.replace(/^\/+/, '').split('/')[0] || null;
+    }
+    if (host.includes('youtube.com')) {
+      const watchId = parsed.searchParams.get('v');
+      if (watchId) return watchId;
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      const shortsIndex = parts.indexOf('shorts');
+      if (shortsIndex !== -1 && parts[shortsIndex + 1]) return parts[shortsIndex + 1];
+      const embedIndex = parts.indexOf('embed');
+      if (embedIndex !== -1 && parts[embedIndex + 1]) return parts[embedIndex + 1];
+    }
+  } catch {}
+  return null;
+};
 
-  const format = extractAudio ? 'mp3' : 'mp4';
+const mapFormatValue = (quality, extractAudio) => {
+  if (extractAudio) return 'mp3';
+  if (quality === 'lowest' || quality === 'low') return '360';
+  if (quality === 'medium') return '480';
+  if (quality === 'high') return '720';
+  if (quality === 'highest') return '1080';
+  if (Number.isFinite(Number(quality))) return String(Number(quality));
+  return '720';
+};
+
+const buildAttemptBodies = ({ url, quality, extractAudio }) => {
+  const id = extractYoutubeId(url);
+  if (!id) {
+    throw new Error('Could not extract a valid YouTube video ID from the URL');
+  }
+
+  const format = mapFormatValue(quality, extractAudio);
+  const audioQuality = extractAudio ? '128' : '128';
 
   return [
-    { url, format, quality: numericQuality },
-    { url, format, quality: String(numericQuality) },
-    { url, type: format, quality: numericQuality },
-    { url, type: format, quality: String(numericQuality) },
-    { url, mode: format, quality: numericQuality },
+    { id, format, audioQuality, addInfo: 'false' },
+    { id, format, audioQuality, addInfo: false },
+    { id, format, audioQuality: 128, addInfo: 'false' },
+    { id, format, addInfo: 'false' },
   ];
 };
 
