@@ -40,21 +40,77 @@ const getHeaders = () => ({
 
 const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
 
+const walkValues = (input, visitor, depth = 0, seen = new Set()) => {
+  if (input === null || input === undefined || depth > 4) return;
+  if (typeof input !== 'object') return;
+  if (seen.has(input)) return;
+  seen.add(input);
+
+  if (Array.isArray(input)) {
+    for (const item of input) {
+      visitor(item);
+      walkValues(item, visitor, depth + 1, seen);
+    }
+    return;
+  }
+
+  for (const [key, value] of Object.entries(input)) {
+    visitor(value, key);
+    walkValues(value, visitor, depth + 1, seen);
+  }
+};
+
+const findStringByKeys = (payload, acceptedKeys) => {
+  let match = null;
+  walkValues(payload, (value, key) => {
+    if (match) return;
+    if (!key || typeof value !== 'string') return;
+    if (acceptedKeys.includes(String(key))) {
+      match = value;
+    }
+  });
+  return match;
+};
+
 const extractJobId = (payload) => {
   if (!payload || typeof payload !== 'object') return null;
   return firstDefined(
     payload.id,
     payload.jobId,
     payload.job_id,
+    payload.progressId,
+    payload.progress_id,
+    payload.taskId,
+    payload.task_id,
     payload.downloadId,
     payload.download_id,
     payload.token,
+    payload.key,
+    payload.hash,
     payload.data?.id,
     payload.data?.jobId,
     payload.data?.job_id,
+    payload.data?.progressId,
+    payload.data?.progress_id,
     payload.result?.id,
+    payload.result?.progressId,
+    payload.result?.progress_id,
     Array.isArray(payload.result) ? payload.result[0]?.id : undefined,
-    Array.isArray(payload.data) ? payload.data[0]?.id : undefined
+    Array.isArray(payload.data) ? payload.data[0]?.id : undefined,
+    findStringByKeys(payload, [
+      'id',
+      'jobId',
+      'job_id',
+      'progressId',
+      'progress_id',
+      'taskId',
+      'task_id',
+      'downloadId',
+      'download_id',
+      'token',
+      'key',
+      'hash',
+    ])
   ) || null;
 };
 
@@ -68,18 +124,51 @@ const extractDownloadUrl = (payload) => {
     payload.dlurl,
     payload.file,
     payload.file_url,
+    payload.link,
+    payload.download,
+    payload.downloadLink,
+    payload.download_link,
+    payload.fileUrl,
+    payload.fileURL,
+    payload.source,
     payload.result?.url,
     payload.result?.download_url,
     payload.result?.downloadUrl,
     payload.result?.dlurl,
+    payload.result?.link,
+    payload.result?.download,
+    payload.result?.download_link,
     payload.data?.url,
     payload.data?.download_url,
     payload.data?.downloadUrl,
     payload.data?.dlurl,
+    payload.data?.link,
+    payload.data?.download,
+    payload.data?.download_link,
     Array.isArray(payload.result) ? payload.result[0]?.url : undefined,
     Array.isArray(payload.result) ? payload.result[0]?.download_url : undefined,
     Array.isArray(payload.result) ? payload.result[0]?.downloadUrl : undefined,
     Array.isArray(payload.result) ? payload.result[0]?.dlurl : undefined,
+    Array.isArray(payload.result) ? payload.result[0]?.link : undefined,
+    Array.isArray(payload.data) ? payload.data[0]?.url : undefined,
+    Array.isArray(payload.data) ? payload.data[0]?.download_url : undefined,
+    Array.isArray(payload.data) ? payload.data[0]?.downloadUrl : undefined,
+    Array.isArray(payload.data) ? payload.data[0]?.link : undefined,
+    findStringByKeys(payload, [
+      'url',
+      'download_url',
+      'downloadUrl',
+      'dlurl',
+      'file',
+      'file_url',
+      'link',
+      'download',
+      'downloadLink',
+      'download_link',
+      'fileUrl',
+      'fileURL',
+      'source',
+    ]),
   ];
 
   return candidates.find((value) => typeof value === 'string' && /^https?:\/\//i.test(value)) || null;
@@ -121,6 +210,15 @@ const sanitizeFilename = (name, fallbackExt = 'mp4') => {
     .trim()
     .slice(0, 140);
   return base ? `${base}.${fallbackExt}` : `youtube-media.${fallbackExt}`;
+};
+
+const summarizePayload = (payload) => {
+  try {
+    const jsonText = JSON.stringify(payload);
+    return jsonText.length > 500 ? `${jsonText.slice(0, 500)}...` : jsonText;
+  } catch {
+    return '[unserializable payload]';
+  }
 };
 
 const extractYoutubeId = (inputUrl) => {
@@ -246,7 +344,9 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
 
   const id = extractJobId(initPayload);
   if (!id) {
-    throw new Error('RapidAPI did not return a download id or URL');
+    throw new Error(
+      `RapidAPI did not return a download id or URL. Response sample: ${summarizePayload(initPayload)}`
+    );
   }
 
   const progressUrl = new URL(`${RAPIDAPI_BASE_URL}${PROGRESS_PATH}`);
