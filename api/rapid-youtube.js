@@ -16,12 +16,6 @@ const DOWNLOAD_PATH =
   process.env.RAPIDAPI_YOUTUBE_DOWNLOAD_PATH ||
   '/v2/video/details';
 
-const PROGRESS_PATH =
-  process.env.RAPIDAPI_YOUTUBE_PROGRESS_PATH ||
-  '/progress';
-
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 const DOWNLOAD_PATH_CANDIDATES = [
   DOWNLOAD_PATH,
   '/v2/video/details',
@@ -70,48 +64,6 @@ const findStringByKeys = (payload, acceptedKeys) => {
     }
   });
   return match;
-};
-
-const extractJobId = (payload) => {
-  if (!payload || typeof payload !== 'object') return null;
-  return firstDefined(
-    payload.id,
-    payload.jobId,
-    payload.job_id,
-    payload.progressId,
-    payload.progress_id,
-    payload.taskId,
-    payload.task_id,
-    payload.downloadId,
-    payload.download_id,
-    payload.token,
-    payload.key,
-    payload.hash,
-    payload.data?.id,
-    payload.data?.jobId,
-    payload.data?.job_id,
-    payload.data?.progressId,
-    payload.data?.progress_id,
-    payload.result?.id,
-    payload.result?.progressId,
-    payload.result?.progress_id,
-    Array.isArray(payload.result) ? payload.result[0]?.id : undefined,
-    Array.isArray(payload.data) ? payload.data[0]?.id : undefined,
-    findStringByKeys(payload, [
-      'id',
-      'jobId',
-      'job_id',
-      'progressId',
-      'progress_id',
-      'taskId',
-      'task_id',
-      'downloadId',
-      'download_id',
-      'token',
-      'key',
-      'hash',
-    ])
-  ) || null;
 };
 
 const extractDownloadUrl = (payload) => {
@@ -197,12 +149,6 @@ const extractThumbnail = (payload) =>
     Array.isArray(payload?.result) ? payload.result[0]?.thumbnail : undefined,
     Array.isArray(payload?.result) ? payload.result[0]?.thumbnail_url : undefined
   ) || null;
-
-const extractStatus = (payload) =>
-  String(
-    firstDefined(payload?.status, payload?.state, payload?.message, payload?.result?.status, payload?.data?.status) ||
-      ''
-  ).toLowerCase();
 
 const sanitizeFilename = (name, fallbackExt = 'mp4') => {
   const base = String(name || 'youtube-media')
@@ -308,16 +254,6 @@ const extractYoutubeId = (inputUrl) => {
     }
   } catch {}
   return null;
-};
-
-const mapFormatValue = (quality, extractAudio) => {
-  if (extractAudio) return 'mp3';
-  if (quality === 'lowest' || quality === 'low') return '360';
-  if (quality === 'medium') return '480';
-  if (quality === 'high') return '720';
-  if (quality === 'highest') return '1080';
-  if (Number.isFinite(Number(quality))) return String(Number(quality));
-  return '720';
 };
 
 const buildAttemptBodies = ({ url, quality, extractAudio }) => {
@@ -444,71 +380,16 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
     };
   }
 
-  const id = extractJobId(initPayload);
-  if (!id) {
+  if (directUrl && !responseSeemsToMatchVideoId(initPayload, expectedId)) {
     throw new Error(
-      `RapidAPI did not return a download id or URL. Response sample: ${summarizePayload(initPayload)}`
+      `RapidAPI returned media for a different YouTube video. Expected ID ${expectedId}. ` +
+      `Response sample: ${summarizePayload(initPayload)}`
     );
   }
 
-  const progressUrl = new URL(`${RAPIDAPI_BASE_URL}${PROGRESS_PATH}`);
-  progressUrl.searchParams.set('id', id);
-
-  let progressPayload = null;
-  for (let i = 0; i < 12; i += 1) {
-    const response = await fetch(progressUrl, { method: 'GET', headers: getHeaders() });
-    const text = await response.text();
-    let data = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-      data = { raw: text };
-    }
-
-    if (!response.ok) {
-      const detail =
-        data?.message ||
-        data?.error ||
-        data?.detail ||
-        `RapidAPI progress failed (${response.status})`;
-      throw new Error(detail);
-    }
-
-    progressPayload = data;
-    const finalUrl = extractDownloadUrl(progressPayload);
-    if (finalUrl && responseSeemsToMatchVideoId(progressPayload, expectedId)) {
-      return {
-        payload: progressPayload,
-        finalUrl,
-        title: extractTitle(progressPayload) || extractTitle(initPayload),
-        thumbnail: extractThumbnail(progressPayload) || extractThumbnail(initPayload),
-        downloads: {
-          videoHD: extractAudio ? undefined : finalUrl,
-          videoSD: extractAudio ? undefined : finalUrl,
-          audio: extractAudio ? finalUrl : mediaEntryUrl(bestAudio),
-        },
-      };
-    }
-
-    if (finalUrl && !responseSeemsToMatchVideoId(progressPayload, expectedId)) {
-      throw new Error(
-        `RapidAPI returned media for a different YouTube video. Expected ID ${expectedId}. ` +
-        `Response sample: ${summarizePayload(progressPayload)}`
-      );
-    }
-
-    const status = extractStatus(progressPayload);
-    if (status.includes('error') || status.includes('fail')) {
-      throw new Error(progressPayload?.message || progressPayload?.error || 'RapidAPI download failed');
-    }
-
-    await sleep(1500);
-  }
-
   throw new Error(
-    progressPayload?.message ||
-      progressPayload?.error ||
-      'RapidAPI timed out while preparing the YouTube download'
+    `RapidAPI did not return verified media links for this exact YouTube video. ` +
+    `Response sample: ${summarizePayload(initPayload)}`
   );
 };
 
