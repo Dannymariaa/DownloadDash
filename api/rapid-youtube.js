@@ -1,11 +1,11 @@
 const RAPIDAPI_HOST =
   process.env.RAPIDAPI_YOUTUBE_HOST ||
   process.env.RAPIDAPI_HOST ||
-  'youtube-mp4-mp3-downloader.p.rapidapi.com';
+  'youtube-media-downloader.p.rapidapi.com';
 
 const RAPIDAPI_BASE_URL =
   process.env.RAPIDAPI_YOUTUBE_BASE_URL ||
-  `https://${RAPIDAPI_HOST}/api/v1`;
+  `https://${RAPIDAPI_HOST}`;
 
 const RAPIDAPI_KEY =
   process.env.RAPIDAPI_YOUTUBE_KEY ||
@@ -14,7 +14,7 @@ const RAPIDAPI_KEY =
 
 const DOWNLOAD_PATH =
   process.env.RAPIDAPI_YOUTUBE_DOWNLOAD_PATH ||
-  '/download';
+  '/v2/video/details';
 
 const PROGRESS_PATH =
   process.env.RAPIDAPI_YOUTUBE_PROGRESS_PATH ||
@@ -24,7 +24,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const DOWNLOAD_PATH_CANDIDATES = [
   DOWNLOAD_PATH,
-  '/download',
+  '/v2/video/details',
 ];
 
 const json = (res, status, body) => {
@@ -189,6 +189,7 @@ const extractThumbnail = (payload) =>
     payload?.thumbnail_url,
     payload?.thumb,
     payload?.image,
+    payload?.thumbnails?.[0]?.url,
     payload?.data?.thumbnail,
     payload?.data?.thumbnail_url,
     payload?.result?.thumbnail,
@@ -210,6 +211,60 @@ const sanitizeFilename = (name, fallbackExt = 'mp4') => {
     .trim()
     .slice(0, 140);
   return base ? `${base}.${fallbackExt}` : `youtube-media.${fallbackExt}`;
+};
+
+const collectMediaEntries = (payload, acceptedKeys) => {
+  const entries = [];
+  walkValues(payload, (value, key) => {
+    if (!key || !acceptedKeys.includes(String(key))) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item && typeof item === 'object') entries.push(item);
+      });
+    }
+  });
+  return entries;
+};
+
+const normalizeVideoEntries = (payload) =>
+  collectMediaEntries(payload, ['videos', 'video', 'video_formats', 'videoFormats']);
+
+const normalizeAudioEntries = (payload) =>
+  collectMediaEntries(payload, ['audios', 'audio', 'audio_formats', 'audioFormats']);
+
+const mediaEntryUrl = (entry) =>
+  firstDefined(
+    entry?.url,
+    entry?.link,
+    entry?.downloadUrl,
+    entry?.download_url,
+    entry?.fileUrl,
+    entry?.file_url
+  ) || null;
+
+const mediaEntryHeight = (entry) => {
+  const raw = firstDefined(entry?.height, entry?.quality, entry?.label, entry?.resolution);
+  const match = String(raw || '').match(/(\d{3,4})/);
+  return match ? Number(match[1]) : 0;
+};
+
+const pickBestVideo = (entries) => {
+  const usable = entries.filter((entry) => /^https?:\/\//i.test(mediaEntryUrl(entry) || ''));
+  usable.sort((a, b) => mediaEntryHeight(a) - mediaEntryHeight(b));
+  return usable[usable.length - 1] || null;
+};
+
+const pickSdVideo = (entries) => {
+  const usable = entries
+    .filter((entry) => /^https?:\/\//i.test(mediaEntryUrl(entry) || ''))
+    .filter((entry) => mediaEntryHeight(entry) > 0 && mediaEntryHeight(entry) <= 480);
+  usable.sort((a, b) => mediaEntryHeight(a) - mediaEntryHeight(b));
+  return usable[usable.length - 1] || null;
+};
+
+const pickBestAudio = (entries) => {
+  const usable = entries.filter((entry) => /^https?:\/\//i.test(mediaEntryUrl(entry) || ''));
+  return usable[0] || null;
 };
 
 const summarizePayload = (payload) => {
@@ -271,16 +326,21 @@ const buildAttemptBodies = ({ url, quality, extractAudio }) => {
     throw new Error('Could not extract a valid YouTube video ID from the URL');
   }
 
-  const format = mapFormatValue(quality, extractAudio);
-  const audioQuality = extractAudio ? '128' : '128';
-
   return {
     expectedId: id,
     attempts: [
-      { id, format, audioQuality, addInfo: 'true' },
-      { id, format, audioQuality, addInfo: true },
-      { id, format, audioQuality: 128, addInfo: 'true' },
-      { id, format, addInfo: 'true' },
+      {
+        videoId: id,
+        urlAccess: 'normal',
+        videos: 'auto',
+        audios: 'auto',
+      },
+      {
+        id,
+        urlAccess: 'normal',
+        videos: 'auto',
+        audios: 'auto',
+      },
     ],
   };
 };
@@ -349,6 +409,26 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
     );
   }
 
+  const videos = normalizeVideoEntries(initPayload);
+  const audios = normalizeAudioEntries(initPayload);
+  const bestVideo = pickBestVideo(videos);
+  const sdVideo = pickSdVideo(videos) || bestVideo;
+  const bestAudio = pickBestAudio(audios);
+
+  if ((bestVideo || bestAudio) && responseSeemsToMatchVideoId(initPayload, expectedId)) {
+    return {
+      payload: initPayload,
+      finalUrl: extractAudio ? mediaEntryUrl(bestAudio) : mediaEntryUrl(bestVideo || sdVideo),
+      title: extractTitle(initPayload),
+      thumbnail: extractThumbnail(initPayload),
+      downloads: {
+        videoHD: mediaEntryUrl(bestVideo),
+        videoSD: mediaEntryUrl(sdVideo),
+        audio: mediaEntryUrl(bestAudio),
+      },
+    };
+  }
+
   const directUrl = extractDownloadUrl(initPayload);
   if (directUrl && responseSeemsToMatchVideoId(initPayload, expectedId)) {
     return {
@@ -356,6 +436,11 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
       finalUrl: directUrl,
       title: extractTitle(initPayload),
       thumbnail: extractThumbnail(initPayload),
+      downloads: {
+        videoHD: extractAudio ? undefined : directUrl,
+        videoSD: extractAudio ? undefined : directUrl,
+        audio: extractAudio ? directUrl : mediaEntryUrl(bestAudio),
+      },
     };
   }
 
@@ -397,6 +482,11 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
         finalUrl,
         title: extractTitle(progressPayload) || extractTitle(initPayload),
         thumbnail: extractThumbnail(progressPayload) || extractThumbnail(initPayload),
+        downloads: {
+          videoHD: extractAudio ? undefined : finalUrl,
+          videoSD: extractAudio ? undefined : finalUrl,
+          audio: extractAudio ? finalUrl : mediaEntryUrl(bestAudio),
+        },
       };
     }
 
@@ -443,9 +533,24 @@ export default async function handler(req, res) {
 
     const resolved = await resolveRapidDownload({ url, quality, extractAudio });
     const ext = extractAudio ? 'mp3' : 'mp4';
-    const proxyUrl = `/api/rapid-youtube-file?target=${encodeURIComponent(resolved.finalUrl)}&filename=${encodeURIComponent(
-      sanitizeFilename(resolved.title, ext)
-    )}&type=${encodeURIComponent(extractAudio ? 'audio/mpeg' : 'video/mp4')}`;
+    const toProxyUrl = (target, fallbackExt, mimeType) =>
+      target
+        ? `/api/rapid-youtube-file?target=${encodeURIComponent(target)}&filename=${encodeURIComponent(
+            sanitizeFilename(resolved.title, fallbackExt)
+          )}&type=${encodeURIComponent(mimeType)}`
+        : undefined;
+
+    const downloads = {
+      videoHD: toProxyUrl(resolved.downloads?.videoHD, 'mp4', 'video/mp4'),
+      videoSD: toProxyUrl(resolved.downloads?.videoSD, 'mp4', 'video/mp4'),
+      audio: toProxyUrl(resolved.downloads?.audio, 'mp3', 'audio/mpeg'),
+    };
+
+    const proxyUrl =
+      downloads.videoHD ||
+      downloads.videoSD ||
+      downloads.audio ||
+      toProxyUrl(resolved.finalUrl, ext, extractAudio ? 'audio/mpeg' : 'video/mp4');
 
     return json(res, 200, {
       success: true,
@@ -453,9 +558,7 @@ export default async function handler(req, res) {
       thumbnail: resolved.thumbnail,
       platform: 'youtube',
       type: extractAudio ? 'audio' : 'video',
-      downloads: extractAudio
-        ? { audio: proxyUrl }
-        : { videoHD: proxyUrl, videoSD: proxyUrl, audio: undefined },
+      downloads,
       downloadUrl: proxyUrl,
       raw: resolved.payload,
     });
