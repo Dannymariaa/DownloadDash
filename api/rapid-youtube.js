@@ -221,6 +221,20 @@ const summarizePayload = (payload) => {
   }
 };
 
+const collectStrings = (payload) => {
+  const values = [];
+  walkValues(payload, (value) => {
+    if (typeof value === 'string') values.push(value);
+  });
+  return values;
+};
+
+const responseSeemsToMatchVideoId = (payload, expectedId) => {
+  if (!expectedId) return true;
+  const strings = collectStrings(payload);
+  return strings.some((value) => value.includes(expectedId));
+};
+
 const extractYoutubeId = (inputUrl) => {
   try {
     const parsed = new URL(inputUrl);
@@ -260,12 +274,15 @@ const buildAttemptBodies = ({ url, quality, extractAudio }) => {
   const format = mapFormatValue(quality, extractAudio);
   const audioQuality = extractAudio ? '128' : '128';
 
-  return [
-    { id, format, audioQuality, addInfo: 'false' },
-    { id, format, audioQuality, addInfo: false },
-    { id, format, audioQuality: 128, addInfo: 'false' },
-    { id, format, addInfo: 'false' },
-  ];
+  return {
+    expectedId: id,
+    attempts: [
+      { id, format, audioQuality, addInfo: 'true' },
+      { id, format, audioQuality, addInfo: true },
+      { id, format, audioQuality: 128, addInfo: 'true' },
+      { id, format, addInfo: 'true' },
+    ],
+  };
 };
 
 const callRapidAttempt = async ({ body, method, path }) => {
@@ -304,7 +321,7 @@ const callRapidAttempt = async ({ body, method, path }) => {
 };
 
 const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
-  const attempts = buildAttemptBodies({ url, quality, extractAudio });
+  const { expectedId, attempts } = buildAttemptBodies({ url, quality, extractAudio });
   const methods = ['POST', 'GET'];
   let initPayload = null;
   let lastError = null;
@@ -333,7 +350,7 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
   }
 
   const directUrl = extractDownloadUrl(initPayload);
-  if (directUrl) {
+  if (directUrl && responseSeemsToMatchVideoId(initPayload, expectedId)) {
     return {
       payload: initPayload,
       finalUrl: directUrl,
@@ -374,13 +391,20 @@ const resolveRapidDownload = async ({ url, quality, extractAudio }) => {
 
     progressPayload = data;
     const finalUrl = extractDownloadUrl(progressPayload);
-    if (finalUrl) {
+    if (finalUrl && responseSeemsToMatchVideoId(progressPayload, expectedId)) {
       return {
         payload: progressPayload,
         finalUrl,
         title: extractTitle(progressPayload) || extractTitle(initPayload),
         thumbnail: extractThumbnail(progressPayload) || extractThumbnail(initPayload),
       };
+    }
+
+    if (finalUrl && !responseSeemsToMatchVideoId(progressPayload, expectedId)) {
+      throw new Error(
+        `RapidAPI returned media for a different YouTube video. Expected ID ${expectedId}. ` +
+        `Response sample: ${summarizePayload(progressPayload)}`
+      );
     }
 
     const status = extractStatus(progressPayload);
