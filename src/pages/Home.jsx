@@ -15,6 +15,7 @@ const stats = [
 ];
 
 const APK_URL = '/downloads/DownloadDash.apk';
+const MIN_APK_BYTES = 1024 * 1024;
 
 const getDeviceType = () => {
   const userAgent = navigator.userAgent || '';
@@ -45,12 +46,14 @@ export default function Home() {
     try {
       const response = await fetch(APK_URL, { method: 'HEAD', cache: 'no-store' });
       const contentType = response.headers.get('content-type') || '';
+      const contentLength = Number.parseInt(response.headers.get('content-length') || '0', 10);
       const isApk =
         contentType.includes('application/vnd.android.package-archive') ||
         contentType.includes('application/octet-stream');
+      const looksLikeRealApk = Number.isFinite(contentLength) && contentLength >= MIN_APK_BYTES;
 
-      if (!response.ok || !isApk) {
-        alert('The Android APK has not been uploaded yet. Add it at public/downloads/DownloadDash.apk and redeploy.');
+      if (!response.ok || !isApk || !looksLikeRealApk) {
+        alert('The Android app package is not ready yet. Upload a real signed APK at public/downloads/DownloadDash.apk, redeploy, and then try again. Until then, use Install app or Add to Home Screen from your browser.');
         return;
       }
 
@@ -82,7 +85,7 @@ export default function Home() {
     }
 
     if (device.isIOS) {
-      alert('iPhone and iPad do not allow one-click APK installs. Open this site in Safari, tap Share, then tap Add to Home Screen.');
+      alert('iPhone and iPad cannot install Android APK files. Open this site in Safari, tap Share, then tap Add to Home Screen to install the web app.');
       return;
     }
 
@@ -210,8 +213,8 @@ export default function Home() {
                 <YouTubeIcon size={64} />
                 <div className="text-left">
                   <p className="text-2xl font-bold text-white">YouTube</p>
-                  <p className="text-gray-400 text-sm mt-1">Videos · Shorts · Audio MP3</p>
-                  <span className="inline-block mt-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full">Start Downloading →</span>
+                  <p className="text-gray-400 text-sm mt-1">Videos - Shorts - Audio MP3</p>
+                  <span className="inline-block mt-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full">Start Downloading -&gt;</span>
                 </div>
               </motion.div>
             </Link>
@@ -341,7 +344,7 @@ export default function Home() {
                 Download the App
               </h2>
               <p className="text-gray-400 mb-8 max-w-xl mx-auto">
-                Install DownloadDash from your browser, use it as a mobile web app, or download the Android APK when available.
+                Install DownloadDash from your browser as a web app on iPhone, iPad, Android, tablet, and desktop. Android APK download only works after a real signed APK has been uploaded.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
