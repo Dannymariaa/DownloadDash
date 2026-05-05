@@ -2,31 +2,55 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://www.downloaddash.store/</loc>
-    <lastmod>2026-04-22</lastmod>
+    <lastmod>2026-05-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.downloaddash.store/dashboard</loc>
-    <lastmod>2026-04-22</lastmod>
+    <loc>https://www.downloaddash.store/RecommendedApps</loc>
+    <lastmod>2026-05-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.downloaddash.store/HowDownloadDashWorks</loc>
+    <lastmod>2026-05-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.downloaddash.store/SupportedPlatforms</loc>
+    <lastmod>2026-05-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.downloaddash.store/Troubleshooting</loc>
+    <lastmod>2026-05-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.downloaddash.store/ResponsibleUse</loc>
+    <lastmod>2026-05-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://www.downloaddash.store/PrivacyPolicy</loc>
-    <lastmod>2026-04-22</lastmod>
+    <lastmod>2026-05-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.downloaddash.store/TermsOfService</loc>
-    <lastmod>2026-04-22</lastmod>
+    <lastmod>2026-05-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://www.downloaddash.store/Contact</loc>
-    <lastmod>2026-04-22</lastmod>
+    <lastmod>2026-05-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

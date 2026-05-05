@@ -14,6 +14,29 @@ const stats = [
   { value: 'Help', label: 'Support Available' },
 ];
 
+const guideLinks = [
+  {
+    page: 'HowDownloadDashWorks',
+    title: 'How DownloadDash Works',
+    body: 'Understand the full flow from public link input to returned media options.',
+  },
+  {
+    page: 'SupportedPlatforms',
+    title: 'Supported Platforms',
+    body: 'See which media sources and device types the service is built around.',
+  },
+  {
+    page: 'Troubleshooting',
+    title: 'Troubleshooting',
+    body: 'Learn the most common reasons a media request can fail and what to expect next.',
+  },
+  {
+    page: 'ResponsibleUse',
+    title: 'Responsible Use',
+    body: 'Read the creator-rights and lawful-use guidance behind the service.',
+  },
+];
+
 const APK_URL = '/downloads/DownloadDash.apk';
 const MIN_APK_BYTES = 1024 * 1024;
 
@@ -271,6 +294,97 @@ export default function Home() {
                 </div>
                 <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
                 <p className="text-gray-400">{feature.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 px-4">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              What You Can Do On DownloadDash
+            </h2>
+            <p className="text-gray-400 max-w-3xl mx-auto">
+              DownloadDash is more than a single download box. It explains supported public-link workflows, helps users understand install options across devices, and gives context around safe, lawful use before any media request is made.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {[
+              {
+                title: 'Supported Public Link Workflows',
+                body: 'Use DownloadDash to process supported public links for video, audio, or image retrieval when the original platform and your local laws allow it. Results depend on what the upstream service makes available at that moment.',
+              },
+              {
+                title: 'Clear Device Install Guidance',
+                body: 'The site explains the difference between installing the web app in a browser and downloading a real Android APK. iPhone and iPad users get Safari Add to Home Screen guidance instead of a misleading APK prompt.',
+              },
+              {
+                title: 'Troubleshooting Help',
+                body: 'If a link fails, the usual causes are private or removed source posts, backend cookie expiry, upstream blocking, or temporary rate limits. Our guides help users understand these cases instead of treating every issue like a broken button.',
+              },
+              {
+                title: 'Policy And Rights Awareness',
+                body: 'Every major screen reminds users to respect copyright, platform rules, and the rights of creators. DownloadDash is intentionally built around public, permitted media flows rather than bypassing access controls.',
+              },
+            ].map((item, idx) => (
+              <motion.article
+                key={item.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.08 }}
+                className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
+              >
+                <h3 className="text-xl font-semibold text-white mb-3">{item.title}</h3>
+                <p className="text-gray-400 leading-7">{item.body}</p>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 px-4 bg-gradient-to-b from-black via-purple-900/10 to-black">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Read The DownloadDash Guides
+            </h2>
+            <p className="text-gray-400 max-w-3xl mx-auto">
+              These pages give the site more than a tool surface. They explain supported workflows, creator-rights boundaries, device installation, and the most common support issues users run into.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {guideLinks.map((guide, idx) => (
+              <motion.div
+                key={guide.page}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.08 }}
+                className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
+              >
+                <h3 className="text-xl font-semibold text-white mb-3">{guide.title}</h3>
+                <p className="text-gray-400 leading-7 mb-5">{guide.body}</p>
+                <Link
+                  to={createPageUrl(guide.page)}
+                  className="inline-flex rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3 font-semibold text-white hover:opacity-90"
+                >
+                  Read Guide
+                </Link>
               </motion.div>
             ))}
           </div>

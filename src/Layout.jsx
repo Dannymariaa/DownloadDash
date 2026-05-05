@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Home, Download, User, LogIn, Bookmark, History } from 'lucide-react';
+import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck } from 'lucide-react';
 import { YouTubeIcon } from '@/components/PlatformIcons';
 import { Button } from '@/components/ui/button';
 import downloadDash from '@/api/downloadDashClient';
@@ -77,7 +77,10 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
               </Link>
 
               <Link to={createPageUrl('RecommendedApps')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
-                <Bookmark className="h-4 w-4" /> Apps
+                <Bookmark className="h-4 w-4" /> Guides
+              </Link>
+              <Link to={createPageUrl('HowDownloadDashWorks')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
+                <FileText className="h-4 w-4" /> How It Works
               </Link>
               {user && (
                 <Link to={createPageUrl('Dashboard')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
@@ -119,7 +122,13 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
                   <YouTubeIcon size={24} /> YouTube Downloader
                 </Link>
                 <Link to={createPageUrl('RecommendedApps')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <Bookmark className="h-5 w-5" /> Recommended Apps
+                  <Bookmark className="h-5 w-5" /> Guides
+                </Link>
+                <Link to={createPageUrl('HowDownloadDashWorks')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
+                  <FileText className="h-5 w-5" /> How It Works
+                </Link>
+                <Link to={createPageUrl('Troubleshooting')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
+                  <LifeBuoy className="h-5 w-5" /> Troubleshooting
                 </Link>
                 {user ? (
                   <Link to={createPageUrl('Dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
@@ -151,10 +160,22 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
               <p className="text-gray-400 text-sm">A simple media utility for public links, personal use, and content you have permission to save.</p>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Platform</h4>
+              <h4 className="text-white font-semibold mb-4">Resources</h4>
               <div className="space-y-2">
                 <Link to={createPageUrl('YouTubeDownloader')} className="flex items-center gap-2 text-gray-400 hover:text-red-400 text-sm transition-colors">
                   <YouTubeIcon size={18} /> YouTube Downloader
+                </Link>
+                <Link to={createPageUrl('HowDownloadDashWorks')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
+                  <FileText className="h-4 w-4" /> How DownloadDash Works
+                </Link>
+                <Link to={createPageUrl('SupportedPlatforms')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
+                  <Bookmark className="h-4 w-4" /> Supported Platforms
+                </Link>
+                <Link to={createPageUrl('Troubleshooting')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
+                  <LifeBuoy className="h-4 w-4" /> Troubleshooting
+                </Link>
+                <Link to={createPageUrl('ResponsibleUse')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
+                  <ShieldCheck className="h-4 w-4" /> Responsible Use
                 </Link>
               </div>
             </div>
@@ -163,7 +184,11 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
               <div className="space-y-2">
                 <Link to={createPageUrl('Home')} className="block text-gray-400 hover:text-purple-400 text-sm">Home</Link>
                 <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">Dashboard</Link>
-                <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">Recommended Apps</Link>
+                <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">Guides</Link>
+                <Link to={createPageUrl('HowDownloadDashWorks')} className="block text-gray-400 hover:text-purple-400 text-sm">How DownloadDash Works</Link>
+                <Link to={createPageUrl('SupportedPlatforms')} className="block text-gray-400 hover:text-purple-400 text-sm">Supported Platforms</Link>
+                <Link to={createPageUrl('Troubleshooting')} className="block text-gray-400 hover:text-purple-400 text-sm">Troubleshooting</Link>
+                <Link to={createPageUrl('ResponsibleUse')} className="block text-gray-400 hover:text-purple-400 text-sm">Responsible Use</Link>
                 <Link to={createPageUrl('PrivacyPolicy')} className="block text-gray-400 hover:text-purple-400 text-sm">Privacy Policy</Link>
                 <Link to={createPageUrl('TermsOfService')} className="block text-gray-400 hover:text-purple-400 text-sm">Terms of Service</Link>
                 <Link to={createPageUrl('Contact')} className="block text-gray-400 hover:text-purple-400 text-sm">Contact</Link>

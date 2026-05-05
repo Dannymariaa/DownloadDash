@@ -1,146 +1,137 @@
-// @ts-nocheck
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { createPageUrl } from '@/utils';
 import { motion } from 'framer-motion';
-import { Sparkles, ExternalLink, Download, Star } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import AdBanner from '@/components/AdBanner';
+import { BookOpen, Shield, Smartphone, Wrench, ExternalLink, CheckCircle } from 'lucide-react';
+
+const resourceCards = [
+  {
+    icon: <BookOpen className="h-7 w-7" />,
+    title: 'How DownloadDash Works',
+    body:
+      'DownloadDash helps you process supported public links and presents the file options returned by the connected backend. The site does not host a giant content library, does not require account scraping, and is meant for personal workflows where you already have permission to save the media.',
+  },
+  {
+    icon: <Shield className="h-7 w-7" />,
+    title: 'Copyright And Responsible Use',
+    body:
+      'Only download media you own, created, licensed, or otherwise have legal permission to save. Rights can differ by country and by platform terms, so DownloadDash is designed around public links and user responsibility rather than bypassing platform protections.',
+  },
+  {
+    icon: <Smartphone className="h-7 w-7" />,
+    title: 'Phone And Tablet Install Guide',
+    body:
+      'On modern browsers, DownloadDash can be installed as a web app from the browser menu. Android APK delivery only works when a real signed APK is uploaded, while iPhone and iPad installation uses Safari Add to Home Screen because iOS does not install APK packages.',
+  },
+  {
+    icon: <Wrench className="h-7 w-7" />,
+    title: 'Common Troubleshooting',
+    body:
+      'If a media request fails, the most common causes are expired backend cookies, a blocked upstream service, temporary rate limits, or the original post being removed or made private. For older phones, insecure-connection warnings can also come from outdated device trust stores rather than the website itself.',
+  },
+];
+
+const qualityChecklist = [
+  'A clear homepage that explains what the site does and who it is for.',
+  'Accessible privacy, contact, and terms pages linked from every page.',
+  'Tool pages supported by real explanatory content rather than ads-only layouts.',
+  'Honest installation guidance for web app, Android APK, and iOS browser behavior.',
+  'Content that explains lawful use, supported platforms, and troubleshooting help.',
+];
 
 export default function RecommendedApps() {
-  // This array will be populated with your future apps
-  const recommendedApps = [
-    // Example structure for when you add apps:
-    // {
-    //   name: 'App Name',
-    //   description: 'App description',
-    //   icon: '🚀',
-    //   gradient: 'from-blue-500 to-purple-500',
-    //   link: 'https://yourapp.com',
-    //   rating: 4.8,
-    //   downloads: '100K+'
-    // }
-  ];
-
   return (
     <div className="min-h-screen bg-black text-white">
-      <AdBanner position="top" size="small" />
-
       <div className="max-w-6xl mx-auto px-4 py-12">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-12"
         >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 200 }}
-            className="w-20 h-20 mx-auto mb-6 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center"
-          >
-            <Sparkles className="h-10 w-10 text-white" />
-          </motion.div>
-
+          <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center">
+            <BookOpen className="h-10 w-10 text-white" />
+          </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
-            Recommended Apps
+            DownloadDash Guides
           </h1>
-          <p className="text-gray-400 text-lg max-w-xl mx-auto">
-            Discover more amazing apps from our collection
+          <p className="text-gray-400 text-lg max-w-3xl mx-auto">
+            This page explains how DownloadDash works, what kinds of links it supports, how to install the app experience on different devices, and the rules users should follow before saving media.
           </p>
         </motion.div>
 
-        {recommendedApps.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-center py-20"
-          >
-            <div className="bg-gradient-to-br from-gray-900 to-black rounded-3xl p-12 border border-purple-500/20 max-w-2xl mx-auto">
-              <motion.div
-                animate={{ rotate: [0, 10, -10, 0] }}
-                transition={{ repeat: Infinity, duration: 3 }}
-                className="text-6xl mb-6"
-              >
-                🚀
-              </motion.div>
-              <h2 className="text-2xl font-bold text-white mb-4">
-                Coming Soon!
-              </h2>
-              <p className="text-gray-400 mb-6">
-                We're working on more amazing apps for you. Check back soon to discover our new creations!
-              </p>
-              <div className="flex flex-wrap justify-center gap-3">
-                {['Games', 'Utilities', 'Productivity', 'Entertainment'].map((tag, idx) => (
-                  <motion.span
-                    key={idx}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.3 + idx * 0.1 }}
-                    className="px-4 py-2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-sm"
-                  >
-                    {tag}
-                  </motion.span>
-                ))}
+        <div className="grid md:grid-cols-2 gap-6 mb-12">
+          {resourceCards.map((card, index) => (
+            <motion.article
+              key={card.title}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.08 }}
+              className="rounded-3xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-7"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center mb-5">
+                {card.icon}
               </div>
-            </div>
-          </motion.div>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recommendedApps.map((app, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                whileHover={{ y: -5 }}
-                className="group bg-gradient-to-br from-gray-900 to-black rounded-2xl p-6 border border-purple-500/20 hover:border-purple-500/50 transition-all duration-300"
-              >
-                <div className={`w-16 h-16 rounded-xl bg-gradient-to-r ${app.gradient} flex items-center justify-center text-3xl mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                  {app.icon}
-                </div>
-                
-                <h3 className="text-xl font-bold text-white mb-2">{app.name}</h3>
-                <p className="text-gray-400 text-sm mb-4">{app.description}</p>
-                
-                <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
-                  <span className="flex items-center gap-1">
-                    <Star className="h-4 w-4 text-yellow-500" />
-                    {app.rating}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Download className="h-4 w-4" />
-                    {app.downloads}
-                  </span>
-                </div>
+              <h2 className="text-2xl font-bold text-white mb-3">{card.title}</h2>
+              <p className="text-gray-400 leading-7">{card.body}</p>
+            </motion.article>
+          ))}
+        </div>
 
-                <Button
-                  className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90"
-                  onClick={() => window.open(app.link, '_blank')}
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Get App
-                </Button>
-              </motion.div>
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="rounded-3xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-8 md:p-10 mb-12"
+        >
+          <h2 className="text-3xl font-bold text-white mb-5">What We Are Improving For Site Quality</h2>
+          <p className="text-gray-400 max-w-3xl leading-7 mb-6">
+            DownloadDash is being shaped into a clearer publisher-quality utility site rather than a thin one-screen downloader. That means every key screen should provide user help, guidance, or policy context instead of acting as a blank shell around ad placements.
+          </p>
+          <div className="grid md:grid-cols-2 gap-4">
+            {qualityChecklist.map((item) => (
+              <div key={item} className="flex items-start gap-3 rounded-2xl border border-purple-500/10 bg-white/[0.03] p-4">
+                <CheckCircle className="h-5 w-5 text-green-400 mt-0.5 flex-shrink-0" />
+                <p className="text-gray-300">{item}</p>
+              </div>
             ))}
           </div>
-        )}
+        </motion.section>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-16 text-center"
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="rounded-3xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-8 md:p-10"
         >
-          <p className="text-gray-500">
-            Want to suggest an app feature? 
-            <a href="mailto:contact@downloaddash.com" className="text-purple-400 hover:text-purple-300 ml-1">
-              Contact us
-            </a>
+          <h2 className="text-3xl font-bold text-white mb-4">Need Help Or Want To Report Something?</h2>
+          <p className="text-gray-400 max-w-3xl leading-7 mb-6">
+            If a link fails, if you need help understanding installation on your device, or if you are a rights holder with a concern, use the contact page. Clear support and compliance channels are part of how we keep DownloadDash useful and responsible.
           </p>
-        </motion.div>
-      </div>
+          <Link
+            to={createPageUrl('Contact')}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-6 py-3 font-semibold text-white hover:opacity-90 transition-opacity"
+          >
+            Open Contact Page
+            <ExternalLink className="h-4 w-4" />
+          </Link>
+        </motion.section>
 
-      <div className="px-4 pb-8">
-        <AdBanner position="bottom" size="large" />
+        <div className="grid md:grid-cols-2 gap-6 mt-12">
+          {[
+            ['HowDownloadDashWorks', 'Read How DownloadDash Works'],
+            ['SupportedPlatforms', 'See Supported Platforms'],
+            ['Troubleshooting', 'Open Troubleshooting Guide'],
+            ['ResponsibleUse', 'Review Responsible Use'],
+          ].map(([page, label]) => (
+            <Link
+              key={page}
+              to={createPageUrl(page)}
+              className="rounded-2xl border border-purple-500/20 bg-white/[0.03] p-5 text-white hover:border-purple-400 transition-colors"
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );

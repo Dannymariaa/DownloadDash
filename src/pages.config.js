@@ -51,6 +51,10 @@ import Home from './pages/Home';
 import YouTubeDownloader from './pages/YouTubeDownloader';
 import Dashboard from './pages/Dashboard';
 import RecommendedApps from './pages/RecommendedApps';
+import HowDownloadDashWorks from './pages/HowDownloadDashWorks';
+import SupportedPlatforms from './pages/SupportedPlatforms';
+import Troubleshooting from './pages/Troubleshooting';
+import ResponsibleUse from './pages/ResponsibleUse';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import Contact from './pages/Contact';
@@ -62,6 +66,10 @@ export const PAGES = {
     "YouTubeDownloader": YouTubeDownloader,
     "Dashboard": Dashboard,
     "RecommendedApps": RecommendedApps,
+    "HowDownloadDashWorks": HowDownloadDashWorks,
+    "SupportedPlatforms": SupportedPlatforms,
+    "Troubleshooting": Troubleshooting,
+    "ResponsibleUse": ResponsibleUse,
     "PrivacyPolicy": PrivacyPolicy,
     "TermsOfService": TermsOfService,
     "Contact": Contact,
