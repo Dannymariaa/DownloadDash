@@ -6,6 +6,7 @@ import AdBanner from '@/components/AdBanner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { YouTubeIcon } from '@/components/PlatformIcons';
+import { featuredBlogPosts } from '@/content/blogPosts';
 
 const stats = [
   { value: 'HD', label: 'Quality Options' },
@@ -156,13 +157,13 @@ export default function Home() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Link to={createPageUrl('YouTubeDownloader')}>
+                <Link to={createPageUrl('Blog')}>
                   <Button
                     size="lg"
                     className="h-14 px-8 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/25 text-lg"
                   >
-                    <Download className="mr-2 h-5 w-5" />
-                    Open Downloader
+                    <FileText className="mr-2 h-5 w-5" />
+                    Read Guides First
                   </Button>
                 </Link>
               </motion.div>
@@ -175,7 +176,7 @@ export default function Home() {
                   onClick={handleAppDownload}
                 >
                   <Smartphone className="mr-2 h-5 w-5" />
-                  Download App
+                  Install App
                 </Button>
               </motion.div>
             </div>
@@ -213,37 +214,6 @@ export default function Home() {
         <AdBanner position="middle" size="medium" />
       </div>
 
-      {/* YouTube CTA Section */}
-      <section className="py-16 px-4">
-        <div className="max-w-2xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-              YouTube Downloader
-            </h2>
-            <p className="text-gray-400 max-w-xl mx-auto mb-8">
-              Process public YouTube links and choose available video or audio formats. Please respect copyright and platform rules.
-            </p>
-            <Link to={createPageUrl('YouTubeDownloader')}>
-              <motion.div
-                whileHover={{ scale: 1.03, y: -4 }}
-                whileTap={{ scale: 0.97 }}
-                className="inline-flex items-center gap-5 bg-gradient-to-br from-gray-900 to-black border border-red-500/40 hover:border-red-500/80 rounded-3xl px-10 py-7 shadow-xl shadow-red-500/10 transition-all duration-300 cursor-pointer"
-              >
-                <YouTubeIcon size={64} />
-                <div className="text-left">
-                  <p className="text-2xl font-bold text-white">YouTube</p>
-                  <p className="text-gray-400 text-sm mt-1">Videos - Shorts - Audio MP3</p>
-                  <span className="inline-block mt-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full">Start Downloading -&gt;</span>
-                </div>
-              </motion.div>
-            </Link>
-          </motion.div>
-        </div>
-      </section>
 
       {/* Features Section */}
       <section className="py-16 px-4 bg-gradient-to-b from-black via-purple-900/10 to-black">
@@ -388,6 +358,222 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="py-16 px-4">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Step-By-Step Guide
+            </h2>
+            <p className="text-gray-400 max-w-3xl mx-auto">
+              If you are new to DownloadDash, this is the best order to follow. Read the guidance first, understand what kind of public link you are using, and only then move into the actual downloader.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-5 gap-4">
+            {[
+              'Open the source post and confirm it is still public.',
+              'Choose the right guide for the platform or device you are using.',
+              'Make sure you have the right to save the content.',
+              'Paste the link into the supported downloader page.',
+              'Choose the returned format and save it for lawful personal use.',
+            ].map((step, idx) => (
+              <motion.div
+                key={step}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.06 }}
+                className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-5"
+              >
+                <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold mb-4">
+                  {idx + 1}
+                </div>
+                <p className="text-gray-300 leading-7">{step}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 px-4">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Featured Blog Articles
+            </h2>
+            <p className="text-gray-400 max-w-3xl mx-auto">
+              These articles answer the questions users usually ask before trusting a download utility: what is legal, why links fail, how different devices behave, and how public-link tools should be used responsibly.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {featuredBlogPosts.map((post, idx) => (
+              <motion.article
+                key={post.slug}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.08 }}
+                className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
+              >
+                <h3 className="text-xl font-semibold text-white mb-3">{post.title}</h3>
+                <p className="text-gray-400 leading-7 mb-5">{post.excerpt}</p>
+                <Link
+                  to={createPageUrl(post.slug)}
+                  className="inline-flex rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3 font-semibold text-white hover:opacity-90"
+                >
+                  Read Article
+                </Link>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 px-4 bg-gradient-to-b from-black via-purple-900/10 to-black">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Supported Platforms And Devices
+            </h2>
+            <p className="text-gray-400 max-w-3xl mx-auto">
+              DownloadDash is designed as a cross-device media utility. The exact formats available on a public link depend on the source platform, but the service itself is built to be understandable on phones, tablets, laptops, and desktop browsers.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-4 gap-5">
+            {[
+              {
+                title: 'Source Platforms',
+                body: 'The broader project supports public-link workflows for major social and media platforms, while each guide explains what to expect from a given source.',
+              },
+              {
+                title: 'Android And iPhone',
+                body: 'Mobile users can browse guides, paste supported links, and use the install flow that best matches their device and browser.',
+              },
+              {
+                title: 'Tablet And Desktop',
+                body: 'Larger screens make the guides, troubleshooting checklists, and downloader options easier to review before saving media.',
+              },
+              {
+                title: 'Web App First',
+                body: 'The safest install path is the browser-based web app experience, with Android APK download reserved only for real signed releases.',
+              },
+            ].map((item, idx) => (
+              <motion.article
+                key={item.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.08 }}
+                className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
+              >
+                <h3 className="text-xl font-semibold text-white mb-3">{item.title}</h3>
+                <p className="text-gray-400 leading-7">{item.body}</p>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 px-4">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Frequently Asked Questions
+            </h2>
+            <p className="text-gray-400 max-w-3xl mx-auto">
+              These are the questions people ask most often before trying the tool. Answering them on the homepage makes the site more useful even before a visitor opens a downloader page.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {[
+              {
+                title: 'Is DownloadDash only for YouTube?',
+                body: 'No. DownloadDash is positioned as a broader public-link media utility. Individual platform support may change over time, so the guides and support pages explain what each flow is built to handle.',
+              },
+              {
+                title: 'Is downloading videos always legal?',
+                body: 'No. Legality depends on the content, the platform rules, your local laws, and whether you have the rights or permission to save the media. That is why the site keeps lawful-use and creator-rights guidance visible.',
+              },
+              {
+                title: 'Why do some downloads fail?',
+                body: 'The most common reasons are removed or private posts, expired cookies, upstream rate limits, bot checks, or source platforms changing the media formats they expose at a given moment.',
+              },
+              {
+                title: 'Why is the guide content shown before the tool?',
+                body: 'Because users need context first. A content-first layout explains safety, platform support, and troubleshooting before anyone starts a download request, which improves trust and reduces confusion.',
+              },
+            ].map((item, idx) => (
+              <motion.article
+                key={item.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.08 }}
+                className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
+              >
+                <h3 className="text-xl font-semibold text-white mb-3">{item.title}</h3>
+                <p className="text-gray-400 leading-7">{item.body}</p>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Tool Section */}
+      <section className="py-16 px-4">
+        <div className="max-w-2xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Use The Download Tool
+            </h2>
+            <p className="text-gray-400 max-w-xl mx-auto mb-8">
+              Once you have read the guides and confirmed you are working with a supported public link, you can continue to the downloader and choose the format returned by the backend.
+            </p>
+            <Link to={createPageUrl('YouTubeDownloader')}>
+              <motion.div
+                whileHover={{ scale: 1.03, y: -4 }}
+                whileTap={{ scale: 0.97 }}
+                className="inline-flex items-center gap-5 bg-gradient-to-br from-gray-900 to-black border border-red-500/40 hover:border-red-500/80 rounded-3xl px-10 py-7 shadow-xl shadow-red-500/10 transition-all duration-300 cursor-pointer"
+              >
+                <YouTubeIcon size={64} />
+                <div className="text-left">
+                  <p className="text-2xl font-bold text-white">YouTube</p>
+                  <p className="text-gray-400 text-sm mt-1">Videos - Shorts - Audio MP3</p>
+                  <span className="inline-block mt-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full">Open Downloader</span>
+                </div>
+              </motion.div>
+            </Link>
+          </motion.div>
         </div>
       </section>
 

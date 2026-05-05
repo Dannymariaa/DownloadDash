@@ -55,6 +55,18 @@ import HowDownloadDashWorks from './pages/HowDownloadDashWorks';
 import SupportedPlatforms from './pages/SupportedPlatforms';
 import Troubleshooting from './pages/Troubleshooting';
 import ResponsibleUse from './pages/ResponsibleUse';
+import Blog from './pages/Blog';
+import Disclaimer from './pages/Disclaimer';
+import BlogTikTokNoWatermarkGuide from './pages/BlogTikTokNoWatermarkGuide';
+import BlogSafeYouTubeDownloads from './pages/BlogSafeYouTubeDownloads';
+import BlogInstagramDownloaderGuide from './pages/BlogInstagramDownloaderGuide';
+import BlogBestFreeVideoDownloaderTools from './pages/BlogBestFreeVideoDownloaderTools';
+import BlogIsDownloadingVideosLegal from './pages/BlogIsDownloadingVideosLegal';
+import BlogSaveVideosOnAndroidIphone from './pages/BlogSaveVideosOnAndroidIphone';
+import BlogWhyVideoDownloadsFail from './pages/BlogWhyVideoDownloadsFail';
+import BlogWebAppVsApkGuide from './pages/BlogWebAppVsApkGuide';
+import BlogPublicLinksAndCreatorRights from './pages/BlogPublicLinksAndCreatorRights';
+import BlogTroubleshootingDownloadDash from './pages/BlogTroubleshootingDownloadDash';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import Contact from './pages/Contact';
@@ -70,6 +82,18 @@ export const PAGES = {
     "SupportedPlatforms": SupportedPlatforms,
     "Troubleshooting": Troubleshooting,
     "ResponsibleUse": ResponsibleUse,
+    "Blog": Blog,
+    "Disclaimer": Disclaimer,
+    "BlogTikTokNoWatermarkGuide": BlogTikTokNoWatermarkGuide,
+    "BlogSafeYouTubeDownloads": BlogSafeYouTubeDownloads,
+    "BlogInstagramDownloaderGuide": BlogInstagramDownloaderGuide,
+    "BlogBestFreeVideoDownloaderTools": BlogBestFreeVideoDownloaderTools,
+    "BlogIsDownloadingVideosLegal": BlogIsDownloadingVideosLegal,
+    "BlogSaveVideosOnAndroidIphone": BlogSaveVideosOnAndroidIphone,
+    "BlogWhyVideoDownloadsFail": BlogWhyVideoDownloadsFail,
+    "BlogWebAppVsApkGuide": BlogWebAppVsApkGuide,
+    "BlogPublicLinksAndCreatorRights": BlogPublicLinksAndCreatorRights,
+    "BlogTroubleshootingDownloadDash": BlogTroubleshootingDownloadDash,
     "PrivacyPolicy": PrivacyPolicy,
     "TermsOfService": TermsOfService,
     "Contact": Contact,

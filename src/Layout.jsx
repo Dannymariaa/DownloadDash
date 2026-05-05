@@ -82,6 +82,9 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
               <Link to={createPageUrl('HowDownloadDashWorks')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
                 <FileText className="h-4 w-4" /> How It Works
               </Link>
+              <Link to={createPageUrl('Blog')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
+                <LifeBuoy className="h-4 w-4" /> Blog
+              </Link>
               {user && (
                 <Link to={createPageUrl('Dashboard')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
                   <History className="h-4 w-4" /> Dashboard
@@ -130,6 +133,9 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
                 <Link to={createPageUrl('Troubleshooting')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                   <LifeBuoy className="h-5 w-5" /> Troubleshooting
                 </Link>
+                <Link to={createPageUrl('Blog')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
+                  <LifeBuoy className="h-5 w-5" /> Blog
+                </Link>
                 {user ? (
                   <Link to={createPageUrl('Dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                     <User className="h-5 w-5" /> Dashboard
@@ -174,6 +180,9 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
                 <Link to={createPageUrl('Troubleshooting')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
                   <LifeBuoy className="h-4 w-4" /> Troubleshooting
                 </Link>
+                <Link to={createPageUrl('Blog')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
+                  <LifeBuoy className="h-4 w-4" /> Blog
+                </Link>
                 <Link to={createPageUrl('ResponsibleUse')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
                   <ShieldCheck className="h-4 w-4" /> Responsible Use
                 </Link>
@@ -189,8 +198,10 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
                 <Link to={createPageUrl('SupportedPlatforms')} className="block text-gray-400 hover:text-purple-400 text-sm">Supported Platforms</Link>
                 <Link to={createPageUrl('Troubleshooting')} className="block text-gray-400 hover:text-purple-400 text-sm">Troubleshooting</Link>
                 <Link to={createPageUrl('ResponsibleUse')} className="block text-gray-400 hover:text-purple-400 text-sm">Responsible Use</Link>
+                <Link to={createPageUrl('Blog')} className="block text-gray-400 hover:text-purple-400 text-sm">Blog</Link>
                 <Link to={createPageUrl('PrivacyPolicy')} className="block text-gray-400 hover:text-purple-400 text-sm">Privacy Policy</Link>
                 <Link to={createPageUrl('TermsOfService')} className="block text-gray-400 hover:text-purple-400 text-sm">Terms of Service</Link>
+                <Link to={createPageUrl('Disclaimer')} className="block text-gray-400 hover:text-purple-400 text-sm">Disclaimer</Link>
                 <Link to={createPageUrl('Contact')} className="block text-gray-400 hover:text-purple-400 text-sm">Contact</Link>
               </div>
             </div>
