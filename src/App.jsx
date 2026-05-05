@@ -1,45 +1,87 @@
-import React, { useState, useEffect } from 'react';
+import { Toaster } from "@/components/ui/toaster"
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClientInstance } from '@/lib/query-client'
+import NavigationTracker from '@/lib/NavigationTracker'
+import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import PageNotFound from './lib/PageNotFound';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { getAllRoutesForPage } from '@/utils';
 
-import Home from './pages/Home';
-import TikTokDownloader from './pages/TikTokDownloader';
-import InstagramDownloader from './pages/InstagramDownloader';
-import FacebookDownloader from './pages/FacebookDownloader';
-import TwitterDownloader from './pages/TwitterDownloader';
-import WhatsAppBusinessStatusSaver from './pages/WhatsAppBusinessStatusSaver';
-import TelegramSaver from './pages/TelegramSaver';
-import YouTubeDownloader from './pages/YouTubeDownloader';
-import PinterestDownloader from './pages/PinterestDownloader';
-import RedditDownloader from './pages/RedditDownloader';
-import Dashboard from './pages/Dashboard';
-import RecommendedApps from './pages/RecommendedApps';
-import WhatsAppStatusSaver from './pages/WhatsAppStatusSaver';
-import Layout from './Layout';
+const { Pages, Layout, mainPage } = pagesConfig;
+const mainPageKey = mainPage ?? Object.keys(Pages)[0];
+const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
+
+const LayoutWrapper = ({ children, currentPageName }) => Layout ?
+  <Layout currentPageName={currentPageName}>{children}</Layout>
+  : <>{children}</>;
+
+const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+
+  // Show loading spinner while checking app public settings or auth
+  if (isLoadingPublicSettings || isLoadingAuth) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Handle authentication errors
+  if (authError) {
+    if (authError.type === 'user_not_registered') {
+      return <UserNotRegisteredError />;
+    } else if (authError.type === 'auth_required') {
+      // Redirect to login automatically
+      navigateToLogin();
+      return null;
+    }
+  }
+
+  // Render the main app
+  return (
+    <Routes>
+      <Route path="/" element={
+        <LayoutWrapper currentPageName={mainPageKey}>
+          <MainPage />
+        </LayoutWrapper>
+      } />
+      {Object.entries(Pages).flatMap(([pageName, Page]) =>
+        getAllRoutesForPage(pageName)
+          .filter((routePath) => routePath !== '/')
+          .map((routePath) => (
+            <Route
+              key={`${pageName}:${routePath}`}
+              path={routePath}
+              element={
+                <LayoutWrapper currentPageName={pageName}>
+                  <Page />
+                </LayoutWrapper>
+              }
+            />
+          ))
+      )}
+      <Route path="*" element={<PageNotFound />} />
+    </Routes>
+  );
+};
+
 
 function App() {
+
   return (
-    <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/TikTokDownloader" element={<TikTokDownloader />} />
-          <Route path="/InstagramDownloader" element={<InstagramDownloader />} />
-          <Route path="/FacebookDownloader" element={<FacebookDownloader />} />
-          <Route path="/TwitterDownloader" element={<TwitterDownloader />} />
-          <Route path="/WhatsAppBusinessStatusSaver" element={<WhatsAppBusinessStatusSaver />} />
-          <Route path="/TelegramSaver" element={<TelegramSaver />} />
-          <Route path="/YouTubeDownloader" element={<YouTubeDownloader />} />
-          <Route path="/PinterestDownloader" element={<PinterestDownloader />} />
-          <Route path="/RedditDownloader" element={<RedditDownloader />} />
-          <Route path="/Dashboard" element={<Dashboard />} />
-          <Route path="/RecommendedApps" element={<RecommendedApps />} />
-          <Route path="/WhatsAppStatusSaver" element={<WhatsAppStatusSaver />} />
-          {/* Catch all - show home */}
-          <Route path="*" element={<Home />} />
-        </Routes>
-      </Layout>
-    </Router>
-  );
+    <AuthProvider>
+      <QueryClientProvider client={queryClientInstance}>
+        <Router>
+          <NavigationTracker />
+          <AuthenticatedApp />
+        </Router>
+        <Toaster />
+      </QueryClientProvider>
+    </AuthProvider>
+  )
 }
 
-export default App;
+export default App

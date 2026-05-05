@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,10 +9,126 @@ import downloadDash from '@/api/downloadDashClient';
 import LanguageSelector from '@/components/LanguageSelector';
 import AutoAdManager from '@/components/Ads/AutoAdManager.jsx';
 
-export default function Layout({ children, currentPageName: _currentPageName }) {
+const getPageTheme = (pageName) => {
+  if (pageName?.startsWith('Blog')) {
+    return {
+      border: 'border-sky-400/20',
+      accentText: 'text-sky-300',
+      brand: 'from-sky-400 to-fuchsia-400',
+      badgeBg: 'bg-sky-400/10',
+      badgeBorder: 'border-sky-400/25',
+      ribbonTitle: 'Editorial Reading Mode',
+      ribbonBody: 'You are in a dedicated article or blog view, separate from the homepage and downloader screens.',
+    };
+  }
+
+  const themes = {
+    Home: {
+      border: 'border-purple-500/20',
+      accentText: 'text-purple-300',
+      brand: 'from-purple-400 to-pink-400',
+    },
+    RecommendedApps: {
+      border: 'border-cyan-400/20',
+      accentText: 'text-cyan-300',
+      brand: 'from-cyan-300 to-fuchsia-400',
+      badgeBg: 'bg-cyan-400/10',
+      badgeBorder: 'border-cyan-400/25',
+      ribbonTitle: 'Guides Hub',
+      ribbonBody: 'This page is a content directory designed to send users to the right guide, support page, or legal page.',
+    },
+    HowDownloadDashWorks: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Workflow Explainer',
+      ribbonBody: 'This page explains how the product works instead of acting like a landing page or a downloader screen.',
+    },
+    SupportedPlatforms: {
+      border: 'border-orange-400/20',
+      accentText: 'text-orange-300',
+      brand: 'from-orange-300 to-rose-300',
+      badgeBg: 'bg-orange-400/10',
+      badgeBorder: 'border-orange-400/25',
+      ribbonTitle: 'Coverage Page',
+      ribbonBody: 'This page is focused on supported platforms, device expectations, and format variability.',
+    },
+    Troubleshooting: {
+      border: 'border-rose-400/20',
+      accentText: 'text-rose-300',
+      brand: 'from-rose-300 to-amber-300',
+      badgeBg: 'bg-rose-400/10',
+      badgeBorder: 'border-rose-400/25',
+      ribbonTitle: 'Support Diagnostics',
+      ribbonBody: 'This page is a troubleshooting surface for failures, warnings, and install problems.',
+    },
+    ResponsibleUse: {
+      border: 'border-lime-400/20',
+      accentText: 'text-lime-300',
+      brand: 'from-lime-300 to-emerald-300',
+      badgeBg: 'bg-lime-400/10',
+      badgeBorder: 'border-lime-400/25',
+      ribbonTitle: 'Rights And Standards',
+      ribbonBody: 'This page exists to clarify lawful use, creator rights, and DownloadDash usage boundaries.',
+    },
+    Blog: {
+      border: 'border-sky-400/20',
+      accentText: 'text-sky-300',
+      brand: 'from-sky-300 to-fuchsia-300',
+      badgeBg: 'bg-sky-400/10',
+      badgeBorder: 'border-sky-400/25',
+      ribbonTitle: 'Editorial Reading Mode',
+      ribbonBody: 'This page is intentionally styled as a blog destination rather than a homepage section.',
+    },
+    PrivacyPolicy: {
+      border: 'border-sky-400/20',
+      accentText: 'text-sky-300',
+      brand: 'from-sky-400 to-blue-400',
+      badgeBg: 'bg-sky-400/10',
+      badgeBorder: 'border-sky-400/25',
+      ribbonTitle: 'Legal Document',
+      ribbonBody: 'This page is a standalone legal reference page with a document-style layout.',
+    },
+    TermsOfService: {
+      border: 'border-amber-400/20',
+      accentText: 'text-amber-300',
+      brand: 'from-amber-300 to-orange-300',
+      badgeBg: 'bg-amber-400/10',
+      badgeBorder: 'border-amber-400/25',
+      ribbonTitle: 'Legal Document',
+      ribbonBody: 'This page is a standalone terms and rules reference, not a homepage-style marketing block.',
+    },
+    Disclaimer: {
+      border: 'border-rose-400/20',
+      accentText: 'text-rose-300',
+      brand: 'from-rose-300 to-pink-300',
+      badgeBg: 'bg-rose-400/10',
+      badgeBorder: 'border-rose-400/25',
+      ribbonTitle: 'Legal Document',
+      ribbonBody: 'This page provides service limitations and responsibility boundaries in a separate legal-doc style.',
+    },
+    Contact: {
+      border: 'border-blue-400/20',
+      accentText: 'text-blue-300',
+      brand: 'from-blue-300 to-cyan-300',
+      badgeBg: 'bg-blue-400/10',
+      badgeBorder: 'border-blue-400/25',
+      ribbonTitle: 'Support Desk',
+      ribbonBody: 'This page is a dedicated support and contact destination, separate from homepage messaging.',
+    },
+  };
+
+  return themes[pageName] || themes.Home;
+};
+
+export default function Layout({ children, currentPageName }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [language, setLanguage] = useState('en');
+  const theme = useMemo(() => getPageTheme(currentPageName), [currentPageName]);
+  const showRibbon = Boolean(theme.ribbonTitle && currentPageName && currentPageName !== 'Home');
 
   useEffect(() => {
     const loadUser = async () => {
@@ -53,7 +169,7 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
       <AutoAdManager />
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-purple-500/20">
+      <header className={`sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b ${theme.border}`}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <Link to={createPageUrl('Home')} className="flex items-center gap-2">
@@ -61,7 +177,7 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
                 className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
                 <Download className="h-5 w-5 text-white" />
               </motion.div>
-              <span className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <span className={`text-xl font-bold bg-gradient-to-r ${theme.brand} bg-clip-text text-transparent`}>
                 DownloadDash
               </span>
             </Link>
@@ -111,6 +227,20 @@ export default function Layout({ children, currentPageName: _currentPageName }) 
             </div>
           </div>
         </div>
+
+        {showRibbon && (
+          <div className={`border-t ${theme.border} bg-black/60`}>
+            <div className="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+              <div className="min-w-0">
+                <p className={`text-xs uppercase tracking-[0.24em] ${theme.accentText}`}>{theme.ribbonTitle}</p>
+                <p className="text-sm text-gray-400">{theme.ribbonBody}</p>
+              </div>
+              <div className={`shrink-0 rounded-full px-3 py-1 text-xs ${theme.badgeBg} ${theme.badgeBorder} border ${theme.accentText}`}>
+                {currentPageName}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Mobile Menu */}
         <AnimatePresence>
