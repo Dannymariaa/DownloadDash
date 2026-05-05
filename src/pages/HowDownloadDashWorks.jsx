@@ -1,74 +1,112 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { BookOpen, Link2, Shield, Download, SearchCheck } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { BookOpen, Link2, SearchCheck, Download, Shield, ArrowRight, Orbit } from 'lucide-react';
 
 const steps = [
   {
     icon: <Link2 className="h-7 w-7" />,
-    title: 'Step 1: Paste a supported public link',
-    body:
-      'Users begin with a public media URL from a supported platform. DownloadDash is built around public links and does not ask users to bypass platform sign-in walls, private content restrictions, or account protections.',
+    title: 'Input stage',
+    body: 'A user starts with a public URL from a supported source. DownloadDash is built around public-link workflows, which means it is not trying to break into private, login-walled, or permission-restricted media.',
   },
   {
     icon: <SearchCheck className="h-7 w-7" />,
-    title: 'Step 2: The backend checks what the source allows',
-    body:
-      'The connected API resolves the public link and returns any formats, qualities, or preview details that are actually available from the source at that moment. That means results can differ depending on the platform, media type, and upstream restrictions.',
+    title: 'Resolution stage',
+    body: 'The backend checks what the source is willing to expose at that moment: metadata, previews, formats, qualities, or audio variants. If the source changes behavior, the result can change too.',
   },
   {
     icon: <Download className="h-7 w-7" />,
-    title: 'Step 3: Users choose the returned format',
-    body:
-      'DownloadDash presents the available file options instead of pretending every file is always downloadable. When the source offers multiple qualities or audio-only output, users can choose the option that best fits their device and storage needs.',
+    title: 'Selection stage',
+    body: 'Instead of pretending every media request always leads to the same file, DownloadDash presents the returned options. That is more honest and gives users a better idea of what is actually available.',
   },
   {
     icon: <Shield className="h-7 w-7" />,
-    title: 'Step 4: Users remain responsible for lawful use',
-    body:
-      'DownloadDash is intended for personal, lawful workflows. Users should only save content they own, have permission to use, or are otherwise legally allowed to download in their jurisdiction.',
+    title: 'Responsibility stage',
+    body: 'The user remains responsible for what they save and how they use it. Public access is not automatic permission for every kind of copying, sharing, or redistribution.',
   },
 ];
 
 export default function HowDownloadDashWorks() {
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="max-w-5xl mx-auto px-4 py-12">
-        <div className="text-center mb-10">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center">
-            <BookOpen className="h-10 w-10 text-white" />
+    <div className="min-h-screen bg-[#050816] text-white">
+      <section className="relative overflow-hidden border-b border-emerald-400/20 bg-[radial-gradient(circle_at_top_right,_rgba(16,185,129,0.18),_transparent_30%),radial-gradient(circle_at_bottom_left,_rgba(99,102,241,0.20),_transparent_30%),linear-gradient(180deg,#07111f_0%,#050816_100%)]">
+        <div className="max-w-6xl mx-auto px-4 py-16 md:py-24 grid lg:grid-cols-[0.95fr_1.05fr] gap-10 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-4 py-2 text-sm text-emerald-100 mb-6">
+              <BookOpen className="h-4 w-4" />
+              Workflow explainer
+            </div>
+            <h1 className="text-4xl md:text-6xl font-black leading-tight mb-6">How DownloadDash works, from pasted link to returned media option.</h1>
+            <p className="text-lg text-slate-300 leading-8 max-w-2xl">
+              This page has a different role from the homepage. The homepage introduces the product. This page explains the mechanics and the limits. It is here for people who want a clearer picture of what the tool is actually doing behind the interface.
+            </p>
           </div>
-          <h1 className="text-4xl md:text-5xl font-black mb-4">How DownloadDash Works</h1>
-          <p className="text-gray-400 max-w-3xl mx-auto text-lg leading-8">
-            This guide explains the flow behind DownloadDash, what the service is designed to do, and why some links work differently depending on source availability and platform restrictions.
-          </p>
+          <div className="rounded-[2rem] border border-emerald-300/20 bg-black/30 backdrop-blur-xl p-8">
+            <div className="flex items-center gap-3 mb-5 text-emerald-100">
+              <Orbit className="h-6 w-6" />
+              <p className="font-semibold">Core principle</p>
+            </div>
+            <p className="text-slate-300 leading-8">
+              DownloadDash is a resolver, not a hidden content warehouse. It receives a supported public link, asks the configured backend what is available, and then reflects the returned options back to the user. If a platform changes behavior, blocks the request, or exposes fewer formats, DownloadDash should tell the truth rather than fake success.
+            </p>
+          </div>
         </div>
+      </section>
 
-        <div className="grid gap-6 mb-10">
-          {steps.map((step) => (
-            <article key={step.title} className="rounded-3xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-7">
-              <div className="w-14 h-14 rounded-2xl bg-purple-500/20 text-purple-300 flex items-center justify-center mb-5">
-                {step.icon}
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-3">{step.title}</h2>
-              <p className="text-gray-400 leading-7">{step.body}</p>
-            </article>
-          ))}
+      <section className="max-w-6xl mx-auto px-4 py-14">
+        <div className="relative before:absolute before:left-[26px] before:top-4 before:bottom-4 before:w-px before:bg-emerald-300/25">
+          <div className="space-y-8">
+            {steps.map((step, index) => (
+              <motion.article
+                key={step.title}
+                initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                className="relative pl-20"
+              >
+                <div className="absolute left-0 top-0 w-14 h-14 rounded-2xl border border-emerald-300/25 bg-emerald-300/10 text-emerald-100 flex items-center justify-center">
+                  {step.icon}
+                </div>
+                <div className="rounded-[2rem] border border-white/10 bg-[#0b1322] p-7">
+                  <p className="text-xs uppercase tracking-[0.22em] text-emerald-200/70 mb-2">Step {index + 1}</p>
+                  <h2 className="text-2xl font-bold text-white mb-3">{step.title}</h2>
+                  <p className="text-slate-300 leading-8">{step.body}</p>
+                </div>
+              </motion.article>
+            ))}
+          </div>
         </div>
+      </section>
 
-        <div className="rounded-3xl border border-purple-500/20 bg-white/[0.03] p-7">
-          <h2 className="text-2xl font-bold text-white mb-3">Why this matters for users</h2>
-          <p className="text-gray-400 leading-7 mb-4">
-            A lot of media utility sites hide the process and make every request look identical. DownloadDash takes the opposite approach: it explains device install behavior, lawful use boundaries, and troubleshooting expectations so users understand what is happening before they click a download button.
-          </p>
-          <Link
-            to={createPageUrl('Troubleshooting')}
-            className="inline-flex items-center rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3 font-semibold text-white hover:opacity-90"
-          >
-            Read Troubleshooting Guide
-          </Link>
+      <section className="max-w-6xl mx-auto px-4 pb-16">
+        <div className="grid lg:grid-cols-[1.15fr_0.85fr] gap-6">
+          <div className="rounded-[2rem] border border-white/10 bg-white/[0.03] p-8">
+            <h2 className="text-3xl font-bold text-white mb-4">Why this matters</h2>
+            <p className="text-slate-300 leading-8 mb-4">
+              Many utility sites make the whole experience feel magical and consequence-free. That creates confusion when a format disappears, a platform blocks the backend, or a file request fails after metadata was found. This page exists to reduce that confusion.
+            </p>
+            <p className="text-slate-300 leading-8">
+              In other words: the product becomes easier to trust when users understand the workflow. A good explanation is part of the product, not an afterthought.
+            </p>
+          </div>
+          <div className="rounded-[2rem] border border-emerald-300/20 bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 p-8">
+            <h2 className="text-2xl font-bold text-white mb-4">Next page to read</h2>
+            <p className="text-slate-300 leading-8 mb-6">
+              If you now understand the workflow but still want to know why downloads fail in practice, the troubleshooting guide is the most useful follow-up page.
+            </p>
+            <Link
+              to={createPageUrl('Troubleshooting')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 text-slate-950 px-5 py-3 font-semibold hover:opacity-90"
+            >
+              Open Troubleshooting In New Tab
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

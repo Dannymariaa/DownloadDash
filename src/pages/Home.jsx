@@ -351,6 +351,8 @@ export default function Home() {
                 <p className="text-gray-400 leading-7 mb-5">{guide.body}</p>
                 <Link
                   to={createPageUrl(guide.page)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3 font-semibold text-white hover:opacity-90"
                 >
                   Read Guide
@@ -433,6 +435,8 @@ export default function Home() {
                 <p className="text-gray-400 leading-7 mb-5">{post.excerpt}</p>
                 <Link
                   to={createPageUrl(post.slug)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3 font-semibold text-white hover:opacity-90"
                 >
                   Read Article

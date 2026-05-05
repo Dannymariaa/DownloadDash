@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { CalendarDays, Clock3 } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, CalendarDays, Clock3 } from 'lucide-react';
 import { getBlogPostBySlug } from '@/content/blogPosts';
 
 export default function BlogArticleTemplate({ slug }) {
@@ -9,13 +9,13 @@ export default function BlogArticleTemplate({ slug }) {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-black text-white">
+      <div className="min-h-screen bg-[#0b0710] text-white">
         <div className="max-w-4xl mx-auto px-4 py-16">
           <h1 className="text-4xl font-black mb-4">Article Not Found</h1>
-          <p className="text-gray-400 mb-6">The requested blog article could not be found.</p>
+          <p className="text-slate-300 mb-6">The requested blog article could not be found.</p>
           <Link
             to={createPageUrl('Blog')}
-            className="inline-flex rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3 font-semibold text-white hover:opacity-90"
+            className="inline-flex rounded-xl bg-sky-300 text-slate-950 px-5 py-3 font-semibold hover:opacity-90"
           >
             Back To Blog
           </Link>
@@ -25,29 +25,32 @@ export default function BlogArticleTemplate({ slug }) {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <article className="max-w-4xl mx-auto px-4 py-12">
-        <div className="mb-10">
-          <p className="text-purple-300 font-semibold mb-3">DownloadDash Blog</p>
-          <h1 className="text-4xl md:text-5xl font-black leading-tight mb-4">{post.title}</h1>
-          <p className="text-gray-400 text-lg leading-8 mb-5">{post.excerpt}</p>
-          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
-            <span className="inline-flex items-center gap-2">
-              <CalendarDays className="h-4 w-4" />
-              {post.date}
-            </span>
-            <span className="inline-flex items-center gap-2">
-              <Clock3 className="h-4 w-4" />
-              {post.readTime}
-            </span>
+    <div className="min-h-screen bg-[#f5f7fb] text-slate-900">
+      <article className="max-w-4xl mx-auto px-4 py-10 md:py-14">
+        <Link
+          to={createPageUrl('Blog')}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900 mb-8"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to blog
+        </Link>
+
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-8 md:p-12 shadow-[0_30px_90px_rgba(15,23,42,0.08)] mb-8">
+          <p className="text-xs uppercase tracking-[0.28em] text-sky-700 mb-4">DownloadDash Blog</p>
+          <h1 className="text-4xl md:text-5xl font-black leading-tight mb-5 text-slate-950">{post.title}</h1>
+          <p className="text-lg md:text-xl text-slate-600 leading-8 mb-6">{post.excerpt}</p>
+          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+            <span className="inline-flex items-center gap-2"><CalendarDays className="h-4 w-4" />{post.date}</span>
+            <span className="inline-flex items-center gap-2"><Clock3 className="h-4 w-4" />{post.readTime}</span>
           </div>
         </div>
 
-        <div className="space-y-8">
-          {post.sections.map((section) => (
-            <section key={section.heading} className="rounded-3xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-7">
-              <h2 className="text-2xl font-bold text-white mb-4">{section.heading}</h2>
-              <div className="space-y-4 text-gray-300 leading-8">
+        <div className="space-y-6">
+          {post.sections.map((section, index) => (
+            <section key={section.heading} className="rounded-[2rem] border border-slate-200 bg-white p-7 md:p-9 shadow-[0_20px_70px_rgba(15,23,42,0.05)]">
+              <p className="text-xs uppercase tracking-[0.22em] text-sky-700/80 mb-3">Section {index + 1}</p>
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-950 mb-4">{section.heading}</h2>
+              <div className="space-y-4 text-slate-700 leading-8 text-[1.02rem]">
                 {section.paragraphs.map((paragraph, idx) => (
                   <p key={idx}>{paragraph}</p>
                 ))}
@@ -56,23 +59,26 @@ export default function BlogArticleTemplate({ slug }) {
           ))}
         </div>
 
-        <div className="mt-10 rounded-3xl border border-purple-500/20 bg-white/[0.03] p-7">
-          <h2 className="text-2xl font-bold text-white mb-3">Keep Reading</h2>
-          <p className="text-gray-400 leading-7 mb-5">
-            DownloadDash combines practical tools with explanatory content so users can make better decisions about public-link downloads, installation methods, platform differences, and lawful use.
+        <div className="mt-8 rounded-[2rem] border border-slate-200 bg-slate-950 text-white p-8 md:p-9">
+          <h2 className="text-2xl font-bold mb-3">Continue reading</h2>
+          <p className="text-slate-300 leading-8 mb-6">
+            This article lives on its own page by design. The goal is to make every post feel like a real reading destination, not like a collapsed section of the homepage.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
               to={createPageUrl('Blog')}
-              className="inline-flex rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3 font-semibold text-white hover:opacity-90"
+              className="inline-flex rounded-xl bg-white text-slate-950 px-5 py-3 font-semibold hover:opacity-90"
             >
               Back To Blog
             </Link>
             <Link
               to={createPageUrl('ResponsibleUse')}
-              className="inline-flex rounded-xl border border-purple-500/30 px-5 py-3 font-semibold text-purple-300 hover:bg-purple-500/10"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-5 py-3 font-semibold text-white hover:bg-white/5"
             >
-              Read Responsible Use
+              Open Responsible Use
+              <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
         </div>
