@@ -22,6 +22,14 @@ export const PAGE_ROUTES: Record<string, string> = {
   PrivacyPolicy: '/privacy-policy',
   TermsOfService: '/terms-of-service',
   Contact: '/contact',
+  TrustCenter: '/trust-center',
+  About: '/about',
+  SafetyCenter: '/safety-center',
+  TransparencyStatement: '/transparency',
+  DMCA: '/dmca',
+  CookiePolicy: '/cookie-policy',
+  AccessibilityStatement: '/accessibility',
+  FAQ: '/faq',
 };
 
 const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
@@ -48,6 +56,14 @@ const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
   PrivacyPolicy: ['/PrivacyPolicy'],
   TermsOfService: ['/TermsOfService'],
   Contact: ['/Contact'],
+  TrustCenter: ['/TrustCenter'],
+  About: ['/About'],
+  SafetyCenter: ['/SafetyCenter'],
+  TransparencyStatement: ['/TransparencyStatement'],
+  DMCA: ['/DMCA'],
+  CookiePolicy: ['/CookiePolicy'],
+  AccessibilityStatement: ['/AccessibilityStatement'],
+  FAQ: ['/FAQ'],
 };
 
 const normalizePath = (path: string) => {

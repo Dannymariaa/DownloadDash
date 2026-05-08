@@ -46,6 +46,21 @@ A modern, fast, and easy-to-use downloader for YouTube videos and audio in HD/SD
 - `npm run lint` - Check code quality
 - `npm run typecheck` - Run TypeScript checks
 
+### AI Email Responder
+
+The automatic AI email responder has been added as a separate Node service in `tools/ai-email-responder`.
+
+- `npm run email:install` - Install responder dependencies
+- `npm run email:check` - Validate responder environment settings
+- `npm run email:once` - Process unread mailbox messages one time
+- `npm run email:start` - Run the responder continuously
+
+Copy `tools/ai-email-responder/.env.example` to `tools/ai-email-responder/.env`, then fill in the mailbox credentials and OpenAI API key. Keep `AUTO_SEND_LEGAL=false` unless a human has approved legal/copyright/privacy auto-sending.
+
+### Enterprise Trust Launch Kit
+
+The full launch kit is preserved in `docs/enterprise-trust-launch-kit`. Core trust pages are also available in the app through `/trust-center`, including About, Safety Center, Transparency, DMCA, Cookie Policy, Accessibility, and FAQ pages.
+
 ## 🌐 Website Deployment
 
 ### Build for Production

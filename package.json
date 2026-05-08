@@ -9,6 +9,10 @@
         "postinstall": "npm run build",
         "lint": "eslint . --quiet",
         "lint:fix": "eslint . --fix",
+        "email:install": "npm --prefix tools/ai-email-responder install",
+        "email:check": "npm --prefix tools/ai-email-responder run check",
+        "email:once": "npm --prefix tools/ai-email-responder run once",
+        "email:start": "npm --prefix tools/ai-email-responder run start",
         "start": "vite preview --host 0.0.0.0 --port ${PORT:-4173}",
         "typecheck": "tsc -p ./jsconfig.json",
         "preview": "vite preview"

@@ -70,6 +70,14 @@ import BlogTroubleshootingDownloadDash from './pages/BlogTroubleshootingDownload
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import Contact from './pages/Contact';
+import TrustCenter from './pages/TrustCenter';
+import About from './pages/About';
+import SafetyCenter from './pages/SafetyCenter';
+import TransparencyStatement from './pages/TransparencyStatement';
+import DMCA from './pages/DMCA';
+import CookiePolicy from './pages/CookiePolicy';
+import AccessibilityStatement from './pages/AccessibilityStatement';
+import FAQ from './pages/FAQ';
 import __Layout from './Layout.jsx';
 
 
@@ -97,6 +105,14 @@ export const PAGES = {
     "PrivacyPolicy": PrivacyPolicy,
     "TermsOfService": TermsOfService,
     "Contact": Contact,
+    "TrustCenter": TrustCenter,
+    "About": About,
+    "SafetyCenter": SafetyCenter,
+    "TransparencyStatement": TransparencyStatement,
+    "DMCA": DMCA,
+    "CookiePolicy": CookiePolicy,
+    "AccessibilityStatement": AccessibilityStatement,
+    "FAQ": FAQ,
 }
 
 export const pagesConfig = {

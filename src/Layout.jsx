@@ -118,6 +118,78 @@ const getPageTheme = (pageName) => {
       ribbonTitle: 'Support Desk',
       ribbonBody: 'This page is a dedicated support and contact destination, separate from homepage messaging.',
     },
+    TrustCenter: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Trust Center',
+      ribbonBody: 'This section exposes the Enterprise Trust Launch Kit pages inside the live app.',
+    },
+    About: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Trust Center',
+      ribbonBody: 'This page is part of the Enterprise Trust Launch Kit.',
+    },
+    SafetyCenter: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Trust Center',
+      ribbonBody: 'This page is part of the Enterprise Trust Launch Kit.',
+    },
+    TransparencyStatement: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Trust Center',
+      ribbonBody: 'This page is part of the Enterprise Trust Launch Kit.',
+    },
+    DMCA: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Trust Center',
+      ribbonBody: 'This page is part of the Enterprise Trust Launch Kit.',
+    },
+    CookiePolicy: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Trust Center',
+      ribbonBody: 'This page is part of the Enterprise Trust Launch Kit.',
+    },
+    AccessibilityStatement: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Trust Center',
+      ribbonBody: 'This page is part of the Enterprise Trust Launch Kit.',
+    },
+    FAQ: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Trust Center',
+      ribbonBody: 'This page is part of the Enterprise Trust Launch Kit.',
+    },
   };
 
   return themes[pageName] || themes.Home;
@@ -201,6 +273,9 @@ export default function Layout({ children, currentPageName }) {
               <Link to={createPageUrl('Blog')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
                 <LifeBuoy className="h-4 w-4" /> Blog
               </Link>
+              <Link to={createPageUrl('TrustCenter')} className="text-gray-300 hover:text-emerald-300 transition-colors flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4" /> Trust
+              </Link>
               {user && (
                 <Link to={createPageUrl('Dashboard')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
                   <History className="h-4 w-4" /> Dashboard
@@ -266,6 +341,9 @@ export default function Layout({ children, currentPageName }) {
                 <Link to={createPageUrl('Blog')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                   <LifeBuoy className="h-5 w-5" /> Blog
                 </Link>
+                <Link to={createPageUrl('TrustCenter')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-emerald-500/20" onClick={() => setIsMenuOpen(false)}>
+                  <ShieldCheck className="h-5 w-5" /> Trust Center
+                </Link>
                 {user ? (
                   <Link to={createPageUrl('Dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                     <User className="h-5 w-5" /> Dashboard
@@ -316,6 +394,9 @@ export default function Layout({ children, currentPageName }) {
                 <Link to={createPageUrl('ResponsibleUse')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
                   <ShieldCheck className="h-4 w-4" /> Responsible Use
                 </Link>
+                <Link to={createPageUrl('TrustCenter')} className="flex items-center gap-2 text-gray-400 hover:text-emerald-300 text-sm transition-colors">
+                  <ShieldCheck className="h-4 w-4" /> Trust Center
+                </Link>
               </div>
             </div>
             <div>
@@ -328,6 +409,10 @@ export default function Layout({ children, currentPageName }) {
                 <Link to={createPageUrl('SupportedPlatforms')} className="block text-gray-400 hover:text-purple-400 text-sm">Supported Platforms</Link>
                 <Link to={createPageUrl('Troubleshooting')} className="block text-gray-400 hover:text-purple-400 text-sm">Troubleshooting</Link>
                 <Link to={createPageUrl('ResponsibleUse')} className="block text-gray-400 hover:text-purple-400 text-sm">Responsible Use</Link>
+                <Link to={createPageUrl('TrustCenter')} className="block text-gray-400 hover:text-emerald-300 text-sm">Trust Center</Link>
+                <Link to={createPageUrl('SafetyCenter')} className="block text-gray-400 hover:text-emerald-300 text-sm">Safety Center</Link>
+                <Link to={createPageUrl('DMCA')} className="block text-gray-400 hover:text-emerald-300 text-sm">DMCA</Link>
+                <Link to={createPageUrl('FAQ')} className="block text-gray-400 hover:text-emerald-300 text-sm">FAQ</Link>
                 <Link to={createPageUrl('Blog')} className="block text-gray-400 hover:text-purple-400 text-sm">Blog</Link>
                 <Link to={createPageUrl('PrivacyPolicy')} className="block text-gray-400 hover:text-purple-400 text-sm">Privacy Policy</Link>
                 <Link to={createPageUrl('TermsOfService')} className="block text-gray-400 hover:text-purple-400 text-sm">Terms of Service</Link>
