@@ -31,6 +31,7 @@ export default function NavigationTracker() {
         SystemStatus: 'System Status | DownloadDash',
         Updates: 'Updates | DownloadDash',
         PlatformGuides: 'Platform Guides | DownloadDash',
+        AppDownload: 'Android App | DownloadDash',
     };
 
     // Log user activity when navigating to a page

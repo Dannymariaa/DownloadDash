@@ -1,7 +1,7 @@
 {
   "name": "DownloadDash",
   "short_name": "DownloadDash",
-  "description": "Fast and easy multi-platform video downloader",
+  "description": "A public media saving platform with transparent workflows, responsible-use guidance, and mobile-friendly support.",
   "start_url": "/",
   "id": "/",
   "display": "standalone",

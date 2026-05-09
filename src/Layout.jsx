@@ -226,6 +226,15 @@ const getPageTheme = (pageName) => {
       ribbonTitle: 'Platform Guides',
       ribbonBody: 'This page explains public-link behavior across supported platform categories.',
     },
+    AppDownload: {
+      border: 'border-purple-400/20',
+      accentText: 'text-purple-300',
+      brand: 'from-purple-300 to-pink-300',
+      badgeBg: 'bg-purple-400/10',
+      badgeBorder: 'border-purple-400/25',
+      ribbonTitle: 'Android App',
+      ribbonBody: 'This page explains the mobile app path and signed APK expectations.',
+    },
   };
 
   return themes[pageName] || themes.Home;
@@ -363,7 +372,7 @@ export default function Layout({ children, currentPageName }) {
                   <Home className="h-5 w-5" /> Home
                 </Link>
                 <Link to={createPageUrl('YouTubeDownloader')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-red-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <YouTubeIcon size={24} /> YouTube Downloader
+                  <YouTubeIcon size={24} /> Public YouTube Media
                 </Link>
                 <Link to={createPageUrl('RecommendedApps')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                   <Bookmark className="h-5 w-5" /> Guides
@@ -413,7 +422,10 @@ export default function Layout({ children, currentPageName }) {
               <h4 className="text-white font-semibold mb-4">Resources</h4>
               <div className="space-y-2">
                 <Link to={createPageUrl('YouTubeDownloader')} className="flex items-center gap-2 text-gray-400 hover:text-red-400 text-sm transition-colors">
-                  <YouTubeIcon size={18} /> YouTube Downloader
+                  <YouTubeIcon size={18} /> Public YouTube Media
+                </Link>
+                <Link to={createPageUrl('AppDownload')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
+                  <Download className="h-4 w-4" /> Android App
                 </Link>
                 <Link to={createPageUrl('HowDownloadDashWorks')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
                   <FileText className="h-4 w-4" /> How DownloadDash Works

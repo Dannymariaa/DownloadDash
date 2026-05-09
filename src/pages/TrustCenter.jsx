@@ -13,6 +13,7 @@ import {
   BookOpen,
   Compass,
   ListChecks,
+  Smartphone,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
@@ -36,6 +37,12 @@ const trustPages = [
     title: 'Platform Guides',
     description: 'Platform-specific guidance for YouTube, TikTok, Instagram, Reddit, Telegram, and more.',
     icon: Compass,
+  },
+  {
+    page: 'AppDownload',
+    title: 'Android App',
+    description: 'Mobile app positioning, Android APK expectations, and safer install guidance for users.',
+    icon: Smartphone,
   },
   {
     page: 'Updates',

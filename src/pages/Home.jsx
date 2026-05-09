@@ -38,6 +38,24 @@ const guideLinks = [
   },
 ];
 
+const realSiteScreenshots = [
+  {
+    src: '/assets/real-site-screenshots/desktop-preview.png',
+    title: 'Desktop trust surface',
+    body: 'A real view of the current site experience, including guide-first positioning and cleaner navigation.',
+  },
+  {
+    src: '/assets/real-site-screenshots/mobile-preview.png',
+    title: 'Mobile app workflow',
+    body: 'Mobile screens help visitors see DownloadDash as a real cross-device platform instead of a generic download box.',
+  },
+  {
+    src: '/assets/real-site-screenshots/platform-preview.png',
+    title: 'Support and platform context',
+    body: 'Screenshots reinforce that the service includes help content, policy paths, and public-link explanations.',
+  },
+];
+
 const APK_URL = '/downloads/DownloadDash.apk';
 const MIN_APK_BYTES = 1024 * 1024;
 
@@ -233,14 +251,14 @@ export default function Home() {
             {[
               { 
                 icon: <Zap className="h-8 w-8" />, 
-                title: 'Lightning Fast', 
-                desc: 'Process supported public links quickly with a clean, simple flow',
+                title: 'Efficient Public-Link Processing',
+                desc: 'Process supported public links with a clean, streamlined workflow',
                 gradient: 'from-yellow-500 to-orange-500'
               },
               { 
                 icon: <Shield className="h-8 w-8" />, 
-                title: 'Secure & Private', 
-                desc: 'Designed for public links with clear privacy and contact information',
+                title: 'Privacy-Conscious Design',
+                desc: 'Designed around public links, transparent processing, and clear contact paths',
                 gradient: 'from-green-500 to-emerald-500'
               },
               { 
@@ -507,6 +525,43 @@ export default function Home() {
             className="text-center mb-10"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Real DownloadDash Screens
+            </h2>
+            <p className="text-gray-400 max-w-3xl mx-auto">
+              Real screenshots help visitors understand the platform before they interact with a public media workflow.
+            </p>
+          </motion.div>
+
+          <div className="grid lg:grid-cols-3 gap-6">
+            {realSiteScreenshots.map((item, idx) => (
+              <motion.article
+                key={item.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.08 }}
+                className="overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black"
+              >
+                <img src={item.src} alt={item.title} className="aspect-[4/3] w-full object-cover" />
+                <div className="p-6">
+                  <h3 className="text-xl font-semibold text-white mb-3">{item.title}</h3>
+                  <p className="text-gray-400 leading-7">{item.body}</p>
+                </div>
+              </motion.article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-16 px-4">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-10"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
               Frequently Asked Questions
             </h2>
             <p className="text-gray-400 max-w-3xl mx-auto">
@@ -572,8 +627,8 @@ export default function Home() {
                 <YouTubeIcon size={64} />
                 <div className="text-left">
                   <p className="text-2xl font-bold text-white">YouTube</p>
-                  <p className="text-gray-400 text-sm mt-1">Videos - Shorts - Audio MP3</p>
-                  <span className="inline-block mt-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full">Open Downloader</span>
+                  <p className="text-gray-400 text-sm mt-1">Public media workflow</p>
+                  <span className="inline-block mt-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full">Open Public Workflow</span>
                 </div>
               </motion.div>
             </Link>
@@ -645,10 +700,10 @@ export default function Home() {
             
             <div className="relative z-10 text-center">
               <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-                Download the App
+                DownloadDash Mobile App
               </h2>
               <p className="text-gray-400 mb-8 max-w-xl mx-auto">
-                Install DownloadDash from your browser as a web app on iPhone, iPad, Android, tablet, and desktop. Android APK download only works after a real signed APK has been uploaded.
+                Install DownloadDash from your browser as a web app, or use the Android app page when a real signed APK release is available.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -663,14 +718,16 @@ export default function Home() {
                   </Button>
                 </motion.div>
                 <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="h-14 px-8 border-purple-500/30 text-purple-400 hover:bg-purple-500/20 rounded-xl"
-                  >
-                    <Star className="mr-2 h-5 w-5" />
-                    Coming to Play Store
-                  </Button>
+                  <Link to={createPageUrl('AppDownload')}>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="h-14 px-8 border-purple-500/30 text-purple-400 hover:bg-purple-500/20 rounded-xl"
+                    >
+                      <Star className="mr-2 h-5 w-5" />
+                      Android App Details
+                    </Button>
+                  </Link>
                 </motion.div>
               </div>
             </div>

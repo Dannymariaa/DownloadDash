@@ -34,6 +34,7 @@ export const PAGE_ROUTES: Record<string, string> = {
   SystemStatus: '/status',
   Updates: '/updates',
   PlatformGuides: '/platform-guides',
+  AppDownload: '/android-app',
 };
 
 const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
@@ -72,6 +73,7 @@ const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
   SystemStatus: ['/SystemStatus'],
   Updates: ['/Updates'],
   PlatformGuides: ['/PlatformGuides'],
+  AppDownload: ['/AppDownload'],
 };
 
 const normalizePath = (path: string) => {

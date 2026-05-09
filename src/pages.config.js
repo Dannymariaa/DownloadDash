@@ -82,6 +82,7 @@ import HelpCenter from './pages/HelpCenter';
 import SystemStatus from './pages/SystemStatus';
 import Updates from './pages/Updates';
 import PlatformGuides from './pages/PlatformGuides';
+import AppDownload from './pages/AppDownload';
 import __Layout from './Layout.jsx';
 
 
@@ -121,6 +122,7 @@ export const PAGES = {
     "SystemStatus": SystemStatus,
     "Updates": Updates,
     "PlatformGuides": PlatformGuides,
+    "AppDownload": AppDownload,
 }
 
 export const pagesConfig = {
