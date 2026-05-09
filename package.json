@@ -15,7 +15,8 @@
         "email:start": "npm --prefix tools/ai-email-responder run start",
         "start": "vite preview --host 0.0.0.0 --port ${PORT:-4173}",
         "typecheck": "tsc -p ./jsconfig.json",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "email:demo": "npm --prefix tools/ai-email-responder run demo"
     },
     "dependencies": {
         "@hello-pangea/dnd": "^17.0.0",

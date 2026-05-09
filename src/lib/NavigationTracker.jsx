@@ -11,7 +11,7 @@ export default function NavigationTracker() {
     const { Pages, mainPage } = pagesConfig;
     const mainPageKey = mainPage ?? Object.keys(Pages)[0];
     const pageTitles = {
-        Home: 'DownloadDash | Media Guides And Downloader',
+        Home: 'DownloadDash | Public Media Saving Platform',
         RecommendedApps: 'DownloadDash Guides',
         HowDownloadDashWorks: 'How DownloadDash Works',
         SupportedPlatforms: 'Supported Platforms | DownloadDash',
@@ -22,6 +22,10 @@ export default function NavigationTracker() {
         TermsOfService: 'Terms of Service | DownloadDash',
         Disclaimer: 'Disclaimer | DownloadDash',
         Contact: 'Contact | DownloadDash',
+        About: 'About DownloadDash',
+        FAQ: 'DownloadDash FAQ',
+        Transparency: 'Transparency | DownloadDash',
+        DMCA: 'DMCA & Copyright | DownloadDash',
     };
 
     // Log user activity when navigating to a page

@@ -8,15 +8,24 @@ const contactCards = [
     title: 'General support',
     subtitle: 'Downloads, app behavior, and account help',
     email: 'support@downloaddash.store',
+    subject: 'DownloadDash Support Request',
   },
   {
     icon: <ShieldCheck className="h-7 w-7" />,
     title: 'Legal and rights',
     subtitle: 'Privacy, copyright, compliance, and policy concerns',
     email: 'legal@downloaddash.store',
+    subject: 'DownloadDash Legal Request',
   },
   {
     icon: <MessageCircle className="h-7 w-7" />,
+    title: 'General information',
+    subtitle: 'Business questions, partnerships, and general website enquiries',
+    email: 'info@downloaddash.store',
+    subject: 'DownloadDash General Enquiry',
+  },
+  {
+    icon: <Clock3 className="h-7 w-7" />,
     title: 'Response expectations',
     subtitle: 'Please include device, page URL, and the exact issue you saw',
     detail: 'Typical response target: 2-3 business days.',
@@ -29,6 +38,12 @@ const beforeYouWrite = [
   'Say whether the problem was a download, install, login, or policy issue.',
   'If a rights-holder request is involved, include enough detail to identify the content clearly.',
 ];
+
+const buildMailToUrl = (email, subject = 'DownloadDash Message') =>
+  `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+
+const buildGmailUrl = (email, subject = 'DownloadDash Message') =>
+  `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}`;
 
 export default function Contact() {
   return (
@@ -55,7 +70,7 @@ export default function Contact() {
       </section>
 
       <section className="max-w-6xl mx-auto px-4 py-14">
-        <div className="grid lg:grid-cols-3 gap-6 mb-10">
+        <div className="grid lg:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
           {contactCards.map((card, index) => (
             <motion.article
               key={card.title}
@@ -71,10 +86,33 @@ export default function Contact() {
               <h2 className="text-2xl font-bold text-white mb-2">{card.title}</h2>
               <p className="text-slate-300 leading-7 mb-4">{card.subtitle}</p>
               {card.email ? (
-                <a href={`mailto:${card.email}`} className="inline-flex items-center gap-2 text-blue-200 hover:text-blue-100 font-semibold">
-                  {card.email}
-                  <ArrowUpRight className="h-4 w-4" />
-                </a>
+                <div className="space-y-3">
+                  <a
+                    href={buildGmailUrl(card.email, card.subject)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-blue-200 hover:text-blue-100 font-semibold"
+                  >
+                    {card.email}
+                    <ArrowUpRight className="h-4 w-4" />
+                  </a>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href={buildGmailUrl(card.email, card.subject)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-300 text-slate-950 px-3 py-2 text-sm font-semibold hover:opacity-90"
+                    >
+                      Open Gmail
+                    </a>
+                    <a
+                      href={buildMailToUrl(card.email, card.subject)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-blue-200/25 px-3 py-2 text-sm font-semibold text-blue-100 hover:bg-blue-200/10"
+                    >
+                      Email app
+                    </a>
+                  </div>
+                </div>
               ) : (
                 <p className="text-blue-200 font-semibold">{card.detail}</p>
               )}
@@ -88,6 +126,9 @@ export default function Contact() {
               <FileText className="h-6 w-6" />
               <h2 className="text-2xl font-bold text-white">Before you email</h2>
             </div>
+            <p className="text-slate-300 leading-7 mb-4">
+              Tapping Open Gmail starts a Gmail compose message in the browser. Tapping Email app opens the default mail app on the phone, tablet, or computer.
+            </p>
             <div className="space-y-4">
               {beforeYouWrite.map((item) => (
                 <div key={item} className="rounded-2xl border border-white/10 bg-black/20 p-4 text-slate-300 leading-7">
@@ -103,10 +144,12 @@ export default function Contact() {
               DownloadDash cannot help users download private, restricted, or copyrighted material they do not have permission to use. If your request depends on bypassing account protections or platform restrictions, support will not treat that as a valid use case.
             </p>
             <a
-              href="mailto:support@downloaddash.store?subject=DownloadDash%20Support%20Request"
+              href={buildGmailUrl('support@downloaddash.store', 'DownloadDash Support Request')}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-xl bg-blue-300 text-slate-950 px-5 py-3 font-semibold hover:opacity-90"
             >
-              Email Support
+              Open Support Gmail
               <ArrowUpRight className="h-4 w-4" />
             </a>
           </div>
