@@ -78,6 +78,10 @@ import DMCA from './pages/DMCA';
 import CookiePolicy from './pages/CookiePolicy';
 import AccessibilityStatement from './pages/AccessibilityStatement';
 import FAQ from './pages/FAQ';
+import HelpCenter from './pages/HelpCenter';
+import SystemStatus from './pages/SystemStatus';
+import Updates from './pages/Updates';
+import PlatformGuides from './pages/PlatformGuides';
 import __Layout from './Layout.jsx';
 
 
@@ -113,6 +117,10 @@ export const PAGES = {
     "CookiePolicy": CookiePolicy,
     "AccessibilityStatement": AccessibilityStatement,
     "FAQ": FAQ,
+    "HelpCenter": HelpCenter,
+    "SystemStatus": SystemStatus,
+    "Updates": Updates,
+    "PlatformGuides": PlatformGuides,
 }
 
 export const pagesConfig = {

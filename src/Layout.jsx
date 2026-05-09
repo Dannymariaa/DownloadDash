@@ -190,6 +190,42 @@ const getPageTheme = (pageName) => {
       ribbonTitle: 'Trust Center',
       ribbonBody: 'This page is part of the Enterprise Trust Launch Kit.',
     },
+    HelpCenter: {
+      border: 'border-cyan-400/20',
+      accentText: 'text-cyan-300',
+      brand: 'from-cyan-300 to-emerald-300',
+      badgeBg: 'bg-cyan-400/10',
+      badgeBorder: 'border-cyan-400/25',
+      ribbonTitle: 'Help Center',
+      ribbonBody: 'This page turns the Enterprise Trust Content System into practical support guidance.',
+    },
+    SystemStatus: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'System Status',
+      ribbonBody: 'This page explains current service status and source-platform variability.',
+    },
+    Updates: {
+      border: 'border-violet-400/20',
+      accentText: 'text-violet-300',
+      brand: 'from-violet-300 to-cyan-300',
+      badgeBg: 'bg-violet-400/10',
+      badgeBorder: 'border-violet-400/25',
+      ribbonTitle: 'Product Updates',
+      ribbonBody: 'This page gives users and reviewers a maintained changelog signal.',
+    },
+    PlatformGuides: {
+      border: 'border-amber-400/20',
+      accentText: 'text-amber-300',
+      brand: 'from-amber-300 to-orange-300',
+      badgeBg: 'bg-amber-400/10',
+      badgeBorder: 'border-amber-400/25',
+      ribbonTitle: 'Platform Guides',
+      ribbonBody: 'This page explains public-link behavior across supported platform categories.',
+    },
   };
 
   return themes[pageName] || themes.Home;
@@ -397,6 +433,9 @@ export default function Layout({ children, currentPageName }) {
                 <Link to={createPageUrl('TrustCenter')} className="flex items-center gap-2 text-gray-400 hover:text-emerald-300 text-sm transition-colors">
                   <ShieldCheck className="h-4 w-4" /> Trust Center
                 </Link>
+                <Link to={createPageUrl('HelpCenter')} className="flex items-center gap-2 text-gray-400 hover:text-cyan-300 text-sm transition-colors">
+                  <LifeBuoy className="h-4 w-4" /> Help Center
+                </Link>
               </div>
             </div>
             <div>
@@ -410,6 +449,10 @@ export default function Layout({ children, currentPageName }) {
                 <Link to={createPageUrl('Troubleshooting')} className="block text-gray-400 hover:text-purple-400 text-sm">Troubleshooting</Link>
                 <Link to={createPageUrl('ResponsibleUse')} className="block text-gray-400 hover:text-purple-400 text-sm">Responsible Use</Link>
                 <Link to={createPageUrl('TrustCenter')} className="block text-gray-400 hover:text-emerald-300 text-sm">Trust Center</Link>
+                <Link to={createPageUrl('HelpCenter')} className="block text-gray-400 hover:text-cyan-300 text-sm">Help Center</Link>
+                <Link to={createPageUrl('SystemStatus')} className="block text-gray-400 hover:text-emerald-300 text-sm">System Status</Link>
+                <Link to={createPageUrl('PlatformGuides')} className="block text-gray-400 hover:text-amber-300 text-sm">Platform Guides</Link>
+                <Link to={createPageUrl('Updates')} className="block text-gray-400 hover:text-violet-300 text-sm">Updates</Link>
                 <Link to={createPageUrl('SafetyCenter')} className="block text-gray-400 hover:text-emerald-300 text-sm">Safety Center</Link>
                 <Link to={createPageUrl('DMCA')} className="block text-gray-400 hover:text-emerald-300 text-sm">DMCA</Link>
                 <Link to={createPageUrl('FAQ')} className="block text-gray-400 hover:text-emerald-300 text-sm">FAQ</Link>

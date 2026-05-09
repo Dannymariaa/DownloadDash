@@ -26,6 +26,11 @@ export default function NavigationTracker() {
         FAQ: 'DownloadDash FAQ',
         Transparency: 'Transparency | DownloadDash',
         DMCA: 'DMCA & Copyright | DownloadDash',
+        TrustCenter: 'Trust Center | DownloadDash',
+        HelpCenter: 'Help Center | DownloadDash',
+        SystemStatus: 'System Status | DownloadDash',
+        Updates: 'Updates | DownloadDash',
+        PlatformGuides: 'Platform Guides | DownloadDash',
     };
 
     // Log user activity when navigating to a page

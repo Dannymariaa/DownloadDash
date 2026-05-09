@@ -1,0 +1,26 @@
+[
+  {
+    "question": "Does every link work?",
+    "answer": "No. Availability depends on public access and source-platform rules."
+  },
+  {
+    "question": "Can DownloadDash process private content?",
+    "answer": "No. Private or restricted content is not supported."
+  },
+  {
+    "question": "Why is 4K missing?",
+    "answer": "The source platform may not expose 4K publicly for that media."
+  },
+  {
+    "question": "Why did my download fail?",
+    "answer": "The media may be private, deleted, expired, region-restricted, or unsupported."
+  },
+  {
+    "question": "Is DownloadDash only for YouTube?",
+    "answer": "No. DownloadDash is positioned as a public-media saving platform."
+  },
+  {
+    "question": "Does DownloadDash bypass restrictions?",
+    "answer": "No. It should not bypass login walls, private accounts, or paywalls."
+  }
+]

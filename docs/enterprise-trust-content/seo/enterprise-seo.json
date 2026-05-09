@@ -1,0 +1,14 @@
+{
+  "home": {
+    "title": "DownloadDash \u2014 Public Media Saving Platform",
+    "description": "DownloadDash helps users process publicly accessible media links with transparent availability, supported formats, and responsible-use guidance."
+  },
+  "helpCenter": {
+    "title": "DownloadDash Help Center",
+    "description": "Help for failed links, public media access, supported formats, and troubleshooting."
+  },
+  "guides": {
+    "title": "DownloadDash Guides & Tutorials",
+    "description": "Guides explaining public-media processing, platform restrictions, and supported formats."
+  }
+}

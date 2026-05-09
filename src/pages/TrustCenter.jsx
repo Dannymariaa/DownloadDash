@@ -9,12 +9,40 @@ import {
   Info,
   Mail,
   Scale,
+  Activity,
+  BookOpen,
+  Compass,
+  ListChecks,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 
 const trustPages = [
+  {
+    page: 'HelpCenter',
+    title: 'Help Center',
+    description: 'Popular help topics, knowledge-base answers, and realistic support guidance for public-link issues.',
+    icon: BookOpen,
+  },
+  {
+    page: 'SystemStatus',
+    title: 'System Status',
+    description: 'Operational status for core site surfaces and clear notes about source-platform variability.',
+    icon: Activity,
+  },
+  {
+    page: 'PlatformGuides',
+    title: 'Platform Guides',
+    description: 'Platform-specific guidance for YouTube, TikTok, Instagram, Reddit, Telegram, and more.',
+    icon: Compass,
+  },
+  {
+    page: 'Updates',
+    title: 'Updates',
+    description: 'A changelog that shows DownloadDash is maintained, improved, and reviewed over time.',
+    icon: ListChecks,
+  },
   {
     page: 'About',
     title: 'About DownloadDash',
@@ -81,6 +109,13 @@ export default function TrustCenter() {
             This center brings the launch kit into the live app so visitors, advertisers, reviewers,
             and rights holders can find clear answers without digging through support threads.
           </p>
+          <div className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+            <img
+              src="/assets/ui-previews/help-center-preview.png"
+              alt="DownloadDash help center preview"
+              className="h-auto w-full"
+            />
+          </div>
         </div>
       </section>
 

@@ -30,6 +30,10 @@ export const PAGE_ROUTES: Record<string, string> = {
   CookiePolicy: '/cookie-policy',
   AccessibilityStatement: '/accessibility',
   FAQ: '/faq',
+  HelpCenter: '/help-center',
+  SystemStatus: '/status',
+  Updates: '/updates',
+  PlatformGuides: '/platform-guides',
 };
 
 const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
@@ -64,6 +68,10 @@ const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
   CookiePolicy: ['/CookiePolicy'],
   AccessibilityStatement: ['/AccessibilityStatement'],
   FAQ: ['/FAQ'],
+  HelpCenter: ['/HelpCenter'],
+  SystemStatus: ['/SystemStatus'],
+  Updates: ['/Updates'],
+  PlatformGuides: ['/PlatformGuides'],
 };
 
 const normalizePath = (path: string) => {
