@@ -56,21 +56,6 @@ const realSiteScreenshots = [
   },
 ];
 
-const APK_URL = '/downloads/DownloadDash.apk';
-const MIN_APK_BYTES = 1024 * 1024;
-
-const getDeviceType = () => {
-  const userAgent = navigator.userAgent || '';
-  const platform = navigator.platform || '';
-
-  return {
-    isAndroid: /Android/i.test(userAgent),
-    isIOS:
-      /iPhone|iPad|iPod/i.test(userAgent) ||
-      (platform === 'MacIntel' && navigator.maxTouchPoints > 1),
-  };
-};
-
 export default function Home() {
   const [installPrompt, setInstallPrompt] = useState(null);
 
@@ -84,36 +69,7 @@ export default function Home() {
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
-  const downloadApkIfAvailable = async () => {
-    try {
-      const response = await fetch(APK_URL, { method: 'HEAD', cache: 'no-store' });
-      const contentType = response.headers.get('content-type') || '';
-      const contentLength = Number.parseInt(response.headers.get('content-length') || '0', 10);
-      const isApk =
-        contentType.includes('application/vnd.android.package-archive') ||
-        contentType.includes('application/octet-stream');
-      const looksLikeRealApk = Number.isFinite(contentLength) && contentLength >= MIN_APK_BYTES;
-
-      if (!response.ok || !isApk || !looksLikeRealApk) {
-        alert('The Android app package is not ready yet. Upload a real signed APK at public/downloads/DownloadDash.apk, redeploy, and then try again. Until then, use Install app or Add to Home Screen from your browser.');
-        return;
-      }
-
-      const link = document.createElement('a');
-      link.href = APK_URL;
-      link.download = 'DownloadDash.apk';
-      link.rel = 'noopener';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch {
-      alert('The Android APK could not be reached right now. Please try again after redeploy.');
-    }
-  };
-
   const handleAppDownload = async () => {
-    const device = getDeviceType();
-
     if (installPrompt) {
       installPrompt.prompt();
       await installPrompt.userChoice;
@@ -121,17 +77,7 @@ export default function Home() {
       return;
     }
 
-    if (device.isAndroid) {
-      await downloadApkIfAvailable();
-      return;
-    }
-
-    if (device.isIOS) {
-      alert('iPhone and iPad cannot install Android APK files. Open this site in Safari, tap Share, then tap Add to Home Screen to install the web app.');
-      return;
-    }
-
-    alert('Use your browser install button/menu to install DownloadDash. On Chrome or Edge, look for Install app in the address bar or browser menu.');
+    window.location.assign(createPageUrl('AppDownload'));
   };
 
   return (

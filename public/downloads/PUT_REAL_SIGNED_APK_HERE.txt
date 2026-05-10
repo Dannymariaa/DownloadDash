@@ -1,0 +1,10 @@
+Put your real signed APK in this folder.
+
+Correct file name:
+DownloadDash.apk
+
+Correct path:
+public/downloads/DownloadDash.apk
+
+Correct live URL:
+https://www.downloaddash.store/downloads/DownloadDash.apk

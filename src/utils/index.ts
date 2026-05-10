@@ -73,7 +73,7 @@ const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
   SystemStatus: ['/SystemStatus'],
   Updates: ['/Updates'],
   PlatformGuides: ['/PlatformGuides'],
-  AppDownload: ['/AppDownload'],
+  AppDownload: ['/AppDownload', '/download-app'],
 };
 
 const normalizePath = (path: string) => {
