@@ -1,7 +1,7 @@
 {
   "name": "DownloadDash",
   "short_name": "DownloadDash",
-  "description": "A public media saving platform with transparent workflows, responsible-use guidance, and mobile-friendly support.",
+  "description": "Public media saving platform for supported public links.",
   "start_url": "/",
   "id": "/",
   "display": "standalone",
@@ -14,19 +14,19 @@
   "categories": ["utilities", "productivity"],
   "icons": [
     {
-      "src": "/download-dash-logo.png?v=20260414",
-      "sizes": "1024x1024",
+      "src": "/icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/download-dash-logo.png?v=20260414",
-      "sizes": "192x192",
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/download-dash-logo.png?v=20260414",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
@@ -38,7 +38,7 @@
       "short_name": "Dashboard",
       "description": "View your download history",
       "url": "/dashboard",
-      "icons": [{ "src": "/download-dash-logo.png?v=20260414", "sizes": "1024x1024" }]
+      "icons": [{ "src": "/icon-512.png", "sizes": "512x512" }]
     }
   ]
 }
