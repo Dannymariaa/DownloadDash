@@ -49,6 +49,11 @@ class PublicPlatformDownloader:
             headers["Origin"] = origin
             headers["Referer"] = origin + "/"
         return headers
+
+    def _httpx_client_kwargs(self, **kwargs: Any) -> Dict[str, Any]:
+        if self.proxy_url:
+            kwargs["proxy"] = self.proxy_url
+        return kwargs
     
     def get_ydl_opts(self, quality: Quality, output_template: str) -> Dict[str, Any]:
         """Get yt-dlp options based on quality"""
@@ -206,19 +211,26 @@ class PublicPlatformDownloader:
         return url
 
     def _youtube_api_downloads(self, url: str, variant: str | None = None) -> Dict[str, str]:
-        encoded_url = quote(url, safe="")
+        cover_url = self._youtube_cover_url(url)
+        return {"image": cover_url} if cover_url else {}
 
-        def build_url(kind: str) -> str:
-            return f"/youtube/file?url={encoded_url}&variant={kind}"
+    def _youtube_cover_url(self, url: str, thumbnail: str | None = None) -> str | None:
+        if thumbnail:
+            return thumbnail
 
-        if variant == "audio":
-            return {"audio": build_url("audio")}
-
-        return {
-            "videoHD": build_url("hd"),
-            "videoSD": build_url("sd"),
-            "audio": build_url("audio"),
-        }
+        normalized = self._normalize_youtube_url(url)
+        parsed = urlparse(normalized)
+        query = parse_qs(parsed.query)
+        video_id = query.get("v", [None])[-1]
+        if not video_id and "youtu.be" in parsed.netloc:
+            video_id = parsed.path.lstrip("/").split("/")[0]
+        if not video_id:
+            return None
+        match = re.match(r"^[A-Za-z0-9_-]{11}", video_id)
+        if not match:
+            return None
+        video_id = match.group(0)
+        return f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
 
     def _youtube_extractor_args(self, player_clients: list[str]) -> Dict[str, Any]:
         youtube_args: Dict[str, Any] = {"player_client": player_clients}
@@ -733,25 +745,43 @@ class PublicPlatformDownloader:
                     selected_info_ext = selected_info_ext or requested_video.get("ext")
 
             if extract_audio and not (selected_audio and selected_audio.get("url")) and not selected_info_url:
-                downloads = self._youtube_api_downloads(url, "audio")
+                cover_url = self._youtube_cover_url(url, thumbnail)
+                downloads = {"image": cover_url} if cover_url else self._youtube_api_downloads(url, "audio")
+                if not downloads.get("image"):
+                    raise Exception("Resolve failed: no YouTube cover found")
                 return {
-                    "direct_url": downloads["audio"],
-                    "title": title,
-                    "thumbnail": thumbnail,
-                    "ext": "m4a",
+                    "direct_url": downloads["image"],
+                    "title": f"{title} - Cover",
+                    "thumbnail": downloads["image"],
+                    "ext": "jpg",
                     "filesize": None,
-                    "kind": "audio",
+                    "kind": "image",
                     "downloads": downloads,
                 }
             if not extract_audio and not (selected_hd and selected_hd.get("url")) and not selected_info_url:
+                cover_url = self._youtube_cover_url(url, thumbnail)
+                if cover_url:
+                    downloads = {"image": cover_url}
+                    return {
+                        "direct_url": cover_url,
+                        "title": f"{title} - Cover",
+                        "thumbnail": cover_url,
+                        "ext": "jpg",
+                        "filesize": None,
+                        "kind": "image",
+                        "downloads": downloads,
+                    }
+
                 downloads = self._youtube_api_downloads(url)
+                if not downloads.get("image"):
+                    raise Exception("Resolve failed: no YouTube cover found")
                 return {
-                    "direct_url": downloads["videoHD"],
-                    "title": title,
-                    "thumbnail": thumbnail,
-                    "ext": "mp4",
+                    "direct_url": downloads["image"],
+                    "title": f"{title} - Cover",
+                    "thumbnail": downloads["image"],
+                    "ext": "jpg",
                     "filesize": None,
-                    "kind": "video",
+                    "kind": "image",
                     "downloads": downloads,
                 }
 
@@ -803,7 +833,14 @@ class PublicPlatformDownloader:
         headers = self._build_http_headers(url)
         cookies = self._load_cookiefile(url)
         try:
-            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers, cookies=cookies) as client:
+            async with httpx.AsyncClient(
+                **self._httpx_client_kwargs(
+                    timeout=20.0,
+                    follow_redirects=True,
+                    headers=headers,
+                    cookies=cookies,
+                )
+            ) as client:
                 resp = await client.get(url)
                 if resp.status_code >= 400:
                     return None
@@ -866,7 +903,14 @@ class PublicPlatformDownloader:
         api_url = f"https://www.instagram.com/p/{shortcode}/?__a=1&__d=dis"
 
         try:
-            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers, cookies=cookies) as client:
+            async with httpx.AsyncClient(
+                **self._httpx_client_kwargs(
+                    timeout=20.0,
+                    follow_redirects=True,
+                    headers=headers,
+                    cookies=cookies,
+                )
+            ) as client:
                 resp = await client.get(api_url)
                 if resp.status_code >= 400:
                     return None
@@ -922,7 +966,14 @@ class PublicPlatformDownloader:
         headers = self._build_http_headers(url)
         cookies = self._load_cookiefile(url)
         try:
-            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers, cookies=cookies) as client:
+            async with httpx.AsyncClient(
+                **self._httpx_client_kwargs(
+                    timeout=20.0,
+                    follow_redirects=True,
+                    headers=headers,
+                    cookies=cookies,
+                )
+            ) as client:
                 resp = await client.get(url)
                 if resp.status_code >= 400:
                     return None
@@ -982,7 +1033,13 @@ class PublicPlatformDownloader:
         # Public oEmbed endpoint often returns a thumbnail for photo posts.
         headers = self._build_http_headers(url)
         try:
-            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers) as client:
+            async with httpx.AsyncClient(
+                **self._httpx_client_kwargs(
+                    timeout=20.0,
+                    follow_redirects=True,
+                    headers=headers,
+                )
+            ) as client:
                 resp = await client.get("https://www.instagram.com/oembed/", params={"url": url})
                 if resp.status_code >= 400:
                     return None

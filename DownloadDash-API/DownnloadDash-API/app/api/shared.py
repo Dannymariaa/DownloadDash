@@ -44,6 +44,37 @@ async def download_public(
 ) -> DownloadResponse:
     url_str = str(request.url)
 
+    if platform == Platform.YOUTUBE:
+        download_id = str(uuid.uuid4())
+        cover_url = public_downloader._youtube_cover_url(url_str)  # type: ignore[attr-defined]
+        if not cover_url:
+            raise HTTPException(status_code=400, detail="Could not find a YouTube cover for this URL")
+
+        media_info = MediaInfo(
+            id=download_id,
+            platform=Platform.YOUTUBE,
+            media_type=MediaType.IMAGE,
+            url=url_str,
+            title="YouTube Cover",
+            thumbnail_url=cover_url,
+            download_url=cover_url,
+            file_format="jpg",
+        )
+
+        return DownloadResponse(
+            success=True,
+            message="Resolved YouTube cover successfully",
+            download_id=download_id,
+            status=DownloadStatus.COMPLETED,
+            media_info=media_info,
+            download_url=cover_url,
+            downloads={"image": cover_url},
+            expires_at=datetime.utcnow() + timedelta(hours=1),
+            warnings=[
+                "YouTube video downloads are temporarily disabled while the proxy is unavailable. Returning the video cover instead."
+            ],
+        )
+
     try:
         result = await universal_downloader.resolve_media(
             url=url_str,
