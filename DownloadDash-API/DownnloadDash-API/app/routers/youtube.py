@@ -78,13 +78,3 @@ async def download_youtube(body: YouTubeDownloadIn, background_tasks: Background
     )
 
 
-@router.get("/file")
-async def download_youtube_file(
-    background_tasks: BackgroundTasks,
-    url: str = Query(...),
-    variant: str = Query("hd", pattern="^(hd|sd|audio)$"),
-):
-    raise HTTPException(
-        status_code=404,
-        detail="YouTube file endpoint is disabled. Use /youtube/download for actual video/audio resolution.",
-    )
