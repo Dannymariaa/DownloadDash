@@ -216,24 +216,6 @@ class PublicPlatformDownloader:
         # actual audio/video media instead.
         return {}
 
-    def _youtube_cover_url(self, url: str, thumbnail: str | None = None) -> str | None:
-        if thumbnail:
-            return thumbnail
-
-        normalized = self._normalize_youtube_url(url)
-        parsed = urlparse(normalized)
-        query = parse_qs(parsed.query)
-        video_id = query.get("v", [None])[-1]
-        if not video_id and "youtu.be" in parsed.netloc:
-            video_id = parsed.path.lstrip("/").split("/")[0]
-        if not video_id:
-            return None
-        match = re.match(r"^[A-Za-z0-9_-]{11}", video_id)
-        if not match:
-            return None
-        video_id = match.group(0)
-        return f"https://i.ytimg.com/vi/{video_id}/maxresdefault.jpg"
-
     def _youtube_extractor_args(self, player_clients: list[str]) -> Dict[str, Any]:
         youtube_args: Dict[str, Any] = {"player_client": player_clients}
         return {"youtube": youtube_args}
