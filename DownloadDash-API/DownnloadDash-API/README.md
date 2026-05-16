@@ -91,6 +91,10 @@ Messaging:
 
 - These endpoints resolve a **direct media URL** (and metadata) via `yt-dlp` but **do not download or save** the media on the API server.
 - Your client app (DownloadDash) should handle downloading/saving to the user’s device.
+- For hosted deployments, set `SMD_OUTBOUND_PROXY` or `SMD_YTDLP_PROXY_YOUTUBE` in your environment to route YouTube traffic through a residential proxy.
+  - `SMD_OUTBOUND_PROXY` is used by all outbound `yt-dlp` and HTTP client requests.
+  - `SMD_YTDLP_PROXY_YOUTUBE` is used only for YouTube-specific `yt-dlp` attempts.
+- After changing proxy settings, restart the API service so the new proxy is loaded.
 - WhatsApp/WhatsApp Business status/story saving requires the Node bridges running (`whatsapp-bridge`) (optional; not started by default).
 - Telegram media sync requires the Telegram bridge and a bot token (see section 1c).
 - Stories/status downloading for other platforms requires login/cookies/session support (not implemented yet).

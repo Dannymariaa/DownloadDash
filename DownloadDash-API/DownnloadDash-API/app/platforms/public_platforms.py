@@ -745,47 +745,23 @@ class PublicPlatformDownloader:
                     selected_info_ext = selected_info_ext or requested_video.get("ext")
 
             if extract_audio and not (selected_audio and selected_audio.get("url")) and not selected_info_url:
-                cover_url = self._youtube_cover_url(url, thumbnail)
-                downloads = {"image": cover_url} if cover_url else self._youtube_api_downloads(url, "audio")
-                if not downloads.get("image"):
-                    raise Exception("Resolve failed: no YouTube cover found")
-                return {
-                    "direct_url": downloads["image"],
-                    "title": f"{title} - Cover",
-                    "thumbnail": downloads["image"],
-                    "ext": "jpg",
-                    "filesize": None,
-                    "kind": "image",
-                    "downloads": downloads,
-                }
+                raise Exception(
+                    "Resolve failed: no audio formats available for this YouTube video. "
+                    "Try a different quality or ensure the proxy can access YouTube."
+                )
             if not extract_audio and not (selected_hd and selected_hd.get("url")) and not selected_info_url:
-                cover_url = self._youtube_cover_url(url, thumbnail)
-                if cover_url:
-                    downloads = {"image": cover_url}
-                    return {
-                        "direct_url": cover_url,
-                        "title": f"{title} - Cover",
-                        "thumbnail": cover_url,
-                        "ext": "jpg",
-                        "filesize": None,
-                        "kind": "image",
-                        "downloads": downloads,
-                    }
-
-                downloads = self._youtube_api_downloads(url)
-                if not downloads.get("image"):
-                    raise Exception("Resolve failed: no YouTube cover found")
-                return {
-                    "direct_url": downloads["image"],
-                    "title": f"{title} - Cover",
-                    "thumbnail": downloads["image"],
-                    "ext": "jpg",
-                    "filesize": None,
-                    "kind": "image",
-                    "downloads": downloads,
-                }
+                raise Exception(
+                    "Resolve failed: no playable video formats available for this YouTube video. "
+                    "Try a different quality or ensure the proxy can access YouTube."
+                )
 
         direct_url = selected_info_url or (primary.get("url") if primary else info.get("url"))
+        if is_youtube and kind == "image":
+            raise Exception(
+                "Resolve failed: YouTube downloads must be actual video or audio. "
+                "The resolver only found a thumbnail/cover image."
+            )
+
         if not direct_url and kind == "image" and thumbnail:
             # For true image posts, thumbnail can be the only available direct asset.
             direct_url = thumbnail
