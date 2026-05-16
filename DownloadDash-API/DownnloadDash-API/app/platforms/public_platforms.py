@@ -211,8 +211,10 @@ class PublicPlatformDownloader:
         return url
 
     def _youtube_api_downloads(self, url: str, variant: str | None = None) -> Dict[str, str]:
-        cover_url = self._youtube_cover_url(url)
-        return {"image": cover_url} if cover_url else {}
+        # The legacy YouTube file endpoint should not return a thumbnail
+        # cover image as a download option. YouTube downloads must resolve to
+        # actual audio/video media instead.
+        return {}
 
     def _youtube_cover_url(self, url: str, thumbnail: str | None = None) -> str | None:
         if thumbnail:
