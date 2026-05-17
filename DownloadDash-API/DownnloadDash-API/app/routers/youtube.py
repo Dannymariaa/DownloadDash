@@ -1,7 +1,10 @@
+import os
+import re
 import uuid
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from app.models.platform_requests import YouTubeDownloadIn
 from app.models.schemas import DownloadResponse, DownloadStatus, MediaInfo, MediaType, Platform
@@ -75,6 +78,54 @@ async def download_youtube(body: YouTubeDownloadIn, background_tasks: Background
         downloads=downloads,
         expires_at=datetime.utcnow() + timedelta(hours=1),
         warnings=[],
+    )
+
+
+@router.get("/file")
+async def download_youtube_file(
+    background_tasks: BackgroundTasks,
+    url: str = Query(...),
+    variant: str = Query("hd", pattern="^(hd|sd|audio)$"),
+):
+    try:
+        result = await public_downloader.download_youtube_variant(url, variant)
+    except Exception as exc:
+        raw_error = str(exc)
+        lowered = raw_error.lower()
+
+        if "sign in to confirm" in lowered or "not a bot" in lowered or "captcha" in lowered:
+            message = (
+                "YouTube is blocking this server for the final file download. "
+                "Check the YouTube cookies and residential proxy settings, then redeploy the API."
+            )
+        elif "requested format is not available" in lowered:
+            message = "That YouTube quality is not available for this video. Try SD or audio."
+        elif "tunnel connection failed" in lowered or "proxy" in lowered:
+            message = (
+                "The configured YouTube proxy could not complete the download. "
+                "Check SMD_YTDLP_PROXY_YOUTUBE on Render and redeploy the API."
+            )
+        elif "ffmpeg" in lowered:
+            message = (
+                "The server could not finish the YouTube file conversion step. "
+                "Install ffmpeg on the API server or use a direct progressive format fallback."
+            )
+        else:
+            message = f"YouTube file download failed: {raw_error}"
+
+        safe_detail = re.sub(r"\s+", " ", message).strip()
+        raise HTTPException(status_code=502, detail=safe_detail)
+
+    path = result["path"]
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Downloaded file not found")
+
+    background_tasks.add_task(os.remove, path)
+    return FileResponse(
+        path,
+        media_type=result["media_type"],
+        filename=result["filename"],
+        background=background_tasks,
     )
 
 
