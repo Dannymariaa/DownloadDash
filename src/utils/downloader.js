@@ -1,4 +1,4 @@
-// Download utility for DownloadDash
+﻿// Download utility for DownloadDash
 import { downloadDash } from '@/api/downloadDashClient';
 
 /**
@@ -133,7 +133,7 @@ export const saveToGallery = async (mediaUrl, filename, options = {}) => {
       // Cleanup
       URL.revokeObjectURL(objectUrl);
       
-      console.log('[Downloader] ✅ Media saved to gallery:', finalFilename);
+      console.log('[Downloader] Media saved to gallery:', finalFilename);
       return true;
     } else {
       // For server-side or React Native environments

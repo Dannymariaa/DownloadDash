@@ -1,8 +1,11 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { History, Bookmark, Download, Trash2, ExternalLink, LogOut, User as UserIcon, Search } from 'lucide-react';
+import {
+  History, Bookmark, Download, Trash2, ExternalLink, LogOut, User as UserIcon, Search,
+  Music, Camera, MessageCircle, Send, Pin, FileText, Video, Hash, Folder
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,16 +13,21 @@ import downloadDash from '@/api/downloadDashClient';
 import AdBanner from '@/components/AdBanner';
 
 const platformIcons = {
-  tiktok: '🎵',
-  instagram: '📸',
-  facebook: '👤',
-  twitter: '🐦',
-  whatsapp: '💬',
-  telegram: '✈️',
-  snapchat: '👻',
-  youtube: '▶️',
-  pinterest: '📌',
-  reddit: '🤖',
+  tiktok: Music,
+  instagram: Camera,
+  facebook: UserIcon,
+  twitter: Hash,
+  whatsapp: MessageCircle,
+  telegram: Send,
+  snapchat: Camera,
+  youtube: Video,
+  pinterest: Pin,
+  reddit: FileText,
+};
+
+const PlatformIcon = ({ platform, className = 'h-5 w-5' }) => {
+  const Icon = platformIcons[platform] || Folder;
+  return <Icon className={className} />;
 };
 
 export default function Dashboard() {
@@ -170,7 +178,7 @@ export default function Dashboard() {
             <option value="all">All Platforms</option>
             {Object.keys(platformIcons).map(platform => (
               <option key={platform} value={platform}>
-                {platformIcons[platform]} {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                {platform.charAt(0).toUpperCase() + platform.slice(1)}
               </option>
             ))}
           </select>
@@ -222,16 +230,16 @@ export default function Dashboard() {
                         {item.thumbnail_url ? (
                           <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover rounded-lg" />
                         ) : (
-                          platformIcons[item.platform] || '📁'
+                          <PlatformIcon platform={item.platform} className="h-7 w-7 text-gray-400" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-white truncate">{item.title || 'Untitled'}</h3>
                         <div className="flex items-center gap-3 text-sm text-gray-500">
-                          <span>{platformIcons[item.platform]} {item.platform}</span>
-                          <span>•</span>
+                          <span className="inline-flex items-center gap-1.5"><PlatformIcon platform={item.platform} className="h-3.5 w-3.5" /> {item.platform}</span>
+                          <span>-</span>
                           <span>{item.content_type}</span>
-                          <span>•</span>
+                          <span>-</span>
                           <span>{new Date(item.created_date).toLocaleDateString()}</span>
                         </div>
                       </div>
@@ -283,14 +291,14 @@ export default function Dashboard() {
                         {item.thumbnail_url ? (
                           <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover rounded-lg" />
                         ) : (
-                          platformIcons[item.platform] || '📁'
+                          <PlatformIcon platform={item.platform} className="h-7 w-7 text-gray-400" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-medium text-white truncate">{item.title || 'Untitled'}</h3>
                         <div className="flex items-center gap-3 text-sm text-gray-500">
-                          <span>{platformIcons[item.platform]} {item.platform}</span>
-                          <span>•</span>
+                          <span className="inline-flex items-center gap-1.5"><PlatformIcon platform={item.platform} className="h-3.5 w-3.5" /> {item.platform}</span>
+                          <span>-</span>
                           <span>{item.content_type}</span>
                         </div>
                         {item.notes && (

@@ -97,10 +97,10 @@ class PublicPlatformDownloader:
             'noplaylist': True,
             'restrictfilenames': True,
             'geo_bypass': True,
-            'retries': 3,
-            'fragment_retries': 3,
-            'extractor_retries': 3,
-            'socket_timeout': 20,
+            'retries': 1,
+            'fragment_retries': 2,
+            'extractor_retries': 1,
+            'socket_timeout': 12,
             'nocheckcertificate': True,
             'user_agent': self.user_agent,
         }
@@ -231,28 +231,15 @@ class PublicPlatformDownloader:
 
     def _youtube_client_profiles(self) -> list[tuple[str, list[str] | None, bool, bool]]:
         base_profiles: list[tuple[str, list[str] | None, bool]] = [
-            # Match the locally working yt-dlp flow first: no cookies, default
-            # jsless clients. yt-dlp currently chooses Android VR for many public
-            # videos in this mode.
             ("default_nocookie", None, False),
-            # API/mobile clients do not support authenticated cookies in yt-dlp,
-            # so try explicit mobile clients without cookies before web clients.
-            ("android_vr_nocookie", ["android_vr"], False),
             ("android_nocookie", ["android"], False),
-            ("ios_nocookie", ["ios"], False),
-            # Web clients support cookies; use them after the API/mobile clients.
+            ("android_vr_nocookie", ["android_vr"], False),
             ("web_cookie", ["web"], True),
-            ("mweb_cookie", ["mweb"], True),
-            ("web_embedded_cookie", ["web_embedded"], True),
-            ("default_cookie", None, True),
         ]
 
         if self.youtube_proxy_url:
             return [
                 (f"{name}_proxy", clients, use_cookies, True)
-                for name, clients, use_cookies in base_profiles
-            ] + [
-                (name, clients, use_cookies, False)
                 for name, clients, use_cookies in base_profiles
             ]
 
@@ -453,7 +440,7 @@ class PublicPlatformDownloader:
                 "quiet": True,
                 "no_warnings": True,
                 "http_headers": self._build_http_headers(url),
-                "concurrent_fragment_downloads": 1,
+                "concurrent_fragment_downloads": 4,
             }
         )
         client_profiles = self._youtube_client_profiles()

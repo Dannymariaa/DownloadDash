@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import DownloaderTemplate from '@/components/DownloaderTemplate';
 import { downloadDash } from '@/api/downloadDashClient';
 
@@ -24,7 +24,7 @@ export default function InstagramDownloader() {
     <DownloaderTemplate
       platform="instagram"
       platformName="Instagram"
-      platformIcon="📸"
+      platformIcon="Instagram"
       gradientFrom="from-purple-600"
       gradientTo="to-orange-400"
       supportedTypes={['Reels', 'Posts', 'IGTV', 'Highlights']}

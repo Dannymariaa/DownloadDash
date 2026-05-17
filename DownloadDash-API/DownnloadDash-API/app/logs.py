@@ -33,4 +33,4 @@ logger.addHandler(console_handler)
 # Prevent propagation to root logger
 logger.propagate = False
 
-print(f"✅ Logging initialized. Log file: {log_file}")
+print(f"OK: Logging initialized. Log file: {log_file}")

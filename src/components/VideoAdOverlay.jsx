@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Volume2, VolumeX } from 'lucide-react';
+import { Film, X, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function VideoAdOverlay({ isOpen, onClose, onComplete }) {
@@ -46,7 +46,7 @@ export default function VideoAdOverlay({ isOpen, onClose, onComplete }) {
                   transition={{ repeat: Infinity, duration: 2 }}
                   className="w-20 h-20 mx-auto mb-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center"
                 >
-                  <span className="text-3xl">🎬</span>
+                  <Film className="h-9 w-9 text-white" />
                 </motion.div>
                 <p className="text-purple-300 text-lg font-medium">Video Advertisement</p>
                 <p className="text-gray-500 text-sm mt-2">Support DownloadDash</p>

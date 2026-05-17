@@ -20,7 +20,7 @@ async def download_telegram(request: DownloadRequest):
     """Download Telegram stories, messages, and media"""
     
     print("\n" + "="*60)
-    print(f"📥 TELEGRAM DOWNLOAD ATTEMPT")
+    print("Telegram download attempt")
     print(f"URL: {request.url}")
     print("="*60)
     

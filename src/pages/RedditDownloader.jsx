@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, ExternalLink, Download, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ export default function RecommendedApps() {
     // {
     //   name: 'App Name',
     //   description: 'App description',
-    //   icon: '🚀',
+    // icon: 'Reddit',
     //   gradient: 'from-blue-500 to-purple-500',
     //   link: 'https://yourapp.com',
     //   rating: 4.8,
@@ -59,7 +59,7 @@ export default function RecommendedApps() {
                 transition={{ repeat: Infinity, duration: 3 }}
                 className="text-6xl mb-6"
               >
-                🚀
+
               </motion.div>
               <h2 className="text-2xl font-bold text-white mb-4">
                 Coming Soon!
@@ -96,10 +96,10 @@ export default function RecommendedApps() {
                 <div className={`w-16 h-16 rounded-xl bg-gradient-to-r ${app.gradient} flex items-center justify-center text-3xl mb-4 group-hover:scale-110 transition-transform duration-300`}>
                   {app.icon}
                 </div>
-                
+
                 <h3 className="text-xl font-bold text-white mb-2">{app.name}</h3>
                 <p className="text-gray-400 text-sm mb-4">{app.description}</p>
-                
+
                 <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
                   <span className="flex items-center gap-1">
                     <Star className="h-4 w-4 text-yellow-500" />
@@ -130,8 +130,8 @@ export default function RecommendedApps() {
           className="mt-16 text-center"
         >
           <p className="text-gray-500">
-            Want to suggest an app feature? 
-            <a href="mailto:contact@downloaddash.com" className="text-purple-400 hover:text-purple-300 ml-1">
+            Want to suggest an app feature?
+            <a href="mailto:info@downloaddash.store?subject=DownloadDash%20Feature%20Suggestion" className="text-purple-400 hover:text-purple-300 ml-1">
               Contact us
             </a>
           </p>

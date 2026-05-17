@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Music } from 'lucide-react';
 import { useAdPlatform } from './useAdPlatform';
 
-// Audio download: very short 3-second ad, auto-completes
 const DURATION = 3;
 
 export default function ShortAdModal({ isOpen, onComplete }) {
@@ -10,13 +10,20 @@ export default function ShortAdModal({ isOpen, onComplete }) {
   const { isMobileApp } = useAdPlatform();
 
   useEffect(() => {
-    if (!isOpen) { setTimeLeft(DURATION); return; }
+    if (!isOpen) {
+      setTimeLeft(DURATION);
+      return;
+    }
     const t = setInterval(() => setTimeLeft(prev => {
-      if (prev <= 1) { clearInterval(t); onComplete?.(); return 0; }
+      if (prev <= 1) {
+        clearInterval(t);
+        onComplete?.();
+        return 0;
+      }
       return prev - 1;
     }), 1000);
     return () => clearInterval(t);
-  }, [isOpen]);
+  }, [isOpen, onComplete]);
 
   return (
     <AnimatePresence>
@@ -35,19 +42,22 @@ export default function ShortAdModal({ isOpen, onComplete }) {
               transition={{ repeat: Infinity, duration: 0.8 }}
               className="w-20 h-20 mx-auto mt-5 mb-4 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center"
             >
-              <span className="text-4xl">🎵</span>
+              <Music className="h-10 w-10 text-white" />
             </motion.div>
 
             <p className="text-white text-lg font-bold mb-1">Audio Download</p>
-            <p className="text-gray-400 text-sm mb-5">Starting in {timeLeft}s…</p>
+            <p className="text-gray-400 text-sm mb-5">Starting in {timeLeft}s...</p>
 
-            {/* Progress ring */}
             <div className="flex justify-center mb-4">
               <svg width="56" height="56" viewBox="0 0 56 56">
-                <circle cx="28" cy="28" r="22" stroke="#1f2937" strokeWidth="5" fill="none"/>
+                <circle cx="28" cy="28" r="22" stroke="#1f2937" strokeWidth="5" fill="none" />
                 <motion.circle
-                  cx="28" cy="28" r="22"
-                  stroke="#22c55e" strokeWidth="5" fill="none"
+                  cx="28"
+                  cy="28"
+                  r="22"
+                  stroke="#22c55e"
+                  strokeWidth="5"
+                  fill="none"
                   strokeLinecap="round"
                   strokeDasharray={138}
                   animate={{ strokeDashoffset: 138 - (138 * (DURATION - timeLeft) / DURATION) }}

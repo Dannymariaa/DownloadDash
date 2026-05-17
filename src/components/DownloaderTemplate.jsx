@@ -2,15 +2,13 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, Link as LinkIcon, Loader2, CheckCircle,
-  AlertCircle, Bookmark, Shield, Film, Volume2, Image, Crown, Zap, Target, Lock, Eye, Play
+  AlertCircle, Bookmark, Shield, Film, Volume2, Image, Crown, Zap, Target, Lock, Eye, Play,
+  Music, Camera, User, MessageCircle, Send, Pin, FileText, Video, Hash
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
-import RewardedAdModal from './Ads/RewardedAdModal';
-import SkippableAdModal from './Ads/SkippableAdModal';
-import ShortAdModal from './Ads/ShortAdModal';
 
 // Platform URL validation
 const urlPatterns = {
@@ -41,12 +39,17 @@ const validateUrl = (url, platform) => {
   return { valid: true, url: sanitized };
 };
 
-// Ad type per download quality
-const AD_TYPE = {
-  videoHD:  'rewarded',   // must watch full
-  videoSD:  'skippable',  // skip after 5s
-  audio:    'short',      // 3s auto
-  image:    'skippable',  // skip after 5s
+const platformIcons = {
+  tiktok: Music,
+  instagram: Camera,
+  facebook: User,
+  twitter: Hash,
+  youtube: Video,
+  whatsapp: MessageCircle,
+  whatsappbusiness: MessageCircle,
+  telegram: Send,
+  pinterest: Pin,
+  reddit: FileText,
 };
 
 export default function DownloaderTemplate({
@@ -65,13 +68,9 @@ export default function DownloaderTemplate({
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
 
-  // Which ad is active and what to do after
-  const [activeAd, setActiveAd] = useState(null); // 'rewarded' | 'skippable' | 'short'
-  const [pendingDownload, setPendingDownload] = useState(null);
-  const [pendingLabel, setPendingLabel] = useState('');
-
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const PlatformIcon = platformIcons[platform] || Download;
 
   const handleFetch = async () => {
     const validation = validateUrl(url, platform);
@@ -154,19 +153,8 @@ export default function DownloaderTemplate({
     }
   };
 
-  const requestDownload = (downloadUrl, type, label) => {
-    const adType = AD_TYPE[type] || 'skippable';
-    setPendingDownload({ downloadUrl, type });
-    setPendingLabel(label);
-    setActiveAd(adType);
-  };
-
-  const handleAdComplete = () => {
-    setActiveAd(null);
-    if (pendingDownload) {
-      startDownload(pendingDownload.downloadUrl, pendingDownload.type);
-      setPendingDownload(null);
-    }
+  const requestDownload = (downloadUrl, type) => {
+    startDownload(downloadUrl, type);
   };
 
   const handleSave = async () => {
@@ -203,22 +191,6 @@ export default function DownloaderTemplate({
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Ad modals – only ONE is shown at a time, preventing AdSense/AdMob collision */}
-      <RewardedAdModal
-        isOpen={activeAd === 'rewarded'}
-        onComplete={handleAdComplete}
-        downloadLabel={pendingLabel}
-      />
-      <SkippableAdModal
-        isOpen={activeAd === 'skippable'}
-        onComplete={handleAdComplete}
-        downloadLabel={pendingLabel}
-      />
-      <ShortAdModal
-        isOpen={activeAd === 'short'}
-        onComplete={handleAdComplete}
-      />
-
       {/* Download Progress Indicator */}
       {isDownloading && (
         <motion.div
@@ -245,7 +217,7 @@ export default function DownloaderTemplate({
             whileHover={{ scale: 1.1, rotate: 5 }}
             transition={{ type: 'spring', stiffness: 300 }}
           >
-            {platformIcon}
+            <PlatformIcon className="h-12 w-12 text-white" strokeWidth={1.8} />
           </motion.div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
             {platformName} Downloader
@@ -435,7 +407,7 @@ export default function DownloaderTemplate({
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <span className="text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded-full">Watch Full Ad</span>
+                          <span className="text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded-full">Highest quality</span>
                         </div>
                       </motion.button>
 
@@ -457,7 +429,7 @@ export default function DownloaderTemplate({
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">Skip after 5s</span>
+                          <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">Balanced size</span>
                         </div>
                       </motion.button>
 
@@ -479,7 +451,7 @@ export default function DownloaderTemplate({
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <span className="text-xs bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-1 rounded-full">3s quick ad</span>
+                          <span className="text-xs bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-1 rounded-full">Audio only</span>
                         </div>
                       </motion.button>
                     </>
@@ -502,7 +474,7 @@ export default function DownloaderTemplate({
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">Skip after 5s</span>
+                        <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">Full resolution</span>
                       </div>
                     </motion.button>
                   )}
@@ -559,7 +531,7 @@ export default function DownloaderTemplate({
           <div className="grid md:grid-cols-2 gap-6 text-left">
             <div className="bg-gray-900/50 rounded-xl p-4 border border-purple-500/10">
               <h3 className="font-semibold text-white mb-2">Is it free to use?</h3>
-              <p className="text-gray-500 text-sm">Yes! Our service is completely free. We only show short ads to support our costs.</p>
+              <p className="text-gray-500 text-sm">Yes. DownloadDash focuses on public-link utilities and clear explanations, and ads remain limited while the site completes policy review.</p>
             </div>
             <div className="bg-gray-900/50 rounded-xl p-4 border border-purple-500/10">
               <h3 className="font-semibold text-white mb-2">What formats are supported?</h3>

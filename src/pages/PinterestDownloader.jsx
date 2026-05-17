@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import DownloaderTemplate from '@/components/DownloaderTemplate';
 import { downloadDash } from '@/api/downloadDashClient';
 
@@ -24,7 +24,7 @@ export default function PinterestDownloader() {
     <DownloaderTemplate
       platform="pinterest"
       platformName="Pinterest"
-      platformIcon="📌"
+      platformIcon="Pinterest"
       gradientFrom="from-red-500"
       gradientTo="to-pink-500"
       supportedTypes={['Images', 'Videos', 'Pins', 'Boards']}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import DownloaderTemplate from '@/components/DownloaderTemplate';
 import { downloadDash } from '@/api/downloadDashClient';
 
@@ -24,7 +24,7 @@ export default function TwitterDownloader() {
     <DownloaderTemplate
       platform="twitter"
       platformName="Twitter / X"
-      platformIcon="🐦"
+      platformIcon="X"
       gradientFrom="from-gray-800"
       gradientTo="to-gray-600"
       supportedTypes={['Videos', 'GIFs', 'Images', 'Spaces']}

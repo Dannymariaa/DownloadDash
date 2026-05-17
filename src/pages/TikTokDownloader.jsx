@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import DownloaderTemplate from '@/components/DownloaderTemplate';
 import { downloadDash } from '@/api/downloadDashClient';
 
@@ -24,7 +24,7 @@ export default function TikTokDownloader() {
     <DownloaderTemplate
       platform="tiktok"
       platformName="TikTok"
-      platformIcon="🎵"
+      platformIcon="TikTok"
       gradientFrom="from-pink-500"
       gradientTo="to-cyan-500"
       supportedTypes={['Videos', 'Stories', 'Public Links', 'Format Options']}

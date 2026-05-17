@@ -106,20 +106,20 @@ app.include_router(whatsapp_business_router, tags=["whatsapp-business"])
 async def startup_event():
     """Run startup tasks"""
     print("\n" + "="*60)
-    print("🚀 SOCIAL MEDIA DOWNLOADER API STARTING...")
+    print("DownloadDash API starting...")
     print("="*60)
     
     # Initialize Telegram downloader
     try:
         await telegram_downloader.connect()
-        print("✅ Telegram downloader initialized")
+        print("OK: Telegram downloader initialized")
     except Exception as e:
-        print(f"❌ Telegram downloader initialization failed: {e}")
+        print(f"ERROR: Telegram downloader initialization failed: {e}")
     
     # WhatsApp bridges are HTTP-based; nothing to initialize here.
     print("Info: WhatsApp bridges will be checked on demand")
     
-    print("\n📋 Available Endpoints:")
+    print("\nAvailable endpoints:")
     print("   - POST /instagram/download")
     print("   - POST /tiktok/download")
     print("   - POST /facebook/download")
@@ -132,7 +132,7 @@ async def startup_event():
     print("   - GET /whatsapp/status")
     print("   - GET /whatsapp-business/qr")
     print("   - GET /whatsapp-business/status")
-    print("\n📚 API Documentation: /docs")
+    print("\nAPI documentation: /docs")
     print("="*60 + "\n")
 
 
@@ -140,22 +140,22 @@ async def startup_event():
 async def shutdown_event():
     """Run shutdown tasks"""
     print("\n" + "="*60)
-    print("🛑 SOCIAL MEDIA DOWNLOADER API SHUTTING DOWN...")
+    print("DownloadDash API shutting down...")
     print("="*60)
     
     # Close WhatsApp downloader
     try:
         await whatsapp_downloader.close()
-        print("✅ WhatsApp downloader closed")
+        print("OK: WhatsApp downloader closed")
     except Exception as e:
-        print(f"❌ Error closing WhatsApp downloader: {e}")
+        print(f"ERROR: WhatsApp downloader close failed: {e}")
     
     # Disconnect Telegram downloader
     try:
         await telegram_downloader.disconnect()
-        print("✅ Telegram downloader disconnected")
+        print("OK: Telegram downloader disconnected")
     except Exception as e:
-        print(f"❌ Error disconnecting Telegram downloader: {e}")
+        print(f"ERROR: Telegram downloader disconnect failed: {e}")
     
     print("="*60 + "\n")
 

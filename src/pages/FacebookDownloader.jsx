@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import DownloaderTemplate from '@/components/DownloaderTemplate';
 import { downloadDash } from '@/api/downloadDashClient';
 
@@ -24,7 +24,7 @@ export default function FacebookDownloader() {
     <DownloaderTemplate
       platform="facebook"
       platformName="Facebook"
-      platformIcon="👤"
+      platformIcon="Facebook"
       gradientFrom="from-blue-600"
       gradientTo="to-blue-400"
       supportedTypes={['Videos', 'Stories', 'Reels', 'Live Videos']}

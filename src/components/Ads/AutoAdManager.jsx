@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { Sparkles, Smartphone, X } from 'lucide-react';
 import { useAdPlatform } from './useAdPlatform';
 
-// Auto-play interstitial every 3 minutes — user can cancel after 5s
+const ENABLE_WEB_ADS =
+  String(import.meta.env.VITE_ENABLE_WEB_ADS || '').toLowerCase() === 'true';
+
 const INTERVAL_MS = 3 * 60 * 1000;
 const SKIP_DELAY = 5;
 
@@ -14,7 +16,10 @@ export default function AutoAdManager() {
   const { isMobileApp } = useAdPlatform();
   const lastShownRef = useRef(Date.now());
 
-  // Periodic trigger
+  if (!isMobileApp && !ENABLE_WEB_ADS) {
+    return null;
+  }
+
   useEffect(() => {
     const interval = setInterval(() => {
       if (Date.now() - lastShownRef.current >= INTERVAL_MS) {
@@ -23,15 +28,18 @@ export default function AutoAdManager() {
         setSkipLeft(SKIP_DELAY);
         setCanCancel(false);
       }
-    }, 15000); // check every 15s
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
-  // Countdown when open
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
     const t = setInterval(() => setSkipLeft(prev => {
-      if (prev <= 1) { setCanCancel(true); clearInterval(t); return 0; }
+      if (prev <= 1) {
+        setCanCancel(true);
+        clearInterval(t);
+        return 0;
+      }
       return prev - 1;
     }), 1000);
     return () => clearInterval(t);
@@ -69,7 +77,7 @@ export default function AutoAdManager() {
             <div className="aspect-video bg-gray-900 rounded-2xl border border-purple-500/20 flex items-center justify-center relative overflow-hidden mb-4">
               {isMobileApp ? (
                 <div className="flex flex-col items-center text-center p-8">
-                  <div className="text-5xl mb-3">📱</div>
+                  <Smartphone className="h-12 w-12 mb-3 text-gray-300" />
                   <p className="text-gray-400">AdMob Full-Screen Ad</p>
                 </div>
               ) : (
@@ -77,13 +85,12 @@ export default function AutoAdManager() {
                   <motion.div
                     animate={{ y: [0, -12, 0] }}
                     transition={{ repeat: Infinity, duration: 2.5 }}
-                    className="text-6xl mb-4"
+                    className="mb-4"
                   >
-                    🌟
+                    <Sparkles className="h-14 w-14 text-purple-300" />
                   </motion.div>
                   <p className="text-white text-2xl font-bold">Sponsored</p>
                   <p className="text-gray-400 mt-2 text-sm">Keeping DownloadDash free for everyone</p>
-                  {/* ↓ Replace with your real AdSense ins tag */}
                   <div className="mt-6 w-72 h-16 bg-gray-800 rounded-xl border border-purple-500/20 flex items-center justify-center">
                     <span className="text-gray-600 text-sm">AdSense Full-Screen Space</span>
                   </div>

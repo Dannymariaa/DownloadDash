@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Download, Folder, Image, Video, RefreshCw, Check, 
-  Share2, Repeat, AlertCircle, Smartphone, Info
+  Share2, Repeat, AlertCircle, Smartphone, Info, MessageCircle, Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -164,7 +164,7 @@ export default function WhatsAppStatusSaver() {
             whileHover={{ scale: 1.1, rotate: 5 }}
             transition={{ type: "spring", stiffness: 300 }}
           >
-            <span className="text-5xl">💬</span>
+            <MessageCircle className="h-12 w-12 text-white" />
           </motion.div>
 
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-green-400 via-emerald-400 to-green-400 bg-clip-text text-transparent">
@@ -399,9 +399,9 @@ export default function WhatsAppStatusSaver() {
         {/* Features */}
         <div className="mt-8 grid md:grid-cols-3 gap-4">
           {[
-            { icon: '📱', title: 'No Login Required', desc: 'Works with local files only' },
-            { icon: '🔒', title: 'Private & Secure', desc: 'No data leaves your device' },
-            { icon: '💾', title: 'Save to Gallery', desc: 'Keep statuses forever' },
+            { icon: <Smartphone className="h-8 w-8 mx-auto" />, title: 'No Login Required', desc: 'Works with local files only' },
+            { icon: <Shield className="h-8 w-8 mx-auto" />, title: 'Private & Secure', desc: 'No data leaves your device' },
+            { icon: <Download className="h-8 w-8 mx-auto" />, title: 'Save to Gallery', desc: 'Keep statuses forever' },
           ].map((feature, idx) => (
             <motion.div
               key={idx}
@@ -410,7 +410,7 @@ export default function WhatsAppStatusSaver() {
               transition={{ delay: 0.5 + idx * 0.1 }}
               className="bg-gray-900/50 rounded-xl p-4 border border-purple-500/10 text-center"
             >
-              <span className="text-3xl mb-2 block">{feature.icon}</span>
+              <div className="mb-2 flex justify-center text-purple-300">{feature.icon}</div>
               <h4 className="font-semibold text-white">{feature.title}</h4>
               <p className="text-gray-500 text-sm">{feature.desc}</p>
             </motion.div>

@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+﻿import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { Smartphone, X } from 'lucide-react';
 import { useAdPlatform } from '@/components/Ads/useAdPlatform';
 
 // Platform navigation interstitial: skip after 5s, then navigates to chosen platform
@@ -56,13 +56,13 @@ export function NavigationAdProvider({ children }) {
             <div className="w-full max-w-2xl">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs text-white bg-gray-700 px-2 py-1 rounded font-medium">AD</span>
-                <span className="text-gray-400 text-sm">Loading next platform…</span>
+                <span className="text-gray-400 text-sm">Loading next platform...</span>
               </div>
 
               <div className="aspect-video bg-gray-900 rounded-2xl border border-purple-500/20 flex items-center justify-center relative overflow-hidden mb-4">
                 {isMobileApp ? (
                   <div className="flex flex-col items-center text-center p-8">
-                    <div className="text-5xl mb-3">📱</div>
+                    <Smartphone className="h-12 w-12 mb-3 text-gray-300" />
                     <p className="text-gray-400">AdMob Transition Ad</p>
                   </div>
                 ) : (
@@ -74,7 +74,7 @@ export function NavigationAdProvider({ children }) {
                     />
                     <p className="text-white text-lg font-bold">Switching Platform</p>
                     <p className="text-gray-400 text-sm mt-1">Quick ad while we load the page</p>
-                    {/* ↓ Replace with your real AdSense ins tag */}
+                    {/* Replace with your real AdSense ins tag */}
                     <div className="mt-5 w-64 h-12 bg-gray-800 rounded-xl border border-purple-500/20 flex items-center justify-center">
                       <span className="text-gray-600 text-xs">AdSense Transition Space</span>
                     </div>
@@ -96,7 +96,7 @@ export function NavigationAdProvider({ children }) {
                   </motion.button>
                 ) : (
                   <div className="bg-gray-800 border border-gray-700 rounded-xl px-5 py-2">
-                    <span className="text-gray-400 text-sm">Changing in {skipLeft}s…</span>
+                    <span className="text-gray-400 text-sm">Changing in {skipLeft}s...</span>
                   </div>
                 )}
               </div>
