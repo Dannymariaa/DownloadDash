@@ -211,10 +211,19 @@ class PublicPlatformDownloader:
         return url
 
     def _youtube_api_downloads(self, url: str, variant: str | None = None) -> Dict[str, str]:
-        # The legacy YouTube file endpoint should not return a thumbnail
-        # cover image as a download option. YouTube downloads must resolve to
-        # actual audio/video media instead.
-        return {}
+        encoded_url = quote(self._normalize_youtube_url(url), safe="")
+
+        def build_url(kind: str) -> str:
+            return f"/youtube/file?url={encoded_url}&variant={kind}"
+
+        if variant == "audio":
+            return {"audio": build_url("audio")}
+
+        return {
+            "videoHD": build_url("hd"),
+            "videoSD": build_url("sd"),
+            "audio": build_url("audio"),
+        }
 
     def _youtube_extractor_args(self, player_clients: list[str]) -> Dict[str, Any]:
         youtube_args: Dict[str, Any] = {"player_client": player_clients}
@@ -729,15 +738,27 @@ class PublicPlatformDownloader:
                     selected_info_ext = selected_info_ext or requested_video.get("ext")
 
             if extract_audio and not (selected_audio and selected_audio.get("url")) and not selected_info_url:
-                raise Exception(
-                    "Resolve failed: no audio formats available for this YouTube video. "
-                    "Try a different quality or ensure the proxy can access YouTube."
-                )
+                downloads = self._youtube_api_downloads(url, "audio")
+                return {
+                    "direct_url": downloads["audio"],
+                    "title": title,
+                    "thumbnail": thumbnail,
+                    "ext": "m4a",
+                    "filesize": None,
+                    "kind": "audio",
+                    "downloads": downloads,
+                }
             if not extract_audio and not (selected_hd and selected_hd.get("url")) and not selected_info_url:
-                raise Exception(
-                    "Resolve failed: no playable video formats available for this YouTube video. "
-                    "Try a different quality or ensure the proxy can access YouTube."
-                )
+                downloads = self._youtube_api_downloads(url)
+                return {
+                    "direct_url": downloads["videoHD"],
+                    "title": title,
+                    "thumbnail": thumbnail,
+                    "ext": "mp4",
+                    "filesize": None,
+                    "kind": "video",
+                    "downloads": downloads,
+                }
 
         direct_url = selected_info_url or (primary.get("url") if primary else info.get("url"))
         if is_youtube and kind == "image":

@@ -80,7 +80,8 @@ export const downloadToDevice = async (fileUrl, filename) => {
   const baseUrl = getApiBaseUrl();
   const isApiManagedDownload =
     typeof absoluteFileUrl === 'string' &&
-    absoluteFileUrl.startsWith(`${baseUrl}/download/file`);
+    (absoluteFileUrl.startsWith(`${baseUrl}/download/file`) ||
+      absoluteFileUrl.startsWith(`${baseUrl}/youtube/file`));
 
   try {
     const res = await fetch(absoluteFileUrl, { method: 'GET' });
