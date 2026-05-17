@@ -80,17 +80,18 @@ export default function SkippableAdModal({ isOpen, onComplete, onCancel, downloa
                 <p className="text-white font-semibold">{downloadLabel}</p>
                 <p className="text-gray-400 text-xs">{ready ? 'Claim your reward to continue.' : `Waiting ${timeLeft}s...`}</p>
               </div>
-              {ready ? (
-                <motion.button
-                  initial={{ scale: 0.96 }}
-                  animate={{ scale: 1 }}
-                  whileHover={{ scale: 1.05 }}
-                  onClick={onComplete}
-                  className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-colors"
-                >
-                  Claim Reward
-                </motion.button>
-              ) : (
+              <div className="flex gap-3">
+                {ready ? (
+                  <motion.button
+                    initial={{ scale: 0.96 }}
+                    animate={{ scale: 1 }}
+                    whileHover={{ scale: 1.05 }}
+                    onClick={onComplete}
+                    className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-colors"
+                  >
+                    Claim Reward
+                  </motion.button>
+                ) : null}
                 <motion.button
                   initial={{ scale: 0.96 }}
                   animate={{ scale: 1 }}
@@ -100,7 +101,7 @@ export default function SkippableAdModal({ isOpen, onComplete, onCancel, downloa
                 >
                   Cancel <X className="h-4 w-4" />
                 </motion.button>
-              )}
+              </div>
             </div>
           </div>
         </motion.div>

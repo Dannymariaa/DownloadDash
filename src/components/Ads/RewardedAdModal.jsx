@@ -109,7 +109,7 @@ export default function RewardedAdModal({ isOpen, onComplete, onCancel, download
                   className="bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg shadow-green-500/25"
                 >
                   <span className="inline-flex items-center gap-2">
-                    <Download className="h-4 w-4" /> Start Download
+                    <Download className="h-4 w-4" /> Claim Reward
                   </span>
                 </motion.button>
               ) : (

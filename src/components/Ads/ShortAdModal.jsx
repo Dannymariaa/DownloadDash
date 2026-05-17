@@ -34,7 +34,7 @@ export default function ShortAdModal({ isOpen, onComplete, onCancel, downloadLab
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4"
+          className="fixed inset-0 z-[200] bg-black/95 flex flex-col items-center justify-center p-4"
         >
           <div className="w-full max-w-sm bg-gray-900 rounded-3xl border border-green-500/30 p-7 text-center shadow-xl shadow-green-500/10">
             <span className="text-xs text-white bg-gray-700 px-2 py-1 rounded font-medium">QUICK AD</span>
@@ -78,7 +78,7 @@ export default function ShortAdModal({ isOpen, onComplete, onCancel, downloadLab
             )}
           </div>
 
-          <div className="flex justify-between items-center mt-4 gap-4">
+          <div className="w-full max-w-sm flex justify-between items-center mt-4 gap-4">
             <div className="text-left">
               <p className="text-white font-semibold text-sm">{downloadLabel}</p>
               <p className="text-gray-400 text-xs">

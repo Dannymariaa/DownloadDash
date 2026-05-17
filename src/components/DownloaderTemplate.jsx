@@ -182,7 +182,8 @@ export default function DownloaderTemplate({
       return;
     }
 
-    setPendingDownload({ downloadUrl, type, label });
+    const shortAdDuration = 5 + Math.floor(Math.random() * 6);
+    setPendingDownload({ downloadUrl, type, label, shortAdDuration });
 
     if (type === 'videoHD') {
       setActiveAd('rewarded');
@@ -611,14 +612,14 @@ export default function DownloaderTemplate({
         onComplete={handleAdComplete}
         onCancel={handleAdCancel}
         downloadLabel={pendingDownload?.label || 'SD Download'}
-        duration={7}
+        duration={pendingDownload?.shortAdDuration || 7}
       />
       <ShortAdModal
         isOpen={activeAd === 'short'}
         onComplete={handleAdComplete}
         onCancel={handleAdCancel}
         downloadLabel={pendingDownload?.label || 'Audio / MP3'}
-        duration={7}
+        duration={pendingDownload?.shortAdDuration || 7}
       />
 
       {/* Preview Modal */}
