@@ -7,12 +7,9 @@ const ENABLE_WEB_ADS =
   String(import.meta.env.VITE_ENABLE_WEB_ADS || '').toLowerCase() === 'true';
 
 const INTERVAL_MS = 3 * 60 * 1000;
-const SKIP_DELAY = 5;
 
 export default function AutoAdManager() {
   const [isOpen, setIsOpen] = useState(false);
-  const [skipLeft, setSkipLeft] = useState(SKIP_DELAY);
-  const [canCancel, setCanCancel] = useState(false);
   const { isMobileApp } = useAdPlatform();
   const lastShownRef = useRef(Date.now());
 
@@ -25,25 +22,10 @@ export default function AutoAdManager() {
       if (Date.now() - lastShownRef.current >= INTERVAL_MS) {
         lastShownRef.current = Date.now();
         setIsOpen(true);
-        setSkipLeft(SKIP_DELAY);
-        setCanCancel(false);
       }
     }, 15000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (!isOpen) return undefined;
-    const t = setInterval(() => setSkipLeft(prev => {
-      if (prev <= 1) {
-        setCanCancel(true);
-        clearInterval(t);
-        return 0;
-      }
-      return prev - 1;
-    }), 1000);
-    return () => clearInterval(t);
-  }, [isOpen]);
 
   const handleClose = () => setIsOpen(false);
 
@@ -59,19 +41,15 @@ export default function AutoAdManager() {
           <div className="w-full max-w-2xl">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs text-white bg-gray-700 px-2 py-1 rounded font-medium">ADVERTISEMENT</span>
-              {canCancel ? (
-                <motion.button
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  whileHover={{ scale: 1.05 }}
-                  onClick={handleClose}
-                  className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-4 py-1.5 rounded-lg text-sm transition-colors"
-                >
-                  <X className="h-3.5 w-3.5" /> Cancel
-                </motion.button>
-              ) : (
-                <span className="text-gray-500 text-sm">Can cancel in {skipLeft}s</span>
-              )}
+              <motion.button
+                initial={{ scale: 0.96 }}
+                animate={{ scale: 1 }}
+                whileHover={{ scale: 1.05 }}
+                onClick={handleClose}
+                className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-4 py-1.5 rounded-lg text-sm transition-colors"
+              >
+                <X className="h-3.5 w-3.5" /> Cancel
+              </motion.button>
             </div>
 
             <div className="aspect-video bg-gray-900 rounded-2xl border border-purple-500/20 flex items-center justify-center relative overflow-hidden mb-4">
@@ -97,16 +75,6 @@ export default function AutoAdManager() {
                 </div>
               )}
             </div>
-
-            {!canCancel && (
-              <div className="flex justify-center">
-                <div className="flex gap-1.5">
-                  {Array.from({ length: SKIP_DELAY }).map((_, i) => (
-                    <div key={i} className={`w-2 h-2 rounded-full transition-colors ${i < (SKIP_DELAY - skipLeft) ? 'bg-purple-500' : 'bg-gray-700'}`} />
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </motion.div>
       )}

@@ -3,31 +3,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Smartphone, X } from 'lucide-react';
 import { useAdPlatform } from './useAdPlatform';
 
-const SKIP_DELAY = 5;
 const AUTO_COMPLETE = 20;
 
 export default function SkippableAdModal({ isOpen, onComplete, downloadLabel = 'SD Video' }) {
-  const [skipLeft, setSkipLeft] = useState(SKIP_DELAY);
   const [autoLeft, setAutoLeft] = useState(AUTO_COMPLETE);
-  const [canSkip, setCanSkip] = useState(false);
   const { isMobileApp } = useAdPlatform();
 
   useEffect(() => {
     if (!isOpen) {
-      setSkipLeft(SKIP_DELAY);
       setAutoLeft(AUTO_COMPLETE);
-      setCanSkip(false);
       return;
     }
 
     const t = setInterval(() => {
-      setSkipLeft(prev => {
-        if (prev <= 1) {
-          setCanSkip(true);
-          return 0;
-        }
-        return prev - 1;
-      });
       setAutoLeft(prev => {
         if (prev <= 1) {
           clearInterval(t);
@@ -86,21 +74,15 @@ export default function SkippableAdModal({ isOpen, onComplete, downloadLabel = '
 
             <div className="flex justify-between items-center">
               <p className="text-gray-600 text-xs">Auto-downloading in {autoLeft}s</p>
-              {canSkip ? (
-                <motion.button
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  whileHover={{ scale: 1.05 }}
-                  onClick={onComplete}
-                  className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-5 py-2 rounded-xl text-sm font-medium transition-colors"
-                >
-                  Skip Ad <X className="h-4 w-4" />
-                </motion.button>
-              ) : (
-                <div className="bg-gray-800 border border-gray-700 rounded-xl px-5 py-2">
-                  <span className="text-gray-400 text-sm">Skip in {skipLeft}s</span>
-                </div>
-              )}
+              <motion.button
+                initial={{ scale: 0.96 }}
+                animate={{ scale: 1 }}
+                whileHover={{ scale: 1.05 }}
+                onClick={onComplete}
+                className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-5 py-2 rounded-xl text-sm font-medium transition-colors"
+              >
+                Skip Ad <X className="h-4 w-4" />
+              </motion.button>
             </div>
           </div>
         </motion.div>

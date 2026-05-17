@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 
 export default function VideoAdOverlay({ isOpen, onClose, onComplete }) {
   const [countdown, setCountdown] = useState(5);
-  const [canSkip, setCanSkip] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
 
   useEffect(() => {
@@ -13,14 +12,13 @@ export default function VideoAdOverlay({ isOpen, onClose, onComplete }) {
       const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
       return () => clearTimeout(timer);
     } else if (countdown === 0) {
-      setCanSkip(true);
+      return undefined;
     }
   }, [isOpen, countdown]);
 
   useEffect(() => {
     if (isOpen) {
       setCountdown(5);
-      setCanSkip(false);
     }
   }, [isOpen]);
 
@@ -65,18 +63,12 @@ export default function VideoAdOverlay({ isOpen, onClose, onComplete }) {
             </div>
 
             <div className="absolute bottom-4 right-4">
-              {canSkip ? (
-                <Button
-                  onClick={handleSkip}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-6"
-                >
-                  Skip Ad <X className="ml-2 h-4 w-4" />
-                </Button>
-              ) : (
-                <div className="bg-black/80 border border-purple-500/30 rounded-lg px-4 py-2">
-                  <span className="text-purple-400 text-sm">Skip in {countdown}s</span>
-                </div>
-              )}
+              <Button
+                onClick={handleSkip}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-6"
+              >
+                {countdown > 0 ? `Skip Ad (${countdown}s)` : 'Skip Ad'} <X className="ml-2 h-4 w-4" />
+              </Button>
             </div>
 
             <div className="absolute bottom-4 left-4">

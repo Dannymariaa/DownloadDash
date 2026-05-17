@@ -4,9 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Smartphone, X } from 'lucide-react';
 import { useAdPlatform } from '@/components/Ads/useAdPlatform';
 
-// Platform navigation interstitial: skip after 5s, then navigates to chosen platform
-const SKIP_DELAY = 5;
-
 const NavigationAdContext = createContext({ navigateWithAd: (path) => {} });
 
 export function useNavigationAd() {
@@ -15,25 +12,12 @@ export function useNavigationAd() {
 
 export function NavigationAdProvider({ children }) {
   const [pendingPath, setPendingPath] = useState(null);
-  const [skipLeft, setSkipLeft] = useState(SKIP_DELAY);
-  const [canSkip, setCanSkip] = useState(false);
   const navigate = useNavigate();
   const { isMobileApp } = useAdPlatform();
 
   const navigateWithAd = (path) => {
     setPendingPath(path);
-    setSkipLeft(SKIP_DELAY);
-    setCanSkip(false);
   };
-
-  useEffect(() => {
-    if (!pendingPath) return;
-    const t = setInterval(() => setSkipLeft(prev => {
-      if (prev <= 1) { setCanSkip(true); clearInterval(t); return 0; }
-      return prev - 1;
-    }), 1000);
-    return () => clearInterval(t);
-  }, [pendingPath]);
 
   const handleSkip = () => {
     const path = pendingPath;
@@ -84,21 +68,15 @@ export function NavigationAdProvider({ children }) {
 
               <div className="flex items-center justify-between">
                 <p className="text-gray-600 text-xs">Ad helps keep DownloadDash free</p>
-                {canSkip ? (
-                  <motion.button
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    whileHover={{ scale: 1.05 }}
-                    onClick={handleSkip}
-                    className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-xl font-medium text-sm transition-colors"
-                  >
-                    Go to Platform <X className="h-4 w-4" />
-                  </motion.button>
-                ) : (
-                  <div className="bg-gray-800 border border-gray-700 rounded-xl px-5 py-2">
-                    <span className="text-gray-400 text-sm">Changing in {skipLeft}s...</span>
-                  </div>
-                )}
+                <motion.button
+                  initial={{ scale: 0.96 }}
+                  animate={{ scale: 1 }}
+                  whileHover={{ scale: 1.05 }}
+                  onClick={handleSkip}
+                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2 rounded-xl font-medium text-sm transition-colors"
+                >
+                  Continue <X className="h-4 w-4" />
+                </motion.button>
               </div>
             </div>
           </motion.div>
