@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
+import RewardedAdModal from '@/components/Ads/RewardedAdModal';
+import SkippableAdModal from '@/components/Ads/SkippableAdModal';
+import ShortAdModal from '@/components/Ads/ShortAdModal';
 import { useI18n } from '@/lib/i18n';
 
 // Platform URL validation
@@ -72,7 +75,12 @@ export default function DownloaderTemplate({
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [pendingDownload, setPendingDownload] = useState(null);
+  const [activeAd, setActiveAd] = useState(null);
   const PlatformIcon = platformIcons[platform] || Download;
+  const platformIconNode = React.isValidElement(platformIcon)
+    ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
+    : null;
 
   const handleFetch = async () => {
     const validation = validateUrl(url, platform, t);
@@ -155,7 +163,40 @@ export default function DownloaderTemplate({
     }
   };
 
-  const requestDownload = (downloadUrl, type) => {
+  const handleAdComplete = async () => {
+    if (!pendingDownload) return;
+    const { downloadUrl, type } = pendingDownload;
+    setActiveAd(null);
+    setPendingDownload(null);
+    await startDownload(downloadUrl, type);
+  };
+
+  const handleAdCancel = () => {
+    setActiveAd(null);
+    setPendingDownload(null);
+  };
+
+  const requestDownload = (downloadUrl, type, label) => {
+    if (!downloadUrl) {
+      setError(t('errors.processFailed'));
+      return;
+    }
+
+    setPendingDownload({ downloadUrl, type, label });
+
+    if (type === 'videoHD') {
+      setActiveAd('rewarded');
+      return;
+    }
+    if (type === 'videoSD') {
+      setActiveAd('skippable');
+      return;
+    }
+    if (type === 'audio') {
+      setActiveAd('short');
+      return;
+    }
+
     startDownload(downloadUrl, type);
   };
 
@@ -219,7 +260,7 @@ export default function DownloaderTemplate({
             whileHover={{ scale: 1.1, rotate: 5 }}
             transition={{ type: 'spring', stiffness: 300 }}
           >
-            <PlatformIcon className="h-12 w-12 text-white" strokeWidth={1.8} />
+            {platformIconNode || <PlatformIcon className="h-12 w-12 text-white" strokeWidth={1.8} />}
           </motion.div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
             {t('downloader.title', { platformName })}
@@ -440,7 +481,7 @@ export default function DownloaderTemplate({
                         variants={downloadOptionVariants}
                         whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(34, 197, 94, 0.3)' }}
                         whileTap={{ scale: 0.99 }}
-                        onClick={() => requestDownload(result.downloads?.audio, 'audio', 'Audio MP3')}
+                        onClick={() => requestDownload(result.downloads?.audio, 'audio', 'Audio / MP3')}
                         className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-green-500/40 transition-all group"
                       >
                         <div className="flex items-center gap-3">
@@ -557,6 +598,28 @@ export default function DownloaderTemplate({
           <AdBanner position="bottom" size="medium" />
         </div>
       </div>
+
+      {/* Download Ad Modals */}
+      <RewardedAdModal
+        isOpen={activeAd === 'rewarded'}
+        onComplete={handleAdComplete}
+        onCancel={handleAdCancel}
+        downloadLabel={pendingDownload?.label || 'HD Download'}
+      />
+      <SkippableAdModal
+        isOpen={activeAd === 'skippable'}
+        onComplete={handleAdComplete}
+        onCancel={handleAdCancel}
+        downloadLabel={pendingDownload?.label || 'SD Download'}
+        duration={7}
+      />
+      <ShortAdModal
+        isOpen={activeAd === 'short'}
+        onComplete={handleAdComplete}
+        onCancel={handleAdCancel}
+        downloadLabel={pendingDownload?.label || 'Audio / MP3'}
+        duration={7}
+      />
 
       {/* Preview Modal */}
       <AnimatePresence>

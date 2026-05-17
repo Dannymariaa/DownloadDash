@@ -3,31 +3,32 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Smartphone, X } from 'lucide-react';
 import { useAdPlatform } from './useAdPlatform';
 
-const ENABLE_WEB_ADS =
-  String(import.meta.env.VITE_ENABLE_WEB_ADS || '').toLowerCase() === 'true';
+const MIN_INTERVAL_MS = 3 * 60 * 1000;
+const MAX_INTERVAL_MS = 5 * 60 * 1000;
 
-const INTERVAL_MS = 3 * 60 * 1000;
+const getNextAdDelay = () =>
+  MIN_INTERVAL_MS + Math.floor(Math.random() * (MAX_INTERVAL_MS - MIN_INTERVAL_MS + 1));
 
 export default function AutoAdManager() {
   const [isOpen, setIsOpen] = useState(false);
   const { isMobileApp } = useAdPlatform();
-  const lastShownRef = useRef(Date.now());
-
-  if (!isMobileApp && !ENABLE_WEB_ADS) {
-    return null;
-  }
+  const timeoutRef = useRef(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (Date.now() - lastShownRef.current >= INTERVAL_MS) {
-        lastShownRef.current = Date.now();
-        setIsOpen(true);
-      }
-    }, 15000);
-    return () => clearInterval(interval);
+    const scheduleNext = () => {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setIsOpen(true), getNextAdDelay());
+    };
+
+    scheduleNext();
+    return () => clearTimeout(timeoutRef.current);
   }, []);
 
-  const handleClose = () => setIsOpen(false);
+  const handleClose = () => {
+    setIsOpen(false);
+    clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setIsOpen(true), getNextAdDelay());
+  };
 
   return (
     <AnimatePresence>

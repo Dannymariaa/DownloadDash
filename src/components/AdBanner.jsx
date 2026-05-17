@@ -46,7 +46,7 @@ export default function AdBanner({ position = 'top', size = 'medium' }) {
       className="w-full relative overflow-hidden rounded-xl"
       style={sizeStyles[size]}
     >
-      {/* AdSense unit – replace slot IDs below */}
+      {/* AdSense unit */}
       <ins
         className="adsbygoogle"
         style={{ display: 'block', width: '100%', ...sizeStyles[size] }}

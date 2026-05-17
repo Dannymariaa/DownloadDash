@@ -1,29 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Music } from 'lucide-react';
+import { Music, X } from 'lucide-react';
 import { useAdPlatform } from './useAdPlatform';
 
-const DURATION = 3;
-
-export default function ShortAdModal({ isOpen, onComplete }) {
-  const [timeLeft, setTimeLeft] = useState(DURATION);
+export default function ShortAdModal({ isOpen, onComplete, onCancel, downloadLabel = 'Audio / MP3', duration = 5 }) {
+  const [timeLeft, setTimeLeft] = useState(duration);
+  const [ready, setReady] = useState(false);
   const { isMobileApp } = useAdPlatform();
 
   useEffect(() => {
     if (!isOpen) {
-      setTimeLeft(DURATION);
+      setTimeLeft(duration);
+      setReady(false);
       return;
     }
+    setTimeLeft(duration);
+    setReady(false);
     const t = setInterval(() => setTimeLeft(prev => {
       if (prev <= 1) {
         clearInterval(t);
-        onComplete?.();
+        setReady(true);
         return 0;
       }
       return prev - 1;
     }), 1000);
     return () => clearInterval(t);
-  }, [isOpen, onComplete]);
+  }, [isOpen, duration]);
 
   return (
     <AnimatePresence>
@@ -45,7 +47,7 @@ export default function ShortAdModal({ isOpen, onComplete }) {
               <Music className="h-10 w-10 text-white" />
             </motion.div>
 
-            <p className="text-white text-lg font-bold mb-1">Audio Download</p>
+            <p className="text-white text-lg font-bold mb-1">{downloadLabel}</p>
             <p className="text-gray-400 text-sm mb-5">Starting in {timeLeft}s...</p>
 
             <div className="flex justify-center mb-4">
@@ -60,7 +62,7 @@ export default function ShortAdModal({ isOpen, onComplete }) {
                   fill="none"
                   strokeLinecap="round"
                   strokeDasharray={138}
-                  animate={{ strokeDashoffset: 138 - (138 * (DURATION - timeLeft) / DURATION) }}
+                  animate={{ strokeDashoffset: 138 - (138 * (duration - timeLeft) / duration) }}
                   style={{ transform: 'rotate(-90deg)', transformOrigin: '28px 28px' }}
                 />
                 <text x="28" y="33" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold">{timeLeft}</text>
@@ -74,6 +76,37 @@ export default function ShortAdModal({ isOpen, onComplete }) {
                 <span className="text-gray-600 text-xs">AdSense Short Ad Space</span>
               </div>
             )}
+          </div>
+
+          <div className="flex justify-between items-center mt-4 gap-4">
+            <div className="text-left">
+              <p className="text-white font-semibold text-sm">{downloadLabel}</p>
+              <p className="text-gray-400 text-xs">
+                {ready ? 'Claim your reward to start download.' : `Waiting ${timeLeft}s...`}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              {ready ? (
+                <motion.button
+                  initial={{ scale: 0.96 }}
+                  animate={{ scale: 1 }}
+                  whileHover={{ scale: 1.05 }}
+                  onClick={onComplete}
+                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl font-semibold shadow-lg shadow-green-500/20"
+                >
+                  Claim Reward
+                </motion.button>
+              ) : null}
+              <motion.button
+                initial={{ scale: 0.96 }}
+                animate={{ scale: 1 }}
+                whileHover={{ scale: 1.05 }}
+                onClick={onCancel}
+                className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+              >
+                <X className="h-4 w-4" /> Cancel
+              </motion.button>
+            </div>
           </div>
         </motion.div>
       )}

@@ -315,6 +315,7 @@ class PublicPlatformDownloader:
         extract_audio: bool = False,
     ) -> Dict[str, Any] | None:
         last_error: Exception | None = None
+        last_info_without_playable: Dict[str, Any] | None = None
 
         for profile_name, player_clients, use_cookies, use_proxy in self._youtube_client_profiles():
             opts = dict(base_opts)
@@ -335,12 +336,18 @@ class PublicPlatformDownloader:
             try:
                 info = await loop.run_in_executor(None, lambda opts=opts: extract_info_fn(opts))
                 if require_playable and not self._has_youtube_playable_media(info, extract_audio=extract_audio):
+                    if isinstance(info, dict):
+                        last_info_without_playable = info
                     print(f"Warning: yt-dlp {label} profile {profile_name} returned no playable media")
                     continue
                 return info
             except Exception as e:
                 last_error = e
                 print(f"Warning: yt-dlp {label} profile {profile_name} failed: {e}")
+
+        if last_info_without_playable:
+            print(f"Warning: yt-dlp {label} falling back to metadata without direct playable formats")
+            return last_info_without_playable
 
         if last_error:
             raise last_error

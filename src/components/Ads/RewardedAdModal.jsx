@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, Clock, Download, Film, Smartphone, Trophy } from 'lucide-react';
+import { CheckCircle, Clock, Download, Film, Smartphone, Trophy, X } from 'lucide-react';
 import { useAdPlatform } from './useAdPlatform';
 
 const AD_DURATION = 30;
 
-export default function RewardedAdModal({ isOpen, onComplete, downloadLabel = 'HD Video' }) {
+export default function RewardedAdModal({ isOpen, onComplete, onCancel, downloadLabel = 'HD Video' }) {
   const [timeLeft, setTimeLeft] = useState(AD_DURATION);
   const [ready, setReady] = useState(false);
   const { isMobileApp } = useAdPlatform();
@@ -39,11 +39,20 @@ export default function RewardedAdModal({ isOpen, onComplete, downloadLabel = 'H
           className="fixed inset-0 z-[200] bg-black/99 flex items-center justify-center p-4"
         >
           <div className="w-full max-w-2xl">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 gap-3">
               <span className="text-xs text-white bg-gray-700 px-2 py-1 rounded font-medium">AD</span>
-              <span className="text-purple-300 text-sm font-medium flex items-center gap-1.5">
+              <span className="text-purple-300 text-sm font-medium flex-1 text-center sm:text-left flex items-center justify-center gap-1.5">
                 <Trophy className="h-4 w-4" /> Earn {downloadLabel} - Watch Full Ad
               </span>
+              <motion.button
+                initial={{ scale: 0.96 }}
+                animate={{ scale: 1 }}
+                whileHover={{ scale: 1.05 }}
+                onClick={onCancel}
+                className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white px-4 py-1.5 rounded-lg text-sm transition-colors"
+              >
+                <X className="h-4 w-4" /> Cancel
+              </motion.button>
             </div>
 
             <div className="aspect-video bg-gray-900 rounded-2xl border border-purple-500/30 flex items-center justify-center relative overflow-hidden mb-4">
