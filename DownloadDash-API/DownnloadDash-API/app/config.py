@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     YTDLP_COOKIE_DATA_INSTAGRAM: Optional[str] = None
     YTDLP_COOKIEFILE_TIKTOK: Optional[str] = None
     YTDLP_COOKIE_DATA_TIKTOK: Optional[str] = None
+    OUTBOUND_PROXY: Optional[str] = None
     YTDLP_PROXY: Optional[str] = None
     YTDLP_PROXY_YOUTUBE: Optional[str] = None
     

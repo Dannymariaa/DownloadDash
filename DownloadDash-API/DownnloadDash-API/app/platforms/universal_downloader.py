@@ -48,6 +48,12 @@ class UniversalMediaDownloader:
     def __init__(self, public_downloader: PublicPlatformDownloader):
         self.public_downloader = public_downloader
 
+    def _httpx_client_kwargs(self, **kwargs: Any) -> Dict[str, Any]:
+        proxy_url = settings.OUTBOUND_PROXY or settings.YTDLP_PROXY
+        if proxy_url:
+            kwargs["proxy"] = proxy_url
+        return kwargs
+
     async def resolve_media(
         self,
         url: str,
@@ -468,7 +474,13 @@ class UniversalMediaDownloader:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         }
         try:
-            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers) as client:
+            async with httpx.AsyncClient(
+                **self._httpx_client_kwargs(
+                    timeout=20.0,
+                    follow_redirects=True,
+                    headers=headers,
+                )
+            ) as client:
                 resp = await client.get(url)
         except Exception:
             return None

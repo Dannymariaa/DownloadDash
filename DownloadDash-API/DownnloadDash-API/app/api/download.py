@@ -5,6 +5,7 @@ import re
 
 from app.api.shared import detect_platform, download_public
 from app.api.security import require_api_key
+from app.config import settings
 from app.models.schemas import DownloadRequest, DownloadResponse, DownloadStatus, Platform
 from app.state import public_downloader, whatsapp_downloader
 
@@ -57,6 +58,13 @@ def _safe_filename(name: str) -> str:
     return value[:160] if value else 'download'
 
 
+def _httpx_client_kwargs(**kwargs):
+    proxy_url = settings.OUTBOUND_PROXY or settings.YTDLP_PROXY
+    if proxy_url:
+        kwargs["proxy"] = proxy_url
+    return kwargs
+
+
 @router.post("/download/file")
 async def download_file_proxy(
     payload: dict = Body(...),
@@ -77,7 +85,9 @@ async def download_file_proxy(
         "Accept": "*/*",
     }
 
-    async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        **_httpx_client_kwargs(timeout=60.0, follow_redirects=True)
+    ) as client:
         try:
             upstream = await client.get(url, headers=headers)
         except Exception as e:
