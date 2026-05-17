@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
+import { useI18n } from '@/lib/i18n';
 
 // Platform URL validation
 const urlPatterns = {
@@ -30,12 +31,12 @@ const sanitizeUrl = (url) => {
   return s;
 };
 
-const validateUrl = (url, platform) => {
-  if (!url || url.length < 10 || url.length > 2048) return { valid: false, error: 'Please enter a valid URL' };
+const validateUrl = (url, platform, t) => {
+  if (!url || url.length < 10 || url.length > 2048) return { valid: false, error: t('errors.validUrl') };
   const sanitized = sanitizeUrl(url);
-  try { new URL(sanitized); } catch { return { valid: false, error: 'Invalid URL format' }; }
+  try { new URL(sanitized); } catch { return { valid: false, error: t('errors.invalidUrl') }; }
   const pattern = urlPatterns[platform];
-  if (pattern && !pattern.test(sanitized)) return { valid: false, error: `Please enter a valid ${platform} URL` };
+  if (pattern && !pattern.test(sanitized)) return { valid: false, error: t('errors.platformUrl', { platform }) };
   return { valid: true, url: sanitized };
 };
 
@@ -62,6 +63,7 @@ export default function DownloaderTemplate({
   placeholderUrl = 'Paste your link here...',
   user
 }) {
+  const { t } = useI18n();
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -73,7 +75,7 @@ export default function DownloaderTemplate({
   const PlatformIcon = platformIcons[platform] || Download;
 
   const handleFetch = async () => {
-    const validation = validateUrl(url, platform);
+    const validation = validateUrl(url, platform, t);
     if (!validation.valid) { setError(validation.error); return; }
     setIsLoading(true);
     setError('');
@@ -89,7 +91,7 @@ export default function DownloaderTemplate({
       const response = await downloadDash.functions.invoke('downloadVideo', { url: validation.url, platform });
       clearInterval(progressInterval);
       setProgress(100);
-      if (!response.success) throw new Error(response.error || 'Failed to process link');
+      if (!response.success) throw new Error(response.error || t('errors.processFailed'));
       setResult(response);
       if (user?.email) {
         await downloadDash.entities.DownloadHistory.create({
@@ -104,7 +106,7 @@ export default function DownloaderTemplate({
       }
     } catch (err) {
       clearInterval(progressInterval);
-      setError(err.message || 'Failed to fetch content. Please check the URL and try again.');
+      setError(err.message || t('errors.fetchFailed'));
     } finally {
       setTimeout(() => {
         setIsLoading(false);
@@ -133,9 +135,9 @@ export default function DownloaderTemplate({
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
       if (isMobile) {
-        alert(`Download started on mobile: ${filename}\nIf it opens instead of downloading, use your browser's download option.`);
+        alert(t('alerts.mobileDownloadStarted', { filename }));
       } else {
-        alert(`Download started: ${filename}`);
+        alert(t('alerts.downloadStarted', { filename }));
       }
 
       // Hide loading indicator
@@ -148,7 +150,7 @@ export default function DownloaderTemplate({
       setIsDownloading(false);
 
       // Show error message instead of opening in new tab
-      alert(`Download failed: ${error.message || 'Unknown error'}. Please try again.`);
+      alert(t('errors.downloadFailed', { message: error.message || 'Unknown error' }));
       // Don't open in new tab - let user retry the download
     }
   };
@@ -166,7 +168,7 @@ export default function DownloaderTemplate({
       thumbnail_url: result.thumbnail,
       title: result.title
     }).catch(() => {});
-    alert('Saved to your collection!');
+    alert(t('downloader.saved'));
   };
 
   const hasVideoHD = !!result?.downloads?.videoHD;
@@ -200,7 +202,7 @@ export default function DownloaderTemplate({
           className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3"
         >
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="font-medium">Downloading...</span>
+          <span className="font-medium">{t('downloader.downloading')}</span>
         </motion.div>
       )}
 
@@ -220,9 +222,9 @@ export default function DownloaderTemplate({
             <PlatformIcon className="h-12 w-12 text-white" strokeWidth={1.8} />
           </motion.div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
-            {platformName} Downloader
+            {t('downloader.title', { platformName })}
           </h1>
-          <p className="text-gray-400 text-lg mb-3">Save supported public media links for personal, permitted use</p>
+          <p className="text-gray-400 text-lg mb-3">{t('downloader.subtitle')}</p>
           <div className="flex flex-wrap justify-center gap-2 mb-8">
             {supportedTypes.map((t, i) => (
               <span key={i} className="px-4 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-sm">{t}</span>
@@ -232,7 +234,7 @@ export default function DownloaderTemplate({
 
         {/* How It Works */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mt-8 text-center">
-          <h2 className="text-2xl font-bold text-white mb-6">How It Works</h2>
+          <h2 className="text-2xl font-bold text-white mb-6">{t('downloader.howItWorks')}</h2>
           <div className="grid md:grid-cols-3 gap-4">
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -241,8 +243,8 @@ export default function DownloaderTemplate({
               <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-purple-500/20 flex items-center justify-center">
                 <LinkIcon className="h-6 w-6 text-purple-400" />
               </div>
-              <h3 className="font-semibold text-white">1. Paste URL</h3>
-              <p className="text-gray-500 text-sm">Copy a public {platformName} link you are allowed to save</p>
+              <h3 className="font-semibold text-white">{t('downloader.stepPaste')}</h3>
+              <p className="text-gray-500 text-sm">{t('downloader.stepPasteDesc', { platformName })}</p>
             </motion.div>
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -251,8 +253,8 @@ export default function DownloaderTemplate({
               <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-green-500/20 flex items-center justify-center">
                 <Download className="h-6 w-6 text-green-400" />
               </div>
-              <h3 className="font-semibold text-white">2. Process</h3>
-              <p className="text-gray-500 text-sm">We fetch the content securely</p>
+              <h3 className="font-semibold text-white">{t('downloader.stepProcess')}</h3>
+              <p className="text-gray-500 text-sm">{t('downloader.stepProcessDesc')}</p>
             </motion.div>
             <motion.div
               whileHover={{ scale: 1.05 }}
@@ -261,8 +263,8 @@ export default function DownloaderTemplate({
               <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-blue-500/20 flex items-center justify-center">
                 <Film className="h-6 w-6 text-blue-400" />
               </div>
-              <h3 className="font-semibold text-white">3. Download</h3>
-              <p className="text-gray-500 text-sm">Choose an available format for lawful personal use</p>
+              <h3 className="font-semibold text-white">{t('downloader.stepDownload')}</h3>
+              <p className="text-gray-500 text-sm">{t('downloader.stepDownloadDesc')}</p>
             </motion.div>
           </div>
         </motion.div>
@@ -274,7 +276,7 @@ export default function DownloaderTemplate({
         >
           <div className="flex items-center gap-2 text-green-400 text-sm mb-4 justify-center">
             <Shield className="h-4 w-4" />
-            <span>Public links only • No login required • 100% Secure</span>
+            <span>{t('downloader.trustLine')}</span>
           </div>
 
           <div className="flex flex-col md:flex-row gap-4">
@@ -284,7 +286,7 @@ export default function DownloaderTemplate({
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleFetch()}
-                placeholder={placeholderUrl}
+                placeholder={placeholderUrl === 'Paste your link here...' ? t('downloader.placeholder') : placeholderUrl}
                 className="pl-12 h-14 bg-black/50 border-purple-500/30 text-white placeholder:text-gray-500 focus:border-purple-500 rounded-xl text-lg"
                 maxLength={2048}
               />
@@ -295,7 +297,7 @@ export default function DownloaderTemplate({
                 disabled={isLoading}
                 className={`h-14 px-8 bg-gradient-to-r ${gradientFrom} ${gradientTo} hover:opacity-90 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/25`}
               >
-                {isLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Processing…</> : <><Download className="mr-2 h-5 w-5" />Process</>}
+                {isLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />{t('downloader.processing')}</> : <><Download className="mr-2 h-5 w-5" />{t('downloader.process')}</>}
               </Button>
             </motion.div>
           </div>
@@ -326,7 +328,7 @@ export default function DownloaderTemplate({
               >
                 <div className="flex items-center gap-3 text-purple-400 mb-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Processing your {platformName} content...</span>
+                  <span>{t('downloader.processingContent', { platformName })}</span>
                 </div>
                 <div className="w-full bg-gray-700 rounded-full h-2">
                   <motion.div
@@ -336,7 +338,7 @@ export default function DownloaderTemplate({
                     transition={{ duration: 0.5 }}
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">{Math.round(progress)}% complete</p>
+                <p className="text-xs text-gray-500 mt-1">{t('downloader.complete', { progress: Math.round(progress) })}</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -350,7 +352,7 @@ export default function DownloaderTemplate({
               >
                 <div className="flex items-center gap-2 text-green-400 mb-5">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">Content Found! Choose your download:</span>
+                  <span className="font-medium">{t('downloader.contentFound')}</span>
                 </div>
 
                 {/* Preview Button */}
@@ -361,7 +363,7 @@ export default function DownloaderTemplate({
                   className="mb-4 flex items-center gap-2 px-4 py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 rounded-lg border border-purple-500/30 transition-colors"
                 >
                   <Eye className="h-4 w-4" />
-                  Preview Content
+                  {t('downloader.preview')}
                 </motion.button>
 
                 <div className="flex flex-col md:flex-row gap-6 mb-6">
@@ -371,9 +373,9 @@ export default function DownloaderTemplate({
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-white mb-1 truncate">{result.title || `${platformName} Content`}</h3>
+                    <h3 className="text-lg font-semibold text-white mb-1 truncate">{result.title || t('downloader.content', { platformName })}</h3>
                     <div className="flex flex-wrap gap-2 text-sm text-gray-400">
-                      <span className="text-green-400 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Ready</span>
+                      <span className="text-green-400 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> {t('downloader.ready')}</span>
                       <span>•</span>
                       <span className="capitalize">{result.type || 'video'}</span>
                     </div>
@@ -402,12 +404,12 @@ export default function DownloaderTemplate({
                             <Crown className="h-5 w-5 text-white" />
                           </div>
                           <div className="text-left">
-                            <p className="font-bold text-white">HD Download</p>
-                            <p className="text-xs text-gray-400">Best quality • No watermark</p>
+                            <p className="font-bold text-white">{t('downloader.hdDownload')}</p>
+                            <p className="text-xs text-gray-400">{t('downloader.bestQuality')}</p>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <span className="text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded-full">Highest quality</span>
+                          <span className="text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-1 rounded-full">{t('downloader.highestQuality')}</span>
                         </div>
                       </motion.button>
 
@@ -424,12 +426,12 @@ export default function DownloaderTemplate({
                             <Film className="h-5 w-5 text-gray-300" />
                           </div>
                           <div className="text-left">
-                            <p className="font-semibold text-white">SD Download</p>
-                            <p className="text-xs text-gray-400">Standard quality • No watermark</p>
+                            <p className="font-semibold text-white">{t('downloader.sdDownload')}</p>
+                            <p className="text-xs text-gray-400">{t('downloader.standardQuality')}</p>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">Balanced size</span>
+                          <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">{t('downloader.balancedSize')}</span>
                         </div>
                       </motion.button>
 
@@ -446,12 +448,12 @@ export default function DownloaderTemplate({
                             <Volume2 className="h-5 w-5 text-green-400" />
                           </div>
                           <div className="text-left">
-                            <p className="font-semibold text-white">Audio / MP3</p>
-                            <p className="text-xs text-gray-400">Extract sound only</p>
+                            <p className="font-semibold text-white">{t('downloader.audioDownload')}</p>
+                            <p className="text-xs text-gray-400">{t('downloader.audioOnlyDesc')}</p>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <span className="text-xs bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-1 rounded-full">Audio only</span>
+                          <span className="text-xs bg-green-500/20 text-green-400 border border-green-500/30 px-2 py-1 rounded-full">{t('downloader.audioOnly')}</span>
                         </div>
                       </motion.button>
                     </>
@@ -469,12 +471,12 @@ export default function DownloaderTemplate({
                           <Image className="h-5 w-5 text-white" />
                         </div>
                         <div className="text-left">
-                          <p className="font-bold text-white">Download Photo (HD)</p>
-                          <p className="text-xs text-gray-400">Full resolution image</p>
+                          <p className="font-bold text-white">{t('downloader.photoDownload')}</p>
+                          <p className="text-xs text-gray-400">{t('downloader.fullResolutionImage')}</p>
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">Full resolution</span>
+                        <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">{t('downloader.fullResolution')}</span>
                       </div>
                     </motion.button>
                   )}
@@ -492,8 +494,8 @@ export default function DownloaderTemplate({
                         <Bookmark className="h-5 w-5 text-yellow-400" />
                       </div>
                       <div className="text-left">
-                        <p className="font-semibold text-white">Save to Collection</p>
-                        <p className="text-xs text-gray-400">Save to your dashboard</p>
+                        <p className="font-semibold text-white">{t('downloader.saveCollection')}</p>
+                        <p className="text-xs text-gray-400">{t('downloader.saveCollectionDesc')}</p>
                       </div>
                     </motion.button>
                   )}
@@ -511,9 +513,9 @@ export default function DownloaderTemplate({
         {/* Feature pills */}
         <div className="mt-8 grid md:grid-cols-3 gap-4">
           {[
-            { icon: <Zap className="h-6 w-6 text-yellow-400" />, bg: 'bg-yellow-500/10', title: 'Fast Downloads', desc: 'Lightning-fast processing' },
-            { icon: <Target className="h-6 w-6 text-purple-400" />, bg: 'bg-purple-500/10', title: 'Format Options', desc: 'HD, SD, audio, or image when available' },
-            { icon: <Lock className="h-6 w-6 text-green-400" />, bg: 'bg-green-500/10', title: 'Responsible Use', desc: 'Public links only; respect copyright' },
+            { icon: <Zap className="h-6 w-6 text-yellow-400" />, bg: 'bg-yellow-500/10', title: t('downloader.fastDownloads'), desc: t('downloader.fastDownloadsDesc') },
+            { icon: <Target className="h-6 w-6 text-purple-400" />, bg: 'bg-purple-500/10', title: t('downloader.formatOptions'), desc: t('downloader.formatOptionsDesc') },
+            { icon: <Lock className="h-6 w-6 text-green-400" />, bg: 'bg-green-500/10', title: t('downloader.responsibleUse'), desc: t('downloader.responsibleUseDesc') },
           ].map((f, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 + i * 0.1 }}
@@ -527,23 +529,23 @@ export default function DownloaderTemplate({
 
         {/* FAQ Section */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="mt-12 text-center">
-          <h2 className="text-2xl font-bold text-white mb-6">Frequently Asked Questions</h2>
+          <h2 className="text-2xl font-bold text-white mb-6">{t('downloader.faq')}</h2>
           <div className="grid md:grid-cols-2 gap-6 text-left">
             <div className="bg-gray-900/50 rounded-xl p-4 border border-purple-500/10">
-              <h3 className="font-semibold text-white mb-2">Is it free to use?</h3>
-              <p className="text-gray-500 text-sm">Yes. DownloadDash focuses on public-link utilities and clear explanations, and ads remain limited while the site completes policy review.</p>
+              <h3 className="font-semibold text-white mb-2">{t('downloader.freeQuestion')}</h3>
+              <p className="text-gray-500 text-sm">{t('downloader.freeAnswer')}</p>
             </div>
             <div className="bg-gray-900/50 rounded-xl p-4 border border-purple-500/10">
-              <h3 className="font-semibold text-white mb-2">What formats are supported?</h3>
-              <p className="text-gray-500 text-sm">We support HD/SD video downloads, audio extraction (MP3), and high-quality images.</p>
+              <h3 className="font-semibold text-white mb-2">{t('downloader.formatsQuestion')}</h3>
+              <p className="text-gray-500 text-sm">{t('downloader.formatsAnswer')}</p>
             </div>
             <div className="bg-gray-900/50 rounded-xl p-4 border border-purple-500/10">
-              <h3 className="font-semibold text-white mb-2">Is it safe and secure?</h3>
-              <p className="text-gray-500 text-sm">We only process public links and provide clear privacy, terms, and contact information.</p>
+              <h3 className="font-semibold text-white mb-2">{t('downloader.safeQuestion')}</h3>
+              <p className="text-gray-500 text-sm">{t('downloader.safeAnswer')}</p>
             </div>
             <div className="bg-gray-900/50 rounded-xl p-4 border border-purple-500/10">
-              <h3 className="font-semibold text-white mb-2">Can I download copyrighted content?</h3>
-              <p className="text-gray-500 text-sm">Only download content you own, have permission to use, or are legally allowed to save.</p>
+              <h3 className="font-semibold text-white mb-2">{t('downloader.copyrightQuestion')}</h3>
+              <p className="text-gray-500 text-sm">{t('downloader.copyrightAnswer')}</p>
             </div>
           </div>
         </motion.div>
@@ -574,7 +576,7 @@ export default function DownloaderTemplate({
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white text-xl font-bold truncate">{result.title || `${platformName} Content`}</h3>
+                <h3 className="text-white text-xl font-bold truncate">{result.title || t('downloader.content', { platformName })}</h3>
                 <Button
                   onClick={() => setShowPreview(false)}
                   variant="ghost"
@@ -603,9 +605,9 @@ export default function DownloaderTemplate({
                 </div>
               )}
               <div className="text-gray-400 text-sm">
-                <p>Platform: {platformName}</p>
-                <p>Type: {result.type || 'video'}</p>
-                {result.duration && <p>Duration: {result.duration}</p>}
+                <p>{t('downloader.platform')}: {platformName}</p>
+                <p>{t('downloader.type')}: {result.type || 'video'}</p>
+                {result.duration && <p>{t('downloader.duration')}: {result.duration}</p>}
               </div>
             </motion.div>
           </motion.div>

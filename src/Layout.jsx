@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import downloadDash from '@/api/downloadDashClient';
 import LanguageSelector from '@/components/LanguageSelector';
 import AutoAdManager from '@/components/Ads/AutoAdManager.jsx';
+import { useI18n } from '@/lib/i18n';
 
 const getPageTheme = (pageName) => {
   if (pageName?.startsWith('Blog')) {
@@ -243,7 +244,7 @@ const getPageTheme = (pageName) => {
 export default function Layout({ children, currentPageName }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState(null);
-  const [language, setLanguage] = useState('en');
+  const { t } = useI18n();
   const theme = useMemo(() => getPageTheme(currentPageName), [currentPageName]);
   const showRibbon = Boolean(theme.ribbonTitle && currentPageName && currentPageName !== 'Home');
 
@@ -302,7 +303,7 @@ export default function Layout({ children, currentPageName }) {
             {/* Desktop Nav */}
             <nav className="hidden lg:flex items-center gap-6">
               <Link to={createPageUrl('Home')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
-                <Home className="h-4 w-4" /> Home
+                <Home className="h-4 w-4" /> {t('nav.home')}
               </Link>
 
               <Link to={createPageUrl('YouTubeDownloader')} className="text-gray-300 hover:text-red-400 transition-colors flex items-center gap-2">
@@ -310,35 +311,35 @@ export default function Layout({ children, currentPageName }) {
               </Link>
 
               <Link to={createPageUrl('RecommendedApps')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
-                <Bookmark className="h-4 w-4" /> Guides
+                <Bookmark className="h-4 w-4" /> {t('nav.guides')}
               </Link>
               <Link to={createPageUrl('HowDownloadDashWorks')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
-                <FileText className="h-4 w-4" /> How It Works
+                <FileText className="h-4 w-4" /> {t('nav.howItWorks')}
               </Link>
               <Link to={createPageUrl('Blog')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
-                <LifeBuoy className="h-4 w-4" /> Blog
+                <LifeBuoy className="h-4 w-4" /> {t('nav.blog')}
               </Link>
               <Link to={createPageUrl('TrustCenter')} className="text-gray-300 hover:text-emerald-300 transition-colors flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" /> Trust
+                <ShieldCheck className="h-4 w-4" /> {t('nav.trust')}
               </Link>
               {user && (
                 <Link to={createPageUrl('Dashboard')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
-                  <History className="h-4 w-4" /> Dashboard
+                  <History className="h-4 w-4" /> {t('nav.dashboard')}
                 </Link>
               )}
             </nav>
 
             <div className="flex items-center gap-3">
-              <LanguageSelector currentLang={language} onLanguageChange={setLanguage} />
+              <LanguageSelector />
               {user ? (
                 <Link to={createPageUrl('Dashboard')}>
                   <Button variant="ghost" className="hidden sm:flex items-center gap-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/20">
-                    <User className="h-4 w-4" /> {user.full_name?.split(' ')[0] || 'Account'}
+                    <User className="h-4 w-4" /> {user.full_name?.split(' ')[0] || t('nav.account')}
                   </Button>
                 </Link>
               ) : (
                 <Button onClick={() => downloadDash.auth.redirectToLogin()} className="hidden sm:flex bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90">
-                  <LogIn className="mr-2 h-4 w-4" /> Login
+                  <LogIn className="mr-2 h-4 w-4" /> {t('nav.login')}
                 </Button>
               )}
               <Button variant="ghost" size="icon" className="lg:hidden text-purple-400" onClick={() => setIsMenuOpen(!isMenuOpen)}>
@@ -369,33 +370,33 @@ export default function Layout({ children, currentPageName }) {
               className="lg:hidden border-t border-purple-500/20 bg-black/95">
               <nav className="px-4 py-4 space-y-2">
                 <Link to={createPageUrl('Home')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <Home className="h-5 w-5" /> Home
+                  <Home className="h-5 w-5" /> {t('nav.home')}
                 </Link>
                 <Link to={createPageUrl('YouTubeDownloader')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-red-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <YouTubeIcon size={24} /> Public YouTube Media
+                  <YouTubeIcon size={24} /> {t('nav.publicYoutube')}
                 </Link>
                 <Link to={createPageUrl('RecommendedApps')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <Bookmark className="h-5 w-5" /> Guides
+                  <Bookmark className="h-5 w-5" /> {t('nav.guides')}
                 </Link>
                 <Link to={createPageUrl('HowDownloadDashWorks')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <FileText className="h-5 w-5" /> How It Works
+                  <FileText className="h-5 w-5" /> {t('nav.howItWorks')}
                 </Link>
                 <Link to={createPageUrl('Troubleshooting')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <LifeBuoy className="h-5 w-5" /> Troubleshooting
+                  <LifeBuoy className="h-5 w-5" /> {t('nav.troubleshooting')}
                 </Link>
                 <Link to={createPageUrl('Blog')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <LifeBuoy className="h-5 w-5" /> Blog
+                  <LifeBuoy className="h-5 w-5" /> {t('nav.blog')}
                 </Link>
                 <Link to={createPageUrl('TrustCenter')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-emerald-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <ShieldCheck className="h-5 w-5" /> Trust Center
+                  <ShieldCheck className="h-5 w-5" /> {t('nav.trustCenter')}
                 </Link>
                 {user ? (
                   <Link to={createPageUrl('Dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                    <User className="h-5 w-5" /> Dashboard
+                    <User className="h-5 w-5" /> {t('nav.dashboard')}
                   </Link>
                 ) : (
                   <Button onClick={() => { downloadDash.auth.redirectToLogin(); setIsMenuOpen(false); }} className="w-full bg-gradient-to-r from-purple-600 to-pink-600">
-                    <LogIn className="mr-2 h-4 w-4" /> Login / Sign Up
+                    <LogIn className="mr-2 h-4 w-4" /> {t('nav.loginSignup')}
                   </Button>
                 )}
               </nav>
@@ -416,68 +417,68 @@ export default function Layout({ children, currentPageName }) {
                 </div>
                 <span className="text-xl font-bold text-white">DownloadDash</span>
               </div>
-              <p className="text-gray-400 text-sm">A simple media utility for public links, personal use, and content you have permission to save.</p>
+              <p className="text-gray-400 text-sm">{t('footer.description')}</p>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Resources</h4>
+              <h4 className="text-white font-semibold mb-4">{t('nav.resources')}</h4>
               <div className="space-y-2">
                 <Link to={createPageUrl('YouTubeDownloader')} className="flex items-center gap-2 text-gray-400 hover:text-red-400 text-sm transition-colors">
-                  <YouTubeIcon size={18} /> Public YouTube Media
+                  <YouTubeIcon size={18} /> {t('nav.publicYoutube')}
                 </Link>
                 <Link to={createPageUrl('AppDownload')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
-                  <Download className="h-4 w-4" /> Android App
+                  <Download className="h-4 w-4" /> {t('nav.androidApp')}
                 </Link>
                 <Link to={createPageUrl('HowDownloadDashWorks')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
-                  <FileText className="h-4 w-4" /> How DownloadDash Works
+                  <FileText className="h-4 w-4" /> {t('nav.howItWorks')}
                 </Link>
                 <Link to={createPageUrl('SupportedPlatforms')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
-                  <Bookmark className="h-4 w-4" /> Supported Platforms
+                  <Bookmark className="h-4 w-4" /> {t('nav.supportedPlatforms')}
                 </Link>
                 <Link to={createPageUrl('Troubleshooting')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
-                  <LifeBuoy className="h-4 w-4" /> Troubleshooting
+                  <LifeBuoy className="h-4 w-4" /> {t('nav.troubleshooting')}
                 </Link>
                 <Link to={createPageUrl('Blog')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
-                  <LifeBuoy className="h-4 w-4" /> Blog
+                  <LifeBuoy className="h-4 w-4" /> {t('nav.blog')}
                 </Link>
                 <Link to={createPageUrl('ResponsibleUse')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
-                  <ShieldCheck className="h-4 w-4" /> Responsible Use
+                  <ShieldCheck className="h-4 w-4" /> {t('nav.responsibleUse')}
                 </Link>
                 <Link to={createPageUrl('TrustCenter')} className="flex items-center gap-2 text-gray-400 hover:text-emerald-300 text-sm transition-colors">
-                  <ShieldCheck className="h-4 w-4" /> Trust Center
+                  <ShieldCheck className="h-4 w-4" /> {t('nav.trustCenter')}
                 </Link>
                 <Link to={createPageUrl('HelpCenter')} className="flex items-center gap-2 text-gray-400 hover:text-cyan-300 text-sm transition-colors">
-                  <LifeBuoy className="h-4 w-4" /> Help Center
+                  <LifeBuoy className="h-4 w-4" /> {t('nav.helpCenter')}
                 </Link>
               </div>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Links</h4>
+              <h4 className="text-white font-semibold mb-4">{t('nav.links')}</h4>
               <div className="space-y-2">
-                <Link to={createPageUrl('Home')} className="block text-gray-400 hover:text-purple-400 text-sm">Home</Link>
-                <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">Dashboard</Link>
-                <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">Guides</Link>
-                <Link to={createPageUrl('HowDownloadDashWorks')} className="block text-gray-400 hover:text-purple-400 text-sm">How DownloadDash Works</Link>
-                <Link to={createPageUrl('SupportedPlatforms')} className="block text-gray-400 hover:text-purple-400 text-sm">Supported Platforms</Link>
-                <Link to={createPageUrl('Troubleshooting')} className="block text-gray-400 hover:text-purple-400 text-sm">Troubleshooting</Link>
-                <Link to={createPageUrl('ResponsibleUse')} className="block text-gray-400 hover:text-purple-400 text-sm">Responsible Use</Link>
-                <Link to={createPageUrl('TrustCenter')} className="block text-gray-400 hover:text-emerald-300 text-sm">Trust Center</Link>
-                <Link to={createPageUrl('HelpCenter')} className="block text-gray-400 hover:text-cyan-300 text-sm">Help Center</Link>
-                <Link to={createPageUrl('SystemStatus')} className="block text-gray-400 hover:text-emerald-300 text-sm">System Status</Link>
-                <Link to={createPageUrl('PlatformGuides')} className="block text-gray-400 hover:text-amber-300 text-sm">Platform Guides</Link>
-                <Link to={createPageUrl('Updates')} className="block text-gray-400 hover:text-violet-300 text-sm">Updates</Link>
-                <Link to={createPageUrl('SafetyCenter')} className="block text-gray-400 hover:text-emerald-300 text-sm">Safety Center</Link>
+                <Link to={createPageUrl('Home')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.home')}</Link>
+                <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.dashboard')}</Link>
+                <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.guides')}</Link>
+                <Link to={createPageUrl('HowDownloadDashWorks')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.howItWorks')}</Link>
+                <Link to={createPageUrl('SupportedPlatforms')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.supportedPlatforms')}</Link>
+                <Link to={createPageUrl('Troubleshooting')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.troubleshooting')}</Link>
+                <Link to={createPageUrl('ResponsibleUse')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.responsibleUse')}</Link>
+                <Link to={createPageUrl('TrustCenter')} className="block text-gray-400 hover:text-emerald-300 text-sm">{t('nav.trustCenter')}</Link>
+                <Link to={createPageUrl('HelpCenter')} className="block text-gray-400 hover:text-cyan-300 text-sm">{t('nav.helpCenter')}</Link>
+                <Link to={createPageUrl('SystemStatus')} className="block text-gray-400 hover:text-emerald-300 text-sm">{t('nav.systemStatus')}</Link>
+                <Link to={createPageUrl('PlatformGuides')} className="block text-gray-400 hover:text-amber-300 text-sm">{t('nav.platformGuides')}</Link>
+                <Link to={createPageUrl('Updates')} className="block text-gray-400 hover:text-violet-300 text-sm">{t('nav.updates')}</Link>
+                <Link to={createPageUrl('SafetyCenter')} className="block text-gray-400 hover:text-emerald-300 text-sm">{t('nav.safetyCenter')}</Link>
                 <Link to={createPageUrl('DMCA')} className="block text-gray-400 hover:text-emerald-300 text-sm">DMCA</Link>
-                <Link to={createPageUrl('FAQ')} className="block text-gray-400 hover:text-emerald-300 text-sm">FAQ</Link>
-                <Link to={createPageUrl('Blog')} className="block text-gray-400 hover:text-purple-400 text-sm">Blog</Link>
-                <Link to={createPageUrl('PrivacyPolicy')} className="block text-gray-400 hover:text-purple-400 text-sm">Privacy Policy</Link>
-                <Link to={createPageUrl('TermsOfService')} className="block text-gray-400 hover:text-purple-400 text-sm">Terms of Service</Link>
-                <Link to={createPageUrl('Disclaimer')} className="block text-gray-400 hover:text-purple-400 text-sm">Disclaimer</Link>
-                <Link to={createPageUrl('Contact')} className="block text-gray-400 hover:text-purple-400 text-sm">Contact</Link>
+                <Link to={createPageUrl('FAQ')} className="block text-gray-400 hover:text-emerald-300 text-sm">{t('nav.faq')}</Link>
+                <Link to={createPageUrl('Blog')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.blog')}</Link>
+                <Link to={createPageUrl('PrivacyPolicy')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.privacyPolicy')}</Link>
+                <Link to={createPageUrl('TermsOfService')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.terms')}</Link>
+                <Link to={createPageUrl('Disclaimer')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.disclaimer')}</Link>
+                <Link to={createPageUrl('Contact')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.contact')}</Link>
               </div>
             </div>
           </div>
           <div className="border-t border-purple-500/20 mt-8 pt-8 text-center">
-            <p className="text-gray-500 text-sm">© 2026 DownloadDash. All rights reserved.</p>
+            <p className="text-gray-500 text-sm">{t('footer.rights')}</p>
           </div>
         </div>
       </footer>
