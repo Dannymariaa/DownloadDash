@@ -247,21 +247,75 @@ class PublicPlatformDownloader:
             ("default_cookie", None, True),
         ]
 
-        profiles: list[tuple[str, list[str] | None, bool, bool]] = [
+        if self.youtube_proxy_url:
+            return [
+                (f"{name}_proxy", clients, use_cookies, True)
+                for name, clients, use_cookies in base_profiles
+            ] + [
+                (name, clients, use_cookies, False)
+                for name, clients, use_cookies in base_profiles
+            ]
+
+        return [
             (name, clients, use_cookies, False)
             for name, clients, use_cookies in base_profiles
         ]
 
-        if self.youtube_proxy_url:
-            profiles.extend(
-                (f"{name}_proxy", clients, use_cookies, True)
-                for name, clients, use_cookies in base_profiles
-            )
-
-        return profiles
-
     def _is_youtube_url(self, url: str) -> bool:
         return "youtube.com" in url or "youtu.be" in url
+
+    def _is_playable_video_format(self, fmt: Dict[str, Any]) -> bool:
+        vcodec = fmt.get("vcodec")
+        ext = fmt.get("ext")
+        return bool(fmt.get("url")) and bool(vcodec) and vcodec != "none" and ext != "mhtml"
+
+    def _is_playable_audio_format(self, fmt: Dict[str, Any]) -> bool:
+        acodec = fmt.get("acodec")
+        ext = fmt.get("ext")
+        return bool(fmt.get("url")) and bool(acodec) and acodec != "none" and ext != "mhtml"
+
+    def _has_youtube_playable_media(self, info: Dict[str, Any] | None, extract_audio: bool = False) -> bool:
+        if not isinstance(info, dict):
+            return False
+
+        requested = self._requested_url_from_info(info)
+        if requested and requested.get("url"):
+            if extract_audio:
+                return self._is_playable_audio_format(requested) or requested.get("ext") in ("m4a", "mp3", "webm")
+            return self._is_playable_video_format(requested) or requested.get("ext") in ("mp4", "webm")
+
+        formats = info.get("formats") or []
+        if not isinstance(formats, list):
+            return False
+        if extract_audio:
+            return any(isinstance(fmt, dict) and self._is_playable_audio_format(fmt) for fmt in formats)
+        return any(isinstance(fmt, dict) and self._is_playable_video_format(fmt) for fmt in formats)
+
+    def _requested_url_from_info(self, extracted: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        if not extracted or not isinstance(extracted, dict):
+            return None
+
+        requested_downloads = extracted.get("requested_downloads") or []
+        if isinstance(requested_downloads, list):
+            for item in requested_downloads:
+                if isinstance(item, dict) and item.get("url"):
+                    return item
+
+        requested_formats = extracted.get("requested_formats") or []
+        if isinstance(requested_formats, list):
+            for item in requested_formats:
+                if isinstance(item, dict) and item.get("url"):
+                    return item
+
+        if extracted.get("url"):
+            return {
+                "url": extracted.get("url"),
+                "ext": extracted.get("ext"),
+                "height": extracted.get("height"),
+                "vcodec": extracted.get("vcodec"),
+                "acodec": extracted.get("acodec"),
+            }
+        return None
 
     async def _extract_youtube_with_profiles(
         self,
@@ -270,6 +324,8 @@ class PublicPlatformDownloader:
         base_opts: Dict[str, Any],
         extract_info_fn,
         label: str,
+        require_playable: bool = False,
+        extract_audio: bool = False,
     ) -> Dict[str, Any] | None:
         last_error: Exception | None = None
 
@@ -290,7 +346,11 @@ class PublicPlatformDownloader:
 
             self._log_ydl_context(f"{label}.{profile_name}", url, opts)
             try:
-                return await loop.run_in_executor(None, lambda opts=opts: extract_info_fn(opts))
+                info = await loop.run_in_executor(None, lambda opts=opts: extract_info_fn(opts))
+                if require_playable and not self._has_youtube_playable_media(info, extract_audio=extract_audio):
+                    print(f"Warning: yt-dlp {label} profile {profile_name} returned no playable media")
+                    continue
+                return info
             except Exception as e:
                 last_error = e
                 print(f"Warning: yt-dlp {label} profile {profile_name} failed: {e}")
@@ -519,6 +579,8 @@ class PublicPlatformDownloader:
                     extract_opts,
                     extract_info,
                     "resolve_media.extract",
+                    require_playable=True,
+                    extract_audio=extract_audio,
                 )
             else:
                 info = await loop.run_in_executor(None, lambda: extract_info(extract_opts))
@@ -632,18 +694,18 @@ class PublicPlatformDownloader:
             return pick_best(
                 lambda f: (f.get("height") or 0) > 0
                 and (f.get("height") or 0) <= max_height
-                and f.get("vcodec") != "none"
-                and f.get("acodec") != "none"
+                and self._is_playable_video_format(f)
+                and self._is_playable_audio_format(f)
             )
 
         def pick_best_av():
-            return pick_best(lambda f: f.get("vcodec") != "none" and f.get("acodec") != "none")
+            return pick_best(lambda f: self._is_playable_video_format(f) and self._is_playable_audio_format(f))
 
         def pick_best_video_only():
-            return pick_best(lambda f: f.get("vcodec") != "none")
+            return pick_best(lambda f: self._is_playable_video_format(f))
 
         def pick_best_audio():
-            return pick_best(lambda f: f.get("vcodec") == "none" and f.get("acodec") != "none")
+            return pick_best(lambda f: self._is_playable_audio_format(f) and f.get("vcodec") == "none")
 
         def pick_best_image():
             return pick_best(
@@ -673,30 +735,6 @@ class PublicPlatformDownloader:
 
         downloads: Dict[str, str] = {}
 
-        def _requested_url_from_info(extracted: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-            if not extracted or not isinstance(extracted, dict):
-                return None
-
-            requested_downloads = extracted.get("requested_downloads") or []
-            if isinstance(requested_downloads, list):
-                for item in requested_downloads:
-                    if isinstance(item, dict) and item.get("url"):
-                        return item
-
-            requested_formats = extracted.get("requested_formats") or []
-            if isinstance(requested_formats, list):
-                for item in requested_formats:
-                    if isinstance(item, dict) and item.get("url"):
-                        return item
-
-            if extracted.get("url"):
-                return {
-                    "url": extracted.get("url"),
-                    "ext": extracted.get("ext"),
-                    "height": extracted.get("height"),
-                }
-            return None
-
         async def _resolve_youtube_requested_url(format_selector: str) -> Optional[Dict[str, Any]]:
             opts = dict(ydl_opts)
             opts["extract_flat"] = False
@@ -711,10 +749,12 @@ class PublicPlatformDownloader:
                     opts,
                     extract_info,
                     "youtube.requested_url",
+                    require_playable=True,
+                    extract_audio=("audio" in format_selector and "video" not in format_selector),
                 )
             except Exception:
                 return None
-            return _requested_url_from_info(extracted)
+            return self._requested_url_from_info(extracted)
 
         # If YouTube extraction returns metadata without any real media URL, try explicit format extraction.
         if is_youtube:
