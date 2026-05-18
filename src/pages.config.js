@@ -67,6 +67,9 @@ import BlogWhyVideoDownloadsFail from './pages/BlogWhyVideoDownloadsFail';
 import BlogWebAppVsApkGuide from './pages/BlogWebAppVsApkGuide';
 import BlogPublicLinksAndCreatorRights from './pages/BlogPublicLinksAndCreatorRights';
 import BlogTroubleshootingDownloadDash from './pages/BlogTroubleshootingDownloadDash';
+import BlogTikTokNoWatermark2026 from './pages/BlogTikTokNoWatermark2026';
+import BlogYouTubeDownloadGuide2026 from './pages/BlogYouTubeDownloadGuide2026';
+import BlogInstagramReelsDownloadTutorial from './pages/BlogInstagramReelsDownloadTutorial';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import Contact from './pages/Contact';
@@ -107,6 +110,9 @@ export const PAGES = {
     "BlogWebAppVsApkGuide": BlogWebAppVsApkGuide,
     "BlogPublicLinksAndCreatorRights": BlogPublicLinksAndCreatorRights,
     "BlogTroubleshootingDownloadDash": BlogTroubleshootingDownloadDash,
+    "BlogTikTokNoWatermark2026": BlogTikTokNoWatermark2026,
+    "BlogYouTubeDownloadGuide2026": BlogYouTubeDownloadGuide2026,
+    "BlogInstagramReelsDownloadTutorial": BlogInstagramReelsDownloadTutorial,
     "PrivacyPolicy": PrivacyPolicy,
     "TermsOfService": TermsOfService,
     "Contact": Contact,
