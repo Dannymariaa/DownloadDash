@@ -70,6 +70,11 @@ import BlogTroubleshootingDownloadDash from './pages/BlogTroubleshootingDownload
 import BlogTikTokNoWatermark2026 from './pages/BlogTikTokNoWatermark2026';
 import BlogYouTubeDownloadGuide2026 from './pages/BlogYouTubeDownloadGuide2026';
 import BlogInstagramReelsDownloadTutorial from './pages/BlogInstagramReelsDownloadTutorial';
+import BlogWhyVideoDownloadersFeelUnsafe from './pages/BlogWhyVideoDownloadersFeelUnsafe';
+import BlogMobileFirstModernWebApps from './pages/BlogMobileFirstModernWebApps';
+import BlogImportanceOfTrustPages from './pages/BlogImportanceOfTrustPages';
+import BlogFastWebsitesRankBetter from './pages/BlogFastWebsitesRankBetter';
+import BlogGoogleSearchIndexingWorks from './pages/BlogGoogleSearchIndexingWorks';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import Contact from './pages/Contact';
@@ -113,6 +118,11 @@ export const PAGES = {
     "BlogTikTokNoWatermark2026": BlogTikTokNoWatermark2026,
     "BlogYouTubeDownloadGuide2026": BlogYouTubeDownloadGuide2026,
     "BlogInstagramReelsDownloadTutorial": BlogInstagramReelsDownloadTutorial,
+    "BlogWhyVideoDownloadersFeelUnsafe": BlogWhyVideoDownloadersFeelUnsafe,
+    "BlogMobileFirstModernWebApps": BlogMobileFirstModernWebApps,
+    "BlogImportanceOfTrustPages": BlogImportanceOfTrustPages,
+    "BlogFastWebsitesRankBetter": BlogFastWebsitesRankBetter,
+    "BlogGoogleSearchIndexingWorks": BlogGoogleSearchIndexingWorks,
     "PrivacyPolicy": PrivacyPolicy,
     "TermsOfService": TermsOfService,
     "Contact": Contact,
