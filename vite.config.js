@@ -25,12 +25,15 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    target: 'es2020',
+    cssCodeSplit: true,
     sourcemap: false,
-    minify: 'terser',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          icons: ['lucide-react'],
           ui: ['@radix-ui/react-tabs', '@radix-ui/react-dropdown-menu'],
         },
       },

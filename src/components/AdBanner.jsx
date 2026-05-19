@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAdPlatform } from './Ads/useAdPlatform';
-
-const ADSENSE_CLIENT_ID = 'ca-pub-2390460896724446';
+import { ADSENSE_CLIENT_ID, loadAdsenseAfterDelay } from '@/utils/delayed-ads-loader';
 
 /**
  * Smart Ad Banner – shows AdSense on web, leaves space for AdMob on native app.
@@ -15,13 +14,23 @@ export default function AdBanner({ position = 'top', size = 'medium' }) {
 
   // Push AdSense ad unit when component mounts (web only)
   useEffect(() => {
+    let cancelled = false;
+
     if (!isMobileApp) {
-      try {
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-      } catch {
-        // Ignore ad load failures silently.
-      }
+      loadAdsenseAfterDelay().then((loaded) => {
+        if (!loaded || cancelled) return;
+
+        try {
+          (window.adsbygoogle = window.adsbygoogle || []).push({});
+        } catch {
+          // Ignore ad load failures silently.
+        }
+      });
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [isMobileApp]);
 
   // AdMob: the native SDK places its banner at specified coordinates.

@@ -248,6 +248,8 @@ export default function Dashboard() {
                           variant="ghost"
                           size="icon"
                           className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/20"
+                          aria-label={`Open original ${item.title || 'download'} link`}
+                          title={`Open original ${item.title || 'download'} link`}
                           onClick={() => window.open(item.original_url, '_blank')}
                         >
                           <ExternalLink className="h-4 w-4" />
@@ -256,6 +258,8 @@ export default function Dashboard() {
                           variant="ghost"
                           size="icon"
                           className="text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                          aria-label={`Delete ${item.title || 'download'} from history`}
+                          title={`Delete ${item.title || 'download'} from history`}
                           onClick={() => handleDeleteHistory(item.id)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -310,6 +314,8 @@ export default function Dashboard() {
                           variant="ghost"
                           size="icon"
                           className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/20"
+                          aria-label={`Download saved ${item.title || 'content'}`}
+                          title={`Download saved ${item.title || 'content'}`}
                           onClick={() => window.open(item.content_url, '_blank')}
                         >
                           <Download className="h-4 w-4" />
@@ -318,6 +324,8 @@ export default function Dashboard() {
                           variant="ghost"
                           size="icon"
                           className="text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                          aria-label={`Delete saved ${item.title || 'content'}`}
+                          title={`Delete saved ${item.title || 'content'}`}
                           onClick={() => handleDeleteSaved(item.id)}
                         >
                           <Trash2 className="h-4 w-4" />

@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { Download, Zap, Shield, Globe, Star, ArrowDown, Smartphone, FileText, Mail, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import AdBanner from '@/components/AdBanner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { YouTubeIcon } from '@/components/PlatformIcons';
@@ -20,21 +18,25 @@ const guideLinks = [
     page: 'HowDownloadDashWorks',
     title: 'How DownloadDash Works',
     body: 'Understand the full flow from public link input to returned media options.',
+    cta: 'Read How DownloadDash Works',
   },
   {
     page: 'SupportedPlatforms',
     title: 'Supported Platforms',
     body: 'See which media sources and device types the service is built around.',
+    cta: 'View Supported Platforms',
   },
   {
     page: 'Troubleshooting',
     title: 'Troubleshooting',
     body: 'Learn the most common reasons a media request can fail and what to expect next.',
+    cta: 'Open Troubleshooting Guide',
   },
   {
     page: 'ResponsibleUse',
     title: 'Responsible Use',
     body: 'Read the creator-rights and lawful-use guidance behind the service.',
+    cta: 'Read Responsible Use Policy',
   },
 ];
 
@@ -82,28 +84,17 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <AdBanner position="top" size="small" />
-
       {/* Hero Section */}
       <section className="relative py-20 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-purple-900/20 via-black to-black" />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-purple-600/20 rounded-full blur-[120px]" />
         
         <div className="relative max-w-6xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.6 }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-sm mb-8"
-            >
+          <div>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-sm mb-8">
               <Zap className="h-4 w-4" />
               <span>Fast media saving for public, permitted content</span>
-            </motion.div>
+            </div>
 
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
               <span className="bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent">
@@ -120,7 +111,7 @@ export default function Home() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <div>
                 <Link to={createPageUrl('Blog')}>
                   <Button
                     size="lg"
@@ -130,9 +121,9 @@ export default function Home() {
                     Read Guides First
                   </Button>
                 </Link>
-              </motion.div>
+              </div>
               
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <div>
                 <Button
                   size="lg"
                   variant="outline"
@@ -142,56 +133,43 @@ export default function Home() {
                   <Smartphone className="mr-2 h-5 w-5" />
                   Install App
                 </Button>
-              </motion.div>
+              </div>
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-2xl mx-auto">
               {stats.map((stat, idx) => (
-                <motion.div
+                <div
                   key={idx}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 + idx * 0.1 }}
                   className="text-center"
                 >
                   <div className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
                     {stat.value}
                   </div>
                   <div className="text-gray-500 text-sm">{stat.label}</div>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
 
-        <motion.div
-          animate={{ y: [0, 10, 0] }}
-          transition={{ repeat: Infinity, duration: 2 }}
+        <div
           className="absolute bottom-8 left-1/2 -translate-x-1/2"
         >
           <ArrowDown className="h-6 w-6 text-purple-400" />
-        </motion.div>
+        </div>
       </section>
-
-      <div className="px-4">
-        <AdBanner position="middle" size="medium" />
-      </div>
-
 
       {/* Features Section */}
       <section className="py-16 px-4 bg-gradient-to-b from-black via-purple-900/10 to-black">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
+          <div
             className="text-center mb-12"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
               Why Choose DownloadDash?
             </h2>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-3 gap-8">
             {[
@@ -214,13 +192,8 @@ export default function Home() {
                 gradient: 'from-blue-500 to-cyan-500'
               },
             ].map((feature, idx) => (
-              <motion.div
+              <div
                 key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.1 }}
-                whileHover={{ y: -5 }}
                 className="group bg-gradient-to-br from-gray-900 to-black p-8 rounded-2xl border border-purple-500/20 hover:border-purple-500/50 transition-all duration-300"
               >
                 <div className={`w-16 h-16 rounded-xl bg-gradient-to-r ${feature.gradient} flex items-center justify-center text-white mb-6 group-hover:scale-110 transition-transform duration-300`}>
@@ -228,7 +201,7 @@ export default function Home() {
                 </div>
                 <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
                 <p className="text-gray-400">{feature.desc}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -236,10 +209,7 @@ export default function Home() {
 
       <section className="py-16 px-4">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
             className="text-center mb-10"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
@@ -248,7 +218,7 @@ export default function Home() {
             <p className="text-gray-400 max-w-3xl mx-auto">
               DownloadDash is more than a single download box. It explains supported public-link workflows, helps users understand install options across devices, and gives context around safe, lawful use before any media request is made.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-2 gap-6">
             {[
@@ -269,17 +239,13 @@ export default function Home() {
                 body: 'Every major screen reminds users to respect copyright, platform rules, and the rights of creators. DownloadDash is intentionally built around public, permitted media flows rather than bypassing access controls.',
               },
             ].map((item, idx) => (
-              <motion.article
+              <article
                 key={item.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.08 }}
                 className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
               >
                 <h3 className="text-xl font-semibold text-white mb-3">{item.title}</h3>
                 <p className="text-gray-400 leading-7">{item.body}</p>
-              </motion.article>
+              </article>
             ))}
           </div>
         </div>
@@ -287,10 +253,7 @@ export default function Home() {
 
       <section className="py-16 px-4 bg-gradient-to-b from-black via-purple-900/10 to-black">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
             className="text-center mb-10"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
@@ -299,16 +262,12 @@ export default function Home() {
             <p className="text-gray-400 max-w-3xl mx-auto">
               These pages give the site more than a tool surface. They explain supported workflows, creator-rights boundaries, device installation, and the most common support issues users run into.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-2 gap-6">
             {guideLinks.map((guide, idx) => (
-              <motion.div
+              <div
                 key={guide.page}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.08 }}
                 className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
               >
                 <h3 className="text-xl font-semibold text-white mb-3">{guide.title}</h3>
@@ -319,9 +278,9 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="inline-flex rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 px-5 py-3 font-semibold text-white hover:opacity-90"
                 >
-                  Read Guide
+                  {guide.cta}
                 </Link>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -329,10 +288,7 @@ export default function Home() {
 
       <section className="py-16 px-4">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
             className="text-center mb-10"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
@@ -341,7 +297,7 @@ export default function Home() {
             <p className="text-gray-400 max-w-3xl mx-auto">
               If you are new to DownloadDash, this is the best order to follow. Read the guidance first, understand what kind of public link you are using, and only then move into the actual downloader.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-5 gap-4">
             {[
@@ -351,19 +307,15 @@ export default function Home() {
               'Paste the link into the supported downloader page.',
               'Choose the returned format and save it for lawful personal use.',
             ].map((step, idx) => (
-              <motion.div
+              <div
                 key={step}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.06 }}
                 className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-5"
               >
                 <div className="w-10 h-10 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold mb-4">
                   {idx + 1}
                 </div>
                 <p className="text-gray-300 leading-7">{step}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -371,10 +323,7 @@ export default function Home() {
 
       <section className="py-16 px-4">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
             className="text-center mb-10"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
@@ -383,16 +332,12 @@ export default function Home() {
             <p className="text-gray-400 max-w-3xl mx-auto">
               These articles answer the questions users usually ask before trusting a download utility: what is legal, why links fail, how different devices behave, and how public-link tools should be used responsibly.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-3 gap-6">
             {featuredBlogPosts.map((post, idx) => (
-              <motion.article
+              <article
                 key={post.slug}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.08 }}
                 className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
               >
                 <h3 className="text-xl font-semibold text-white mb-3">{post.title}</h3>
@@ -405,7 +350,7 @@ export default function Home() {
                 >
                   Read Article
                 </Link>
-              </motion.article>
+              </article>
             ))}
           </div>
         </div>
@@ -413,10 +358,7 @@ export default function Home() {
 
       <section className="py-16 px-4 bg-gradient-to-b from-black via-purple-900/10 to-black">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
             className="text-center mb-10"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
@@ -425,7 +367,7 @@ export default function Home() {
             <p className="text-gray-400 max-w-3xl mx-auto">
               DownloadDash is designed as a cross-device media utility. The exact formats available on a public link depend on the source platform, but the service itself is built to be understandable on phones, tablets, laptops, and desktop browsers.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-4 gap-5">
             {[
@@ -446,17 +388,13 @@ export default function Home() {
                 body: 'The safest install path is the browser-based web app experience, with Android APK download reserved only for real signed releases.',
               },
             ].map((item, idx) => (
-              <motion.article
+              <article
                 key={item.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.08 }}
                 className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
               >
                 <h3 className="text-xl font-semibold text-white mb-3">{item.title}</h3>
                 <p className="text-gray-400 leading-7">{item.body}</p>
-              </motion.article>
+              </article>
             ))}
           </div>
         </div>
@@ -464,10 +402,7 @@ export default function Home() {
 
       <section className="py-16 px-4">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
             className="text-center mb-10"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
@@ -476,24 +411,28 @@ export default function Home() {
             <p className="text-gray-400 max-w-3xl mx-auto">
               Real screenshots help visitors understand the platform before they interact with a public media workflow.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
             {realSiteScreenshots.map((item, idx) => (
-              <motion.article
+              <article
                 key={item.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.08 }}
                 className="overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black"
               >
-                <img src={item.src} alt={item.title} className="aspect-[4/3] w-full object-cover" />
+                <img
+                  src={item.src}
+                  alt={item.title}
+                  width="1200"
+                  height="900"
+                  loading="lazy"
+                  decoding="async"
+                  className="aspect-[4/3] w-full object-cover"
+                />
                 <div className="p-6">
                   <h3 className="text-xl font-semibold text-white mb-3">{item.title}</h3>
                   <p className="text-gray-400 leading-7">{item.body}</p>
                 </div>
-              </motion.article>
+              </article>
             ))}
           </div>
         </div>
@@ -501,10 +440,7 @@ export default function Home() {
 
       <section className="py-16 px-4">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
             className="text-center mb-10"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
@@ -513,7 +449,7 @@ export default function Home() {
             <p className="text-gray-400 max-w-3xl mx-auto">
               These are the questions people ask most often before trying the tool. Answering them on the homepage makes the site more useful even before a visitor opens a downloader page.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid md:grid-cols-2 gap-6">
             {[
@@ -534,17 +470,13 @@ export default function Home() {
                 body: 'Because users need context first. A content-first layout explains safety, platform support, and troubleshooting before anyone starts a download request, which improves trust and reduces confusion.',
               },
             ].map((item, idx) => (
-              <motion.article
+              <article
                 key={item.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.08 }}
                 className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-6"
               >
                 <h3 className="text-xl font-semibold text-white mb-3">{item.title}</h3>
                 <p className="text-gray-400 leading-7">{item.body}</p>
-              </motion.article>
+              </article>
             ))}
           </div>
         </div>
@@ -553,10 +485,7 @@ export default function Home() {
       {/* Tool Section */}
       <section className="py-16 px-4">
         <div className="max-w-2xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
               Use The Download Tool
@@ -565,9 +494,7 @@ export default function Home() {
               Once you have read the guides and confirmed you are working with a supported public link, you can continue to the downloader and choose the format returned by the backend.
             </p>
             <Link to={createPageUrl('YouTubeDownloader')}>
-              <motion.div
-                whileHover={{ scale: 1.03, y: -4 }}
-                whileTap={{ scale: 0.97 }}
+              <div
                 className="inline-flex items-center gap-5 bg-gradient-to-br from-gray-900 to-black border border-red-500/40 hover:border-red-500/80 rounded-3xl px-10 py-7 shadow-xl shadow-red-500/10 transition-all duration-300 cursor-pointer"
               >
                 <YouTubeIcon size={64} />
@@ -576,19 +503,16 @@ export default function Home() {
                   <p className="text-gray-400 text-sm mt-1">Public media workflow</p>
                   <span className="inline-block mt-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full">Open Public Workflow</span>
                 </div>
-              </motion.div>
+              </div>
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Compliance Section */}
       <section className="py-16 px-4">
         <div className="max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+          <div
             className="rounded-3xl border border-purple-500/20 bg-gradient-to-br from-gray-900 to-black p-8 md:p-10"
           >
             <div className="text-center mb-8">
@@ -628,17 +552,14 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Download App Section */}
       <section className="py-16 px-4">
         <div className="max-w-4xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
+          <div
             className="relative bg-gradient-to-br from-purple-900/50 to-black rounded-3xl p-8 md:p-12 border border-purple-500/30 overflow-hidden"
           >
             <div className="absolute -top-20 -right-20 w-64 h-64 bg-purple-600/30 rounded-full blur-[80px]" />
@@ -653,7 +574,7 @@ export default function Home() {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <div>
                   <Button
                     size="lg"
                     className="h-14 px-8 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-xl"
@@ -662,8 +583,8 @@ export default function Home() {
                     <Download className="mr-2 h-5 w-5" />
                     Download / Install App
                   </Button>
-                </motion.div>
-                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                </div>
+                <div>
                   <Link to={createPageUrl('AppDownload')}>
                     <Button
                       size="lg"
@@ -674,16 +595,13 @@ export default function Home() {
                       Android App Details
                     </Button>
                   </Link>
-                </motion.div>
+                </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
-      <div className="px-4 pb-8">
-        <AdBanner position="bottom" size="large" />
-      </div>
     </div>
   );
 }

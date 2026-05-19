@@ -15,10 +15,10 @@
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Primary Meta Tags -->
-    <title>DownloadDash</title>
+    <title>DownloadDash - Download Videos and Images from Social Media</title>
     <link rel="canonical" href="https://www.downloaddash.store/" />
-    <meta name="title" content="DownloadDash" />
-    <meta name="description" content="Public media saving platform for supported public links." />
+    <meta name="title" content="DownloadDash - Download Videos and Images from Social Media" />
+    <meta name="description" content="DownloadDash helps you save publicly available videos, shorts, images, and audio from supported social media platforms for personal offline use." />
     <meta name="image" content="https://www.downloaddash.store/icon-512.png" />
     <meta name="keywords" content="public media saving platform, public link media tools, responsible media saving, DownloadDash trust center, media support guides" />
     <meta name="author" content="DownloadDash" />
@@ -28,8 +28,8 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.downloaddash.store/" />
     <meta property="og:site_name" content="DownloadDash" />
-    <meta property="og:title" content="DownloadDash" />
-    <meta property="og:description" content="Public media saving platform for supported public links." />
+    <meta property="og:title" content="DownloadDash - Social Media Video Downloader" />
+    <meta property="og:description" content="Save public videos, shorts, images, and audio from supported platforms with DownloadDash." />
     <meta property="og:image" content="https://www.downloaddash.store/icon-512.png" />
     <meta property="og:image:secure_url" content="https://www.downloaddash.store/icon-512.png" />
     <meta property="og:image:type" content="image/png" />
@@ -40,22 +40,96 @@
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://www.downloaddash.store/" />
-    <meta name="twitter:title" content="DownloadDash" />
-    <meta name="twitter:description" content="Public media saving platform for supported public links." />
+    <meta name="twitter:title" content="DownloadDash - Social Media Video Downloader" />
+    <meta name="twitter:description" content="Save public media links quickly and easily with DownloadDash." />
     <meta name="twitter:image" content="https://www.downloaddash.store/icon-512.png" />
     <meta name="twitter:image:alt" content="DownloadDash public media saving platform" />
 
     <!-- Theme -->
     <meta name="theme-color" content="#3b82f6" />
     <meta name="msapplication-TileColor" content="#000000" />
+    <style>
+      .initial-shell {
+        min-height: 100vh;
+        background: #000;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 5rem 1rem;
+        box-sizing: border-box;
+      }
+      .initial-shell__inner {
+        max-width: 72rem;
+        margin: 0 auto;
+      }
+      .initial-shell__eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(168, 85, 247, .3);
+        border-radius: 999px;
+        background: rgba(168, 85, 247, .2);
+        color: #d8b4fe;
+        padding: .5rem 1rem;
+        font-size: .875rem;
+      }
+      .initial-shell h1 {
+        margin: 0 0 1.5rem;
+        font-size: clamp(3rem, 10vw, 4.5rem);
+        line-height: 1.05;
+        font-weight: 800;
+      }
+      .initial-shell p {
+        max-width: 42rem;
+        margin: 0 auto;
+        color: #9ca3af;
+        font-size: clamp(1.25rem, 4vw, 1.5rem);
+        line-height: 1.5;
+      }
+      .initial-shell strong {
+        color: #c084fc;
+        font-weight: 500;
+      }
+    </style>
 
     <!-- Security -->
     <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2390460896724446"
-      crossorigin="anonymous"></script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "DownloadDash",
+        "url": "https://www.downloaddash.store/",
+        "description": "DownloadDash helps users save publicly available videos, shorts, images, and audio from supported social media platforms for personal use.",
+        "publisher": {
+          "@type": "Organization",
+          "name": "DownloadDash",
+          "url": "https://www.downloaddash.store/"
+        },
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://www.downloaddash.store/?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="initial-shell">
+        <section class="initial-shell__inner" aria-labelledby="initial-title">
+          <div class="initial-shell__eyebrow">Fast media saving for public, permitted content</div>
+          <h1 id="initial-title">DownloadDash</h1>
+          <p>
+            Save publicly available videos, shorts, and audio for personal use when you have the right to do so.
+            <strong>Simple, mobile-friendly, and transparent.</strong>
+          </p>
+        </section>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

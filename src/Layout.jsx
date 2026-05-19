@@ -1,14 +1,14 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck } from 'lucide-react';
 import { YouTubeIcon } from '@/components/PlatformIcons';
 import { Button } from '@/components/ui/button';
 import downloadDash from '@/api/downloadDashClient';
 import LanguageSelector from '@/components/LanguageSelector';
-import AutoAdManager from '@/components/Ads/AutoAdManager.jsx';
 import { useI18n } from '@/lib/i18n';
+
+const AutoAdManager = lazy(() => import('@/components/Ads/AutoAdManager.jsx'));
 
 const getPageTheme = (pageName) => {
   if (pageName?.startsWith('Blog')) {
@@ -283,18 +283,20 @@ export default function Layout({ children, currentPageName }) {
         *::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,.5); }
       `}</style>
 
-      {/* Global auto interstitial – only one ad system active at a time via useAdPlatform */}
-      <AutoAdManager />
+      {currentPageName !== 'Home' && (
+        <Suspense fallback={null}>
+          <AutoAdManager />
+        </Suspense>
+      )}
 
       {/* Header */}
       <header className={`sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b ${theme.border}`}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <Link to={createPageUrl('Home')} className="flex items-center gap-2">
-              <motion.div whileHover={{ scale: 1.1, rotate: 5 }}
-                className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl flex items-center justify-center">
                 <Download className="h-5 w-5 text-white" />
-              </motion.div>
+              </div>
               <span className={`text-xl font-bold bg-gradient-to-r ${theme.brand} bg-clip-text text-transparent`}>
                 DownloadDash
               </span>
@@ -332,7 +334,11 @@ export default function Layout({ children, currentPageName }) {
             <div className="flex items-center gap-3">
               <LanguageSelector />
               {user ? (
-                <Link to={createPageUrl('Dashboard')}>
+                <Link
+                  to={createPageUrl('Dashboard')}
+                  aria-label="Open DownloadDash dashboard"
+                  title="Open DownloadDash dashboard"
+                >
                   <Button variant="ghost" className="hidden sm:flex items-center gap-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/20">
                     <User className="h-4 w-4" /> {user.full_name?.split(' ')[0] || t('nav.account')}
                   </Button>
@@ -342,7 +348,14 @@ export default function Layout({ children, currentPageName }) {
                   <LogIn className="mr-2 h-4 w-4" /> {t('nav.login')}
                 </Button>
               )}
-              <Button variant="ghost" size="icon" className="lg:hidden text-purple-400" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden text-purple-400"
+                aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                title={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+              >
                 {isMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </Button>
             </div>
@@ -364,10 +377,8 @@ export default function Layout({ children, currentPageName }) {
         )}
 
         {/* Mobile Menu */}
-        <AnimatePresence>
-          {isMenuOpen && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-              className="lg:hidden border-t border-purple-500/20 bg-black/95">
+        {isMenuOpen && (
+            <div className="lg:hidden border-t border-purple-500/20 bg-black/95">
               <nav className="px-4 py-4 space-y-2">
                 <Link to={createPageUrl('Home')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                   <Home className="h-5 w-5" /> {t('nav.home')}
@@ -400,9 +411,8 @@ export default function Layout({ children, currentPageName }) {
                   </Button>
                 )}
               </nav>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
       </header>
 
       <main className="min-h-[calc(100vh-4rem)]">{children}</main>
@@ -420,7 +430,7 @@ export default function Layout({ children, currentPageName }) {
               <p className="text-gray-400 text-sm">{t('footer.description')}</p>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">{t('nav.resources')}</h4>
+              <h3 className="text-white font-semibold mb-4">{t('nav.resources')}</h3>
               <div className="space-y-2">
                 <Link to={createPageUrl('YouTubeDownloader')} className="flex items-center gap-2 text-gray-400 hover:text-red-400 text-sm transition-colors">
                   <YouTubeIcon size={18} /> {t('nav.publicYoutube')}
@@ -452,7 +462,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">{t('nav.links')}</h4>
+              <h3 className="text-white font-semibold mb-4">{t('nav.links')}</h3>
               <div className="space-y-2">
                 <Link to={createPageUrl('Home')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.home')}</Link>
                 <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.dashboard')}</Link>
