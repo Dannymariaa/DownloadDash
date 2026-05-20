@@ -120,8 +120,12 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!downloads/|api/).*)",
+      "source": "/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/((?!downloads/|api/).*)",
+      "destination": "/app.html"
     }
   ]
 }
