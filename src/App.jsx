@@ -1,86 +1,76 @@
 import { Suspense } from 'react';
-import { Toaster } from "@/components/ui/toaster"
-import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClientInstance } from '@/lib/query-client'
-import NavigationTracker from '@/lib/NavigationTracker'
-import { pagesConfig } from './pages.config'
+import { Toaster } from '@/components/ui/toaster';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClientInstance } from '@/lib/query-client';
+import NavigationTracker from '@/lib/NavigationTracker';
+import { pagesConfig } from './pages.config';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { I18nProvider } from '@/lib/i18n';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import DownloadDashLoader from '@/components/DownloadDashLoader';
+import '@/styles/downloaddash-loader.css';
 import { getAllRoutesForPage } from '@/utils';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
 const MainPage = mainPageKey ? Pages[mainPageKey] : <></>;
 
-const LayoutWrapper = ({ children, currentPageName }) => Layout ?
-  <Layout currentPageName={currentPageName}>{children}</Layout>
-  : <>{children}</>;
+const LayoutWrapper = ({ children, currentPageName }) =>
+  Layout ? <Layout currentPageName={currentPageName}>{children}</Layout> : <>{children}</>;
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
-  // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
+    return <DownloadDashLoader text="Preparing your downloader..." />;
   }
 
-  // Handle authentication errors
   if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
+    }
+
+    if (authError.type === 'auth_required') {
       navigateToLogin();
       return null;
     }
   }
 
-  // Render the main app
   return (
-    <Suspense
-      fallback={
-        <div className="fixed inset-0 flex items-center justify-center bg-black text-white">
-          <div className="w-8 h-8 border-4 border-slate-700 border-t-white rounded-full animate-spin"></div>
-        </div>
-      }
-    >
+    <Suspense fallback={<DownloadDashLoader text="Loading DownloadDash..." />}>
       <Routes>
-      <Route path="/" element={
-        <LayoutWrapper currentPageName={mainPageKey}>
-          <MainPage />
-        </LayoutWrapper>
-      } />
-      {Object.entries(Pages).flatMap(([pageName, Page]) =>
-        getAllRoutesForPage(pageName)
-          .filter((routePath) => routePath !== '/')
-          .map((routePath) => (
-            <Route
-              key={`${pageName}:${routePath}`}
-              path={routePath}
-              element={
-                <LayoutWrapper currentPageName={pageName}>
-                  <Page />
-                </LayoutWrapper>
-              }
-            />
-          ))
-      )}
+        <Route
+          path="/"
+          element={
+            <LayoutWrapper currentPageName={mainPageKey}>
+              <MainPage />
+            </LayoutWrapper>
+          }
+        />
+        {Object.entries(Pages).flatMap(([pageName, Page]) =>
+          getAllRoutesForPage(pageName)
+            .filter((routePath) => routePath !== '/')
+            .map((routePath) => (
+              <Route
+                key={`${pageName}:${routePath}`}
+                path={routePath}
+                element={
+                  <LayoutWrapper currentPageName={pageName}>
+                    <Page />
+                  </LayoutWrapper>
+                }
+              />
+            ))
+        )}
         <Route path="*" element={<PageNotFound />} />
       </Routes>
     </Suspense>
   );
 };
 
-
 function App() {
-
   return (
     <I18nProvider>
       <AuthProvider>
@@ -93,7 +83,7 @@ function App() {
         </QueryClientProvider>
       </AuthProvider>
     </I18nProvider>
-  )
+  );
 }
 
-export default App
+export default App;
