@@ -1,9 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 import path from 'path'
-import { fileURLToPath } from 'url'
-
-const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -33,10 +30,6 @@ export default defineConfig({
     sourcemap: false,
     minify: 'esbuild',
     rollupOptions: {
-      input: {
-        index: path.resolve(rootDir, 'index.html'),
-        app: path.resolve(rootDir, 'app.html'),
-      },
       output: {
         manualChunks: {
           router: ['react-router-dom'],
