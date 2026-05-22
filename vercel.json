@@ -105,19 +105,6 @@
       ]
     }
   ],
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [
-        {
-          "type": "host",
-          "value": "downloaddash.store"
-        }
-      ],
-      "destination": "https://www.downloaddash.store/:path*",
-      "permanent": true
-    }
-  ],
   "rewrites": [
     {
       "source": "/((?!downloads/|api/).*)",
