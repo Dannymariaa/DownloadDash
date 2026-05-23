@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     OUTBOUND_PROXY: Optional[str] = None
     YTDLP_PROXY: Optional[str] = None
     YTDLP_PROXY_YOUTUBE: Optional[str] = None
+
+    # gallery-dl (optional cookies help for stories/status/private-session media)
+    GALLERY_DL_COOKIEFILE: Optional[str] = None
+    GALLERY_DL_COOKIE_DATA: Optional[str] = None
+    GALLERY_DL_TIMEOUT_SECONDS: int = 300
     
     # Platform API Keys
     INSTAGRAM_USERNAME: Optional[str] = None
@@ -117,4 +122,5 @@ settings = Settings()
 
 # Create necessary directories
 os.makedirs(settings.TEMP_PATH, exist_ok=True)
+os.makedirs(settings.DOWNLOAD_PATH, exist_ok=True)
 os.makedirs("./logs", exist_ok=True)

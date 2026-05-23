@@ -20,6 +20,7 @@ from app.routers import (
     reddit_router,
     twitter_router,
     youtube_router,
+    gallery_router,
     telegram_router,
     whatsapp_router,
     whatsapp_business_router
@@ -97,6 +98,7 @@ app.include_router(pinterest_router, tags=["pinterest"])
 app.include_router(reddit_router, tags=["reddit"])
 app.include_router(twitter_router, tags=["twitter"])
 app.include_router(youtube_router, tags=["youtube"])
+app.include_router(gallery_router, tags=["gallery-dl"])
 app.include_router(telegram_router, tags=["telegram"])
 app.include_router(whatsapp_router, tags=["whatsapp"])
 app.include_router(whatsapp_business_router, tags=["whatsapp-business"])
@@ -127,6 +129,8 @@ async def startup_event():
     print("   - POST /reddit/download")
     print("   - POST /twitter/download")
     print("   - POST /youtube/download")
+    print("   - POST /gallery/resolve")
+    print("   - POST /gallery/download")
     print("   - POST /telegram/download")
     print("   - GET /whatsapp/qr")
     print("   - GET /whatsapp/status")
@@ -194,6 +198,7 @@ async def root():
             "reddit": "/reddit/download",
             "twitter": "/twitter/download",
             "youtube": "/youtube/download",
+            "gallery": "/gallery/download",
             "telegram": "/telegram/download",
             "whatsapp": "/whatsapp/qr",
             "whatsapp_business": "/whatsapp-business/qr"
@@ -228,7 +233,7 @@ async def get_stats():
         "active_platforms": [
             "instagram", "tiktok", "facebook", "pinterest", 
             "reddit", "twitter", "youtube", "telegram", 
-            "whatsapp", "whatsapp_business"
+            "gallery", "whatsapp", "whatsapp_business"
         ]
     }
 

@@ -26,6 +26,7 @@ httpx-oauth==0.4.0
 
 # Media Downloading
 yt-dlp==2023.10.13
+gallery-dl>=1.32.1,<2.0.0
 youtube-dl==2021.12.17
 pytube==15.0.0
 instaloader==4.10.2

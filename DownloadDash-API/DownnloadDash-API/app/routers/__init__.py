@@ -5,6 +5,7 @@ from .pinterest import router as pinterest_router
 from .reddit import router as reddit_router
 from .twitter import router as twitter_router
 from .youtube import router as youtube_router
+from .gallery import router as gallery_router
 from .telegram import router as telegram_router
 from .whatsapp import router as whatsapp_router
 from .whatsapp_business import router as whatsapp_business_router
@@ -17,6 +18,7 @@ __all__ = [
     'reddit_router',
     'twitter_router',
     'youtube_router',
+    'gallery_router',
     'telegram_router',
     'whatsapp_router',
     'whatsapp_business_router',
