@@ -17,12 +17,14 @@ class PublicPlatformDownloader:
         cookiefile: str | None = None,
         cookiefiles: Optional[Dict[str, str | None]] = None,
         proxy_url: str | None = None,
+        proxy_urls: Optional[Dict[str, str | None]] = None,
         youtube_proxy_url: str | None = None,
     ):
         self.download_path = download_path
         self.cookiefile = cookiefile
         self.cookiefiles = cookiefiles or {}
         self.proxy_url = proxy_url
+        self.proxy_urls = proxy_urls or {}
         self.youtube_proxy_url = youtube_proxy_url
         self.user_agent = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -118,6 +120,12 @@ class PublicPlatformDownloader:
             return "instagram"
         if "tiktok.com" in url_lower:
             return "tiktok"
+        if "facebook.com" in url_lower or "fb.com" in url_lower or "fb.watch" in url_lower:
+            return "facebook"
+        if "reddit.com" in url_lower or "redd.it" in url_lower:
+            return "reddit"
+        if "twitter.com" in url_lower or "x.com" in url_lower:
+            return "x"
         if "youtube.com" in url_lower or "youtu.be" in url_lower:
             return "youtube"
         return "default"
@@ -135,6 +143,22 @@ class PublicPlatformDownloader:
             opts["cookiefile"] = cookiefile
         else:
             opts.pop("cookiefile", None)
+        return opts
+
+    def _proxy_for_url(self, url: str) -> str | None:
+        platform_key = self._platform_key_for_url(url)
+        return (
+            self.proxy_urls.get(platform_key)
+            or self.proxy_urls.get("default")
+            or self.proxy_url
+        )
+
+    def _apply_proxy_for_url(self, opts: Dict[str, Any], url: str) -> Dict[str, Any]:
+        proxy_url = self._proxy_for_url(url)
+        if proxy_url:
+            opts["proxy"] = proxy_url
+        else:
+            opts.pop("proxy", None)
         return opts
 
     def _log_ydl_context(self, label: str, url: str, opts: Dict[str, Any]) -> None:
@@ -362,8 +386,7 @@ class PublicPlatformDownloader:
             'extract_flat': True,
         }
         self._apply_cookiefile_for_url(ydl_opts, url)
-        if self.proxy_url:
-            ydl_opts["proxy"] = self.proxy_url
+        self._apply_proxy_for_url(ydl_opts, url)
         self._log_ydl_context("get_media_info", url, ydl_opts)
         
         def extract_info():
@@ -434,6 +457,7 @@ class PublicPlatformDownloader:
         output_template = os.path.join(self.download_path, f"{file_id}.%(ext)s")
         opts = self.get_ydl_opts(Quality.HIGH, output_template)
         self._apply_cookiefile_for_url(opts, url)
+        self._apply_proxy_for_url(opts, url)
         cookie_names = self._cookie_names_for_url(url)
         print(
             "Info: yt-dlp youtube download cookie names: "
@@ -546,6 +570,7 @@ class PublicPlatformDownloader:
         output_template = os.path.join(self.download_path, f"{file_id}.%(ext)s")
         ydl_opts = self.get_ydl_opts(quality, output_template)
         self._apply_cookiefile_for_url(ydl_opts, url)
+        self._apply_proxy_for_url(ydl_opts, url)
         ydl_opts["extract_flat"] = False
         ydl_opts["noplaylist"] = True
         ydl_opts["http_headers"] = self._build_http_headers(url)

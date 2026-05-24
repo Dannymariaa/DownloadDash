@@ -44,17 +44,40 @@ class Settings(BaseSettings):
     # downloads that require login (e.g. stories).
     YTDLP_COOKIEFILE: Optional[str] = None
     YTDLP_COOKIE_DATA: Optional[str] = None
+    YTDLP_COOKIE_DATA_FACEBOOK: Optional[str] = None
     YTDLP_COOKIEFILE_INSTAGRAM: Optional[str] = None
     YTDLP_COOKIE_DATA_INSTAGRAM: Optional[str] = None
+    YTDLP_COOKIE_DATA_REDDIT: Optional[str] = None
     YTDLP_COOKIEFILE_TIKTOK: Optional[str] = None
     YTDLP_COOKIE_DATA_TIKTOK: Optional[str] = None
+    YTDLP_COOKIE_DATA_X: Optional[str] = None
     OUTBOUND_PROXY: Optional[str] = None
     YTDLP_PROXY: Optional[str] = None
+    YTDLP_PROXY_FACEBOOOK: Optional[str] = None
+    YTDLP_PROXY_FACEBOOK: Optional[str] = None
+    YTDLP_PROXY_INSTAGRAM: Optional[str] = None
+    YTDLP_PROXY_REDDIT: Optional[str] = None
+    YTDLP_PROXY_TIKTOK: Optional[str] = None
+    YTDLP_PROXY_X: Optional[str] = None
     YTDLP_PROXY_YOUTUBE: Optional[str] = None
 
     # gallery-dl (optional cookies help for stories/status/private-session media)
     GALLERY_DL_COOKIEFILE: Optional[str] = None
     GALLERY_DL_COOKIE_DATA: Optional[str] = None
+    GALLERY_DL_COOKIE_DATA_FACEBOOK: Optional[str] = None
+    GALLERY_DL_COOKIE_DATA_INSTAGRAM: Optional[str] = None
+    GALLERY_DL_COOKIE_DATA_PINTEREST: Optional[str] = None
+    GALLERY_DL_COOKIE_DATA_REDDIT: Optional[str] = None
+    GALLERY_DL_COOKIE_DATA_TIKTOK: Optional[str] = None
+    GALLERY_DL_COOKIE_X: Optional[str] = None
+    GALLERY_DL_PROXY: Optional[str] = None
+    GALLERY_DL_PROXY_FACEBOOOK: Optional[str] = None
+    GALLERY_DL_PROXY_FACEBOOK: Optional[str] = None
+    GALLERY_DL_PROXY_INSTAGRAM: Optional[str] = None
+    GALLERY_DL_PROXY_PINTEREST: Optional[str] = None
+    GALLERY_DL_PROXY_REDDIT: Optional[str] = None
+    GALLERY_DL_PROXY_TIKTOK: Optional[str] = None
+    GALLERY_DL_PROXY_X: Optional[str] = None
     GALLERY_DL_TIMEOUT_SECONDS: int = 300
     
     # Platform API Keys

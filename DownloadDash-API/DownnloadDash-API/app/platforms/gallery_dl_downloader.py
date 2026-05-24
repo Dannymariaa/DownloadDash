@@ -37,13 +37,17 @@ class GalleryDLDownloader:
         download_path: str,
         cookiefile: Optional[str] = None,
         cookie_data: Optional[str] = None,
+        cookiefiles: Optional[Dict[str, Optional[str]]] = None,
         proxy_url: Optional[str] = None,
+        proxy_urls: Optional[Dict[str, Optional[str]]] = None,
         timeout_seconds: int = 300,
     ):
         self.base_path = Path(download_path).resolve() / "gallery-dl"
         self.base_path.mkdir(parents=True, exist_ok=True)
         self.cookiefile = self._prepare_cookiefile(cookiefile, cookie_data)
+        self.cookiefiles = cookiefiles or {}
         self.proxy_url = proxy_url
+        self.proxy_urls = proxy_urls or {}
         self.timeout_seconds = timeout_seconds
         self.jobs: Dict[str, Dict[str, Any]] = {}
 
@@ -61,16 +65,53 @@ class GalleryDLDownloader:
         cookie_path.write_text(cookie_text + "\n", encoding="utf-8")
         return str(cookie_path)
 
-    def _base_command(self) -> List[str]:
+    def _platform_key_for_url(self, url: str) -> str:
+        url_lower = url.lower()
+        if "instagram.com" in url_lower or "instagr.am" in url_lower:
+            return "instagram"
+        if "tiktok.com" in url_lower:
+            return "tiktok"
+        if "facebook.com" in url_lower or "fb.com" in url_lower or "fb.watch" in url_lower:
+            return "facebook"
+        if "pinterest.com" in url_lower or "pin.it" in url_lower or "pinimg.com" in url_lower:
+            return "pinterest"
+        if "reddit.com" in url_lower or "redd.it" in url_lower:
+            return "reddit"
+        if "twitter.com" in url_lower or "x.com" in url_lower:
+            return "x"
+        return "default"
+
+    def _cookiefile_for_url(self, url: str) -> Optional[str]:
+        platform_key = self._platform_key_for_url(url)
+        cookiefile = (
+            self.cookiefiles.get(platform_key)
+            or self.cookiefiles.get("default")
+            or self.cookiefile
+        )
+        if cookiefile and os.path.exists(cookiefile):
+            return cookiefile
+        return None
+
+    def _proxy_for_url(self, url: str) -> Optional[str]:
+        platform_key = self._platform_key_for_url(url)
+        return (
+            self.proxy_urls.get(platform_key)
+            or self.proxy_urls.get("default")
+            or self.proxy_url
+        )
+
+    def _base_command(self, url: str) -> List[str]:
         command = [sys.executable, "-m", "gallery_dl", "--no-colors"]
-        if self.cookiefile:
-            command.extend(["-o", f"cookies={self.cookiefile}"])
-        if self.proxy_url:
-            command.extend(["-o", f"proxy={self.proxy_url}"])
+        cookiefile = self._cookiefile_for_url(url)
+        proxy_url = self._proxy_for_url(url)
+        if cookiefile:
+            command.extend(["-o", f"cookies={cookiefile}"])
+        if proxy_url:
+            command.extend(["-o", f"proxy={proxy_url}"])
         return command
 
     async def resolve(self, url: str, limit: int = 25) -> Dict[str, Any]:
-        command = [*self._base_command(), "-J", "-o", "output.private=false", url]
+        command = [*self._base_command(url), "-J", "-o", "output.private=false", url]
         proc = await asyncio.create_subprocess_exec(
             *command,
             stdout=asyncio.subprocess.PIPE,
@@ -130,7 +171,7 @@ class GalleryDLDownloader:
         job["updated_at"] = datetime.utcnow().isoformat() + "Z"
 
         command = [
-            *self._base_command(),
+            *self._base_command(url),
             "-D",
             str(job_dir),
             "-f",
