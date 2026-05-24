@@ -69,9 +69,11 @@ class UniversalMediaDownloader:
             return await self._resolve_tiktok(url, quality, extract_audio, media_type)
         if platform == Platform.PINTEREST:
             return await self._resolve_pinterest(url)
+        if platform == Platform.FACEBOOK:
+            return await self._resolve_facebook(url, quality, extract_audio)
         if platform in (Platform.TWITTER, Platform.X):
             return await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
-        if platform in (Platform.FACEBOOK, Platform.REDDIT, Platform.YOUTUBE):
+        if platform in (Platform.REDDIT, Platform.YOUTUBE):
             return await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
 
         # Fall back to yt-dlp for any other supported public platform.
@@ -524,3 +526,30 @@ class UniversalMediaDownloader:
         if settings.INSTAGRAM_USERNAME and settings.INSTAGRAM_PASSWORD:
             return {"username": settings.INSTAGRAM_USERNAME, "password": settings.INSTAGRAM_PASSWORD}
         return None
+
+    async def _resolve_facebook(self, url: str, quality: Quality, extract_audio: bool) -> Dict[str, Any]:
+        try:
+            return await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
+        except Exception as primary_error:
+            fallback_urls = [url]
+            if "www.facebook.com" in url:
+                fallback_urls.append(url.replace("www.facebook.com", "m.facebook.com", 1))
+            elif "facebook.com" in url and "m.facebook.com" not in url:
+                fallback_urls.append(url.replace("facebook.com", "m.facebook.com", 1))
+
+            for fallback_url in dict.fromkeys(fallback_urls):
+                try:
+                    fallback = await self.public_downloader._fallback_opengraph(fallback_url)  # type: ignore[attr-defined]
+                except Exception:
+                    fallback = None
+                if fallback and fallback.get("direct_url"):
+                    warnings = fallback.setdefault("warnings", [])
+                    warnings.append(
+                        "Resolved Facebook media with HTML fallback. Stories require fresh Facebook cookies when private, expired, or login-gated."
+                    )
+                    return fallback
+
+            raise Exception(
+                f"{primary_error}. Facebook stories need a public story or fresh SMD_YTDLP_COOKIE_DATA_FACEBOOK / "
+                "SMD_GALLERY_DL_COOKIE_DATA_FACEBOOK cookies from an account that can view the story."
+            )

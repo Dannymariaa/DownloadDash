@@ -1,6 +1,7 @@
 import yt_dlp
 import asyncio
 from typing import Dict, Any, Optional
+import html as html_lib
 import os
 import uuid
 import re
@@ -873,13 +874,17 @@ class PublicPlatformDownloader:
         headers = self._build_http_headers(url)
         cookies = self._load_cookiefile(url)
         try:
+            client_kwargs = self._httpx_client_kwargs(
+                timeout=20.0,
+                follow_redirects=True,
+                headers=headers,
+                cookies=cookies,
+            )
+            platform_proxy = self._proxy_for_url(url)
+            if platform_proxy:
+                client_kwargs["proxy"] = platform_proxy
             async with httpx.AsyncClient(
-                **self._httpx_client_kwargs(
-                    timeout=20.0,
-                    follow_redirects=True,
-                    headers=headers,
-                    cookies=cookies,
-                )
+                **client_kwargs
             ) as client:
                 resp = await client.get(url)
                 if resp.status_code >= 400:
@@ -888,40 +893,109 @@ class PublicPlatformDownloader:
         except Exception:
             return None
 
+        decoded_html = html_lib.unescape(html)
+
+        def _clean_embedded_url(value: str | None) -> Optional[str]:
+            if not value:
+                return None
+            cleaned = html_lib.unescape(value)
+            try:
+                cleaned = bytes(cleaned, "utf-8").decode("unicode_escape")
+            except Exception:
+                pass
+            cleaned = (
+                cleaned.replace("\\/", "/")
+                .replace("\\u0025", "%")
+                .replace("\\u0026", "&")
+                .replace("\\u003d", "=")
+                .replace("\\u003a", ":")
+            )
+            cleaned = cleaned.strip().strip('"').strip("'")
+            if not cleaned.startswith(("http://", "https://")):
+                return None
+            return cleaned
+
         def _find_meta(prop: str) -> Optional[str]:
-            pattern = rf'<meta[^>]+property="{re.escape(prop)}"[^>]+content="([^"]+)"'
-            match = re.search(pattern, html, re.IGNORECASE)
-            return match.group(1) if match else None
+            for source in (html, decoded_html):
+                for tag_match in re.finditer(r"<meta\b[^>]*>", source, re.IGNORECASE):
+                    tag = tag_match.group(0)
+                    has_name = re.search(
+                        rf'\b(?:property|name)=["\']{re.escape(prop)}["\']',
+                        tag,
+                        re.IGNORECASE,
+                    )
+                    if not has_name:
+                        continue
+                    content = re.search(r'\bcontent=(["\'])(.*?)\1', tag, re.IGNORECASE | re.DOTALL)
+                    if content:
+                        return _clean_embedded_url(content.group(2)) or html_lib.unescape(content.group(2))
+            return None
 
-        og_image = _find_meta("og:image")
-        og_video = _find_meta("og:video")
+        def _find_embedded_url(keys: tuple[str, ...]) -> Optional[str]:
+            sources = (html, decoded_html)
+            for key in keys:
+                key_pattern = re.escape(key)
+                patterns = (
+                    rf'"{key_pattern}"\s*:\s*"([^"]+)"',
+                    rf'{key_pattern}\\?":\\?"([^"\\]*(?:\\.[^"\\]*)*)',
+                    rf'{key_pattern}\s*=\s*["\']([^"\']+)["\']',
+                )
+                for source in sources:
+                    for pattern in patterns:
+                        match = re.search(pattern, source, re.IGNORECASE)
+                        if match:
+                            cleaned = _clean_embedded_url(match.group(1))
+                            if cleaned:
+                                return cleaned
+            return None
+
+        og_image = _find_meta("og:image:secure_url") or _find_meta("og:image")
+        og_video = (
+            _find_meta("og:video:secure_url")
+            or _find_meta("og:video:url")
+            or _find_meta("og:video")
+        )
         og_title = _find_meta("og:title") or "Untitled"
+        embedded_video = _find_embedded_url(
+            (
+                "playable_url_quality_hd",
+                "browser_native_hd_url",
+                "hd_src",
+                "playable_url",
+                "browser_native_sd_url",
+                "sd_src",
+            )
+        )
+        embedded_image = _find_embedded_url(("preferred_thumbnail", "thumbnailImage", "thumbnail_url", "image"))
 
-        if og_video:
+        video_url = embedded_video or og_video
+        image_url = embedded_image or og_image
+
+        if video_url:
             return {
-                "direct_url": og_video,
+                "direct_url": video_url,
                 "title": og_title,
-                "thumbnail": og_image,
+                "thumbnail": image_url,
                 "ext": "mp4",
                 "filesize": None,
                 "kind": "video",
                 "downloads": {
-                    "videoHD": og_video,
-                    "videoSD": og_video,
-                    "image": og_image,
+                    "videoHD": video_url,
+                    "videoSD": video_url,
+                    "image": image_url,
                 },
             }
 
-        if og_image:
+        if image_url:
             return {
-                "direct_url": og_image,
+                "direct_url": image_url,
                 "title": og_title,
-                "thumbnail": og_image,
+                "thumbnail": image_url,
                 "ext": "jpg",
                 "filesize": None,
                 "kind": "image",
                 "downloads": {
-                    "image": og_image,
+                    "image": image_url,
                 },
             }
 
