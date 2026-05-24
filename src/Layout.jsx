@@ -2,13 +2,31 @@ import React, { Suspense, lazy, useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck } from 'lucide-react';
-import { YouTubeIcon } from '@/components/PlatformIcons';
+import {
+  FacebookIcon,
+  InstagramIcon,
+  PinterestIcon,
+  RedditIcon,
+  TikTokIcon,
+  TwitterXIcon,
+  YouTubeIcon,
+} from '@/components/PlatformIcons';
 import { Button } from '@/components/ui/button';
 import downloadDash from '@/api/downloadDashClient';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useI18n } from '@/lib/i18n';
 
 const AutoAdManager = lazy(() => import('@/components/Ads/AutoAdManager.jsx'));
+
+const platformNavItems = [
+  { page: 'YouTubeDownloader', label: 'YouTube', Icon: YouTubeIcon, hover: 'hover:text-red-400', mobileHover: 'hover:bg-red-500/20' },
+  { page: 'InstagramDownloader', label: 'Instagram', Icon: InstagramIcon, hover: 'hover:text-pink-300', mobileHover: 'hover:bg-pink-500/20' },
+  { page: 'TikTokDownloader', label: 'TikTok', Icon: TikTokIcon, hover: 'hover:text-cyan-300', mobileHover: 'hover:bg-cyan-500/20' },
+  { page: 'FacebookDownloader', label: 'Facebook', Icon: FacebookIcon, hover: 'hover:text-blue-300', mobileHover: 'hover:bg-blue-500/20' },
+  { page: 'PinterestDownloader', label: 'Pinterest', Icon: PinterestIcon, hover: 'hover:text-red-300', mobileHover: 'hover:bg-red-500/20' },
+  { page: 'RedditDownloader', label: 'Reddit', Icon: RedditIcon, hover: 'hover:text-orange-300', mobileHover: 'hover:bg-orange-500/20' },
+  { page: 'TwitterDownloader', label: 'X', Icon: TwitterXIcon, hover: 'hover:text-white', mobileHover: 'hover:bg-gray-800' },
+];
 
 const getPageTheme = (pageName) => {
   if (pageName?.startsWith('Blog')) {
@@ -308,9 +326,15 @@ export default function Layout({ children, currentPageName }) {
                 <Home className="h-4 w-4" /> {t('nav.home')}
               </Link>
 
-              <Link to={createPageUrl('YouTubeDownloader')} className="text-gray-300 hover:text-red-400 transition-colors flex items-center gap-2">
-                <YouTubeIcon size={20} /> YouTube
-              </Link>
+              {platformNavItems.map(({ page, label, Icon, hover }) => (
+                <Link
+                  key={page}
+                  to={createPageUrl(page)}
+                  className={`text-gray-300 ${hover} transition-colors flex items-center gap-2`}
+                >
+                  <Icon size={20} /> {label}
+                </Link>
+              ))}
 
               <Link to={createPageUrl('RecommendedApps')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
                 <Bookmark className="h-4 w-4" /> {t('nav.guides')}
@@ -383,9 +407,16 @@ export default function Layout({ children, currentPageName }) {
                 <Link to={createPageUrl('Home')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                   <Home className="h-5 w-5" /> {t('nav.home')}
                 </Link>
-                <Link to={createPageUrl('YouTubeDownloader')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-red-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <YouTubeIcon size={24} /> {t('nav.publicYoutube')}
-                </Link>
+                {platformNavItems.map(({ page, label, Icon, mobileHover }) => (
+                  <Link
+                    key={page}
+                    to={createPageUrl(page)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white ${mobileHover}`}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Icon size={24} /> {label}
+                  </Link>
+                ))}
                 <Link to={createPageUrl('RecommendedApps')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                   <Bookmark className="h-5 w-5" /> {t('nav.guides')}
                 </Link>
@@ -432,9 +463,15 @@ export default function Layout({ children, currentPageName }) {
             <div>
               <h3 className="text-white font-semibold mb-4">{t('nav.resources')}</h3>
               <div className="space-y-2">
-                <Link to={createPageUrl('YouTubeDownloader')} className="flex items-center gap-2 text-gray-400 hover:text-red-400 text-sm transition-colors">
-                  <YouTubeIcon size={18} /> {t('nav.publicYoutube')}
-                </Link>
+                {platformNavItems.map(({ page, label, Icon, hover }) => (
+                  <Link
+                    key={page}
+                    to={createPageUrl(page)}
+                    className={`flex items-center gap-2 text-gray-400 ${hover} text-sm transition-colors`}
+                  >
+                    <Icon size={18} /> {label} Downloader
+                  </Link>
+                ))}
                 <Link to={createPageUrl('AppDownload')} className="flex items-center gap-2 text-gray-400 hover:text-purple-400 text-sm transition-colors">
                   <Download className="h-4 w-4" /> {t('nav.androidApp')}
                 </Link>

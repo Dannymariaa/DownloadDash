@@ -3,7 +3,15 @@ import { Download, Zap, Shield, Globe, Star, ArrowDown, Smartphone, FileText, Ma
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { YouTubeIcon } from '@/components/PlatformIcons';
+import {
+  FacebookIcon,
+  InstagramIcon,
+  PinterestIcon,
+  RedditIcon,
+  TikTokIcon,
+  TwitterXIcon,
+  YouTubeIcon,
+} from '@/components/PlatformIcons';
 import { featuredBlogPosts } from '@/content/blogPosts';
 
 const stats = [
@@ -55,6 +63,79 @@ const realSiteScreenshots = [
     src: '/assets/real-site-screenshots/platform-preview.png',
     title: 'Support and platform context',
     body: 'Screenshots reinforce that the service includes help content, policy paths, and public-link explanations.',
+  },
+];
+
+const platformTools = [
+  {
+    page: 'YouTubeDownloader',
+    label: 'YouTube',
+    description: 'Videos, Shorts, and audio options',
+    badge: 'Open YouTube Workflow',
+    Icon: YouTubeIcon,
+    border: 'border-red-500/40 hover:border-red-500/80',
+    shadow: 'shadow-red-500/10',
+    badgeClass: 'bg-red-500/20 text-red-400 border-red-500/30',
+  },
+  {
+    page: 'InstagramDownloader',
+    label: 'Instagram',
+    description: 'Reels, posts, stories, and image media',
+    badge: 'Open Instagram Workflow',
+    Icon: InstagramIcon,
+    border: 'border-pink-500/40 hover:border-pink-500/80',
+    shadow: 'shadow-pink-500/10',
+    badgeClass: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
+  },
+  {
+    page: 'TikTokDownloader',
+    label: 'TikTok',
+    description: 'Videos, photos, stories, and audio',
+    badge: 'Open TikTok Workflow',
+    Icon: TikTokIcon,
+    border: 'border-cyan-500/40 hover:border-cyan-500/80',
+    shadow: 'shadow-cyan-500/10',
+    badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+  },
+  {
+    page: 'FacebookDownloader',
+    label: 'Facebook',
+    description: 'Public videos, reels, stories, and posts',
+    badge: 'Open Facebook Workflow',
+    Icon: FacebookIcon,
+    border: 'border-blue-500/40 hover:border-blue-500/80',
+    shadow: 'shadow-blue-500/10',
+    badgeClass: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+  },
+  {
+    page: 'PinterestDownloader',
+    label: 'Pinterest',
+    description: 'Pins, images, and public media links',
+    badge: 'Open Pinterest Workflow',
+    Icon: PinterestIcon,
+    border: 'border-red-500/40 hover:border-red-500/80',
+    shadow: 'shadow-red-500/10',
+    badgeClass: 'bg-red-500/20 text-red-300 border-red-500/30',
+  },
+  {
+    page: 'RedditDownloader',
+    label: 'Reddit',
+    description: 'Posts, hosted video, images, and galleries',
+    badge: 'Open Reddit Workflow',
+    Icon: RedditIcon,
+    border: 'border-orange-500/40 hover:border-orange-500/80',
+    shadow: 'shadow-orange-500/10',
+    badgeClass: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+  },
+  {
+    page: 'TwitterDownloader',
+    label: 'X',
+    description: 'Public posts with video, images, and audio',
+    badge: 'Open X Workflow',
+    Icon: TwitterXIcon,
+    border: 'border-gray-500/40 hover:border-white/80',
+    shadow: 'shadow-white/10',
+    badgeClass: 'bg-white/10 text-white border-white/20',
   },
 ];
 
@@ -484,27 +565,31 @@ export default function Home() {
 
       {/* Tool Section */}
       <section className="py-16 px-4">
-        <div className="max-w-2xl mx-auto text-center">
+        <div className="max-w-6xl mx-auto text-center">
           <div
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-              Use The Download Tool
+              Use The Download Tools
             </h2>
             <p className="text-gray-400 max-w-xl mx-auto mb-8">
               Once you have read the guides and confirmed you are working with a supported public link, you can continue to the downloader and choose the format returned by the backend.
             </p>
-            <Link to={createPageUrl('YouTubeDownloader')}>
-              <div
-                className="inline-flex items-center gap-5 bg-gradient-to-br from-gray-900 to-black border border-red-500/40 hover:border-red-500/80 rounded-3xl px-10 py-7 shadow-xl shadow-red-500/10 transition-all duration-300 cursor-pointer"
-              >
-                <YouTubeIcon size={64} />
-                <div className="text-left">
-                  <p className="text-2xl font-bold text-white">YouTube</p>
-                  <p className="text-gray-400 text-sm mt-1">Public media workflow</p>
-                  <span className="inline-block mt-2 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full">Open Public Workflow</span>
-                </div>
-              </div>
-            </Link>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {platformTools.map(({ page, label, description, badge, Icon, border, shadow, badgeClass }) => (
+                <Link key={page} to={createPageUrl(page)} className="block">
+                  <div
+                    className={`h-full flex items-center gap-4 bg-gradient-to-br from-gray-900 to-black border ${border} rounded-2xl p-5 shadow-xl ${shadow} transition-all duration-300 cursor-pointer text-left`}
+                  >
+                    <Icon size={52} className="shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xl font-bold text-white">{label}</p>
+                      <p className="text-gray-400 text-sm mt-1">{description}</p>
+                      <span className={`inline-block mt-3 text-xs border px-3 py-1 rounded-full ${badgeClass}`}>{badge}</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       </section>

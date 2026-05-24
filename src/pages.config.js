@@ -52,6 +52,12 @@ import Home from './pages/Home';
 import __Layout from './Layout.jsx';
 
 const YouTubeDownloader = lazy(() => import('./pages/YouTubeDownloader'));
+const InstagramDownloader = lazy(() => import('./pages/InstagramDownloader'));
+const TikTokDownloader = lazy(() => import('./pages/TikTokDownloader'));
+const RedditDownloader = lazy(() => import('./pages/RedditDownloader'));
+const PinterestDownloader = lazy(() => import('./pages/PinterestDownloader'));
+const FacebookDownloader = lazy(() => import('./pages/FacebookDownloader'));
+const TwitterDownloader = lazy(() => import('./pages/TwitterDownloader'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const RecommendedApps = lazy(() => import('./pages/RecommendedApps'));
 const HowDownloadDashWorks = lazy(() => import('./pages/HowDownloadDashWorks'));
@@ -99,6 +105,12 @@ const AppDownload = lazy(() => import('./pages/AppDownload'));
 export const PAGES = {
     "Home": Home,
     "YouTubeDownloader": YouTubeDownloader,
+    "InstagramDownloader": InstagramDownloader,
+    "TikTokDownloader": TikTokDownloader,
+    "RedditDownloader": RedditDownloader,
+    "PinterestDownloader": PinterestDownloader,
+    "FacebookDownloader": FacebookDownloader,
+    "TwitterDownloader": TwitterDownloader,
     "Dashboard": Dashboard,
     "RecommendedApps": RecommendedApps,
     "HowDownloadDashWorks": HowDownloadDashWorks,

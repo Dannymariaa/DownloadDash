@@ -18,13 +18,13 @@ import { useI18n } from '@/lib/i18n';
 const urlPatterns = {
   tiktok: /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\/.+/i,
   instagram: /^https?:\/\/(www\.)?instagram\.com\/(p|reel|stories|tv)\/.+/i,
-  facebook: /^https?:\/\/(www\.|m\.|web\.)?facebook\.com\/(watch|video|reel|story)\/.+|^https?:\/\/fb\.watch\/.+/i,
+  facebook: /^https?:\/\/(www\.|m\.|mbasic\.|web\.)?facebook\.com\/.+|^https?:\/\/fb\.watch\/.+/i,
   twitter: /^https?:\/\/(www\.|mobile\.)?(twitter\.com|x\.com)\/.+\/status\/.+/i,
   youtube: /^https?:\/\/(www\.|m\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/).+/i,
   telegram: /^https?:\/\/(t\.me|telegram\.me)\/.+/i,
   snapchat: /^https?:\/\/(www\.)?snapchat\.com\/(spotlight|add|story)\/.+/i,
-  pinterest: /^https?:\/\/(www\.)?pinterest\.(com|co\.uk|ca|de|fr)\/(pin|video)\/.+/i,
-  reddit: /^https?:\/\/(www\.|old\.)?reddit\.com\/r\/.+\/(comments|s)\/.+/i,
+  pinterest: /^https?:\/\/((www\.)?pinterest\.(com|co\.uk|ca|de|fr)\/.+|pin\.it\/.+)/i,
+  reddit: /^https?:\/\/((www\.|old\.|new\.|m\.)?reddit\.com\/.+|redd\.it\/.+)/i,
   whatsapp: /^https?:\/\/.+/i,
 };
 
