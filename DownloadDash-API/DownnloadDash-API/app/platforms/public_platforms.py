@@ -1,6 +1,7 @@
 import yt_dlp
 import asyncio
 from typing import Dict, Any, Optional
+import base64
 import html as html_lib
 import os
 import uuid
@@ -47,9 +48,13 @@ class PublicPlatformDownloader:
             "Accept-Language": "en-US,en;q=0.9",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
             "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
         }
         if origin:
-            headers["Origin"] = origin
             headers["Referer"] = origin + "/"
         return headers
 
@@ -1000,6 +1005,41 @@ class PublicPlatformDownloader:
             }
 
         return None
+
+    def facebook_fallback_urls(self, url: str) -> list[str]:
+        urls = [url]
+        if "www.facebook.com" in url:
+            urls.append(url.replace("www.facebook.com", "m.facebook.com", 1))
+            urls.append(url.replace("www.facebook.com", "mbasic.facebook.com", 1))
+        elif "m.facebook.com" in url:
+            urls.append(url.replace("m.facebook.com", "www.facebook.com", 1))
+            urls.append(url.replace("m.facebook.com", "mbasic.facebook.com", 1))
+        elif "facebook.com" in url:
+            urls.append(url.replace("facebook.com", "www.facebook.com", 1))
+            urls.append(url.replace("facebook.com", "m.facebook.com", 1))
+            urls.append(url.replace("facebook.com", "mbasic.facebook.com", 1))
+
+        parsed = urlparse(url)
+        story_match = re.search(r"/stories/([^/]+)/([^/?#]+)", parsed.path)
+        if story_match:
+            owner_id = story_match.group(1)
+            encoded_story_id = story_match.group(2)
+            decoded_story_id = None
+            try:
+                padded = encoded_story_id + ("=" * (-len(encoded_story_id) % 4))
+                decoded = base64.urlsafe_b64decode(padded).decode("utf-8", errors="ignore")
+                decoded_match = re.search(r"(\d{8,})", decoded)
+                if decoded_match:
+                    decoded_story_id = decoded_match.group(1)
+            except Exception:
+                decoded_story_id = None
+
+            if decoded_story_id:
+                for host in ("www.facebook.com", "m.facebook.com", "mbasic.facebook.com"):
+                    urls.append(f"https://{host}/story.php?story_fbid={decoded_story_id}&id={owner_id}")
+                    urls.append(f"https://{host}/permalink.php?story_fbid={decoded_story_id}&id={owner_id}")
+
+        return list(dict.fromkeys(urls))
 
     async def _fallback_instagram_json(self, url: str) -> Optional[Dict[str, Any]]:
         # Try Instagram internal JSON endpoint (requires cookies for many posts).

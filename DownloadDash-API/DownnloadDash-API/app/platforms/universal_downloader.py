@@ -531,13 +531,9 @@ class UniversalMediaDownloader:
         try:
             return await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
         except Exception as primary_error:
-            fallback_urls = [url]
-            if "www.facebook.com" in url:
-                fallback_urls.append(url.replace("www.facebook.com", "m.facebook.com", 1))
-            elif "facebook.com" in url and "m.facebook.com" not in url:
-                fallback_urls.append(url.replace("facebook.com", "m.facebook.com", 1))
+            fallback_urls = self.public_downloader.facebook_fallback_urls(url)  # type: ignore[attr-defined]
 
-            for fallback_url in dict.fromkeys(fallback_urls):
+            for fallback_url in fallback_urls:
                 try:
                     fallback = await self.public_downloader._fallback_opengraph(fallback_url)  # type: ignore[attr-defined]
                 except Exception:
@@ -549,7 +545,14 @@ class UniversalMediaDownloader:
                     )
                     return fallback
 
+            cookie_names = self.public_downloader._cookie_names_for_url(url)  # type: ignore[attr-defined]
+            cookie_hint = (
+                f"facebook_cookie_count={len(cookie_names)}"
+                if cookie_names
+                else "facebook_cookie_count=0"
+            )
             raise Exception(
-                f"{primary_error}. Facebook stories need a public story or fresh SMD_YTDLP_COOKIE_DATA_FACEBOOK / "
-                "SMD_GALLERY_DL_COOKIE_DATA_FACEBOOK cookies from an account that can view the story."
+                f"{primary_error}. Facebook stories are login-gated and expire quickly. "
+                f"{cookie_hint}. Add fresh Netscape-format SMD_YTDLP_COOKIE_DATA_FACEBOOK cookies "
+                "from an account that can view this exact story, then redeploy Render."
             )

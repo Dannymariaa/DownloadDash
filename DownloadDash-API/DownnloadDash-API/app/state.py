@@ -12,7 +12,11 @@ def _count_cookie_rows(cookie_text: str) -> int:
     count = 0
     for line in cookie_text.splitlines():
         stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
+        if not stripped:
+            continue
+        if stripped.startswith("#HttpOnly_"):
+            stripped = stripped.replace("#HttpOnly_", "", 1)
+        elif stripped.startswith("#"):
             continue
         if len(stripped.split("\t")) >= 7:
             count += 1
@@ -35,15 +39,26 @@ def _resolve_cookiefile(
 
     print(f"Info: yt-dlp {label} cookie env length: {len(cookie_data)}")
     cookie_text = cookie_data.replace("\\n", "\n").strip()
+    if cookie_text.lower() in {"value", "your-cookie-data", "your-cookies", "paste-cookies-here"}:
+        print(f"Warning: yt-dlp {label} cookie data is still a placeholder; ignoring it")
+        return None
     if not cookie_text:
         print(f"Warning: yt-dlp {label} cookie data is set but empty after parsing")
+        return None
+
+    cookie_rows = _count_cookie_rows(cookie_text)
+    if cookie_rows <= 0:
+        print(
+            f"Warning: yt-dlp {label} cookie data has no valid Netscape cookie rows; "
+            "export cookies as Netscape format and paste the full text"
+        )
         return None
 
     cookie_path = Path(settings.TEMP_PATH) / filename
     cookie_path.write_text(cookie_text + "\n", encoding="utf-8")
     print(
         f"Info: yt-dlp {label} cookies loaded from environment into {cookie_path} "
-        f"with {_count_cookie_rows(cookie_text)} valid rows and parsed length {len(cookie_text)}"
+        f"with {cookie_rows} valid rows and parsed length {len(cookie_text)}"
     )
     return str(cookie_path)
 
