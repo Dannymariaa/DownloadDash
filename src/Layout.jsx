@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck } from 'lucide-react';
+import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck, ChevronDown } from 'lucide-react';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -261,6 +261,7 @@ const getPageTheme = (pageName) => {
 
 export default function Layout({ children, currentPageName }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isPlatformsOpen, setIsPlatformsOpen] = useState(false);
   const [user, setUser] = useState(null);
   const { t } = useI18n();
   const theme = useMemo(() => getPageTheme(currentPageName), [currentPageName]);
@@ -326,15 +327,45 @@ export default function Layout({ children, currentPageName }) {
                 <Home className="h-4 w-4" /> {t('nav.home')}
               </Link>
 
-              {platformNavItems.map(({ page, label, Icon, hover }) => (
-                <Link
-                  key={page}
-                  to={createPageUrl(page)}
-                  className={`text-gray-300 ${hover} transition-colors flex items-center gap-2`}
+              <div
+                className="relative"
+                onMouseEnter={() => setIsPlatformsOpen(true)}
+                onMouseLeave={() => setIsPlatformsOpen(false)}
+              >
+                <button
+                  type="button"
+                  className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2"
+                  aria-haspopup="menu"
+                  aria-expanded={isPlatformsOpen}
+                  onClick={() => setIsPlatformsOpen((open) => !open)}
                 >
-                  <Icon size={20} /> {label}
-                </Link>
-              ))}
+                  <Bookmark className="h-4 w-4" />
+                  Platforms
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isPlatformsOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isPlatformsOpen && (
+                  <div
+                    role="menu"
+                    className="absolute left-0 top-full pt-3"
+                  >
+                    <div className="w-64 rounded-2xl border border-purple-500/20 bg-black/95 p-2 shadow-2xl shadow-purple-900/30 backdrop-blur-xl">
+                      {platformNavItems.map(({ page, label, Icon, hover }) => (
+                        <Link
+                          key={page}
+                          to={createPageUrl(page)}
+                          role="menuitem"
+                          className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-gray-300 ${hover} hover:bg-white/10 transition-colors`}
+                          onClick={() => setIsPlatformsOpen(false)}
+                        >
+                          <Icon size={22} />
+                          <span>{label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <Link to={createPageUrl('RecommendedApps')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
                 <Bookmark className="h-4 w-4" /> {t('nav.guides')}
