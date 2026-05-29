@@ -367,18 +367,6 @@ export default function Layout({ children, currentPageName }) {
                 )}
               </div>
 
-              <Link to={createPageUrl('RecommendedApps')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
-                <Bookmark className="h-4 w-4" /> {t('nav.guides')}
-              </Link>
-              <Link to={createPageUrl('HowDownloadDashWorks')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
-                <FileText className="h-4 w-4" /> {t('nav.howItWorks')}
-              </Link>
-              <Link to={createPageUrl('Blog')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
-                <LifeBuoy className="h-4 w-4" /> {t('nav.blog')}
-              </Link>
-              <Link to={createPageUrl('TrustCenter')} className="text-gray-300 hover:text-emerald-300 transition-colors flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" /> {t('nav.trust')}
-              </Link>
               {user && (
                 <Link to={createPageUrl('Dashboard')} className="text-gray-300 hover:text-purple-400 transition-colors flex items-center gap-2">
                   <History className="h-4 w-4" /> {t('nav.dashboard')}
@@ -448,20 +436,8 @@ export default function Layout({ children, currentPageName }) {
                     <Icon size={24} /> {label}
                   </Link>
                 ))}
-                <Link to={createPageUrl('RecommendedApps')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <Bookmark className="h-5 w-5" /> {t('nav.guides')}
-                </Link>
-                <Link to={createPageUrl('HowDownloadDashWorks')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <FileText className="h-5 w-5" /> {t('nav.howItWorks')}
-                </Link>
                 <Link to={createPageUrl('Troubleshooting')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                   <LifeBuoy className="h-5 w-5" /> {t('nav.troubleshooting')}
-                </Link>
-                <Link to={createPageUrl('Blog')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <LifeBuoy className="h-5 w-5" /> {t('nav.blog')}
-                </Link>
-                <Link to={createPageUrl('TrustCenter')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-emerald-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <ShieldCheck className="h-5 w-5" /> {t('nav.trustCenter')}
                 </Link>
                 {user ? (
                   <Link to={createPageUrl('Dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
