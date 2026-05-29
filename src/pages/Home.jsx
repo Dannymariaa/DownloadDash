@@ -174,7 +174,7 @@ export default function Home() {
           <div>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-300 text-sm mb-8">
               <Zap className="h-4 w-4" />
-              <span>Fast media saving for public, permitted content</span>
+              <span>Fast media saving for supported public links</span>
             </div>
 
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
@@ -187,8 +187,8 @@ export default function Home() {
             </h1>
 
             <p className="text-xl md:text-2xl text-gray-400 mb-8 max-w-2xl mx-auto">
-              Save publicly available videos, shorts, and audio for personal use when you have the right to do so.
-              <span className="text-purple-400"> Simple, mobile-friendly, and transparent.</span>
+              Save supported public videos, images, and audio from major social platforms with a clean browser-based workflow.
+              <span className="text-purple-400"> Fast, mobile-friendly, and easy to use.</span>
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
@@ -605,8 +605,8 @@ export default function Home() {
                 Responsible Use & Site Trust
               </h2>
               <p className="text-gray-400 max-w-3xl mx-auto">
-                DownloadDash is built for lawful personal use, public links, and content you own or have permission to save.
-                We do not encourage copyright infringement, harmful content, or misuse of third-party platforms.
+                DownloadDash is built as a clean, transparent public-link utility for creators, students, teams, and everyday users who need a simple way to save supported media.
+                Clear help pages, visible policies, and platform-specific tools make the experience easier to trust.
               </p>
             </div>
 

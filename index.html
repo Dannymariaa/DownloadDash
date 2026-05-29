@@ -2,8 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -15,12 +17,12 @@
     <link rel="manifest" href="/manifest.json" />
 
     <!-- Primary Meta Tags -->
-    <title>DownloadDash - Download Videos and Images from Social Media</title>
+    <title>DownloadDash - Fast Social Media Video, Image, and Audio Saver</title>
     <link rel="canonical" href="https://www.downloaddash.store/" />
-    <meta name="title" content="DownloadDash - Download Videos and Images from Social Media" />
-    <meta name="description" content="DownloadDash helps you save publicly available videos, shorts, images, and audio from supported social media platforms for personal offline use." />
+    <meta name="title" content="DownloadDash - Fast Social Media Video, Image, and Audio Saver" />
+    <meta name="description" content="DownloadDash is a clean, mobile-friendly media utility for saving public videos, images, and audio from supported platforms including YouTube, Instagram, TikTok, Facebook, Pinterest, Reddit, and X." />
     <meta name="image" content="https://www.downloaddash.store/icon-512.png" />
-    <meta name="keywords" content="public media saving platform, public link media tools, responsible media saving, DownloadDash trust center, media support guides" />
+    <meta name="keywords" content="DownloadDash, Download Dash, downloaddash.store, social media video downloader, YouTube downloader, Instagram downloader, TikTok downloader, Facebook video downloader, Pinterest downloader, Reddit downloader, X downloader" />
     <meta name="author" content="DownloadDash" />
     <meta name="robots" content="index, follow" />
 
@@ -28,8 +30,8 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.downloaddash.store/" />
     <meta property="og:site_name" content="DownloadDash" />
-    <meta property="og:title" content="DownloadDash - Social Media Video Downloader" />
-    <meta property="og:description" content="Save public videos, shorts, images, and audio from supported platforms with DownloadDash." />
+    <meta property="og:title" content="DownloadDash - Fast Social Media Media Saver" />
+    <meta property="og:description" content="Use DownloadDash to save supported public videos, images, and audio from major social platforms through a clean, mobile-friendly workflow." />
     <meta property="og:image" content="https://www.downloaddash.store/icon-512.png" />
     <meta property="og:image:secure_url" content="https://www.downloaddash.store/icon-512.png" />
     <meta property="og:image:type" content="image/png" />
@@ -40,8 +42,8 @@
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://www.downloaddash.store/" />
-    <meta name="twitter:title" content="DownloadDash - Social Media Video Downloader" />
-    <meta name="twitter:description" content="Save public media links quickly and easily with DownloadDash." />
+    <meta name="twitter:title" content="DownloadDash - Fast Social Media Media Saver" />
+    <meta name="twitter:description" content="DownloadDash helps you save supported public videos, images, and audio from major social platforms with a clean mobile-friendly workflow." />
     <meta name="twitter:image" content="https://www.downloaddash.store/icon-512.png" />
     <meta name="twitter:image:alt" content="DownloadDash public media saving platform" />
 
@@ -49,20 +51,60 @@
     <meta name="theme-color" content="#3b82f6" />
     <meta name="msapplication-TileColor" content="#000000" />
     <style>
+      html {
+        background: #000;
+      }
+      body {
+        margin: 0;
+        background: #000;
+      }
       .initial-shell {
         min-height: 100vh;
-        background: #000;
+        background:
+          radial-gradient(circle at top, rgba(147, 51, 234, .22), transparent 34rem),
+          linear-gradient(180deg, #08000f 0%, #000 64%);
         color: #fff;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
         padding: 5rem 1rem;
         box-sizing: border-box;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
       .initial-shell__inner {
         max-width: 72rem;
         margin: 0 auto;
+        text-align: center;
+      }
+      .initial-shell__nav {
+        width: min(72rem, calc(100vw - 2rem));
+        margin: -3rem auto 5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      .initial-shell__brand {
+        display: inline-flex;
+        align-items: center;
+        gap: .75rem;
+        color: #fff;
+        font-weight: 800;
+        font-size: 1.25rem;
+      }
+      .initial-shell__brand-mark {
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: .9rem;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #7c3aed, #db2777);
+        box-shadow: 0 1rem 2rem rgba(168, 85, 247, .22);
+      }
+      .initial-shell__nav-pill {
+        border: 1px solid rgba(168, 85, 247, .28);
+        color: #d8b4fe;
+        border-radius: 999px;
+        padding: .65rem 1rem;
+        background: rgba(0, 0, 0, .36);
+        font-size: .9rem;
       }
       .initial-shell__eyebrow {
         display: inline-flex;
@@ -93,6 +135,59 @@
         color: #c084fc;
         font-weight: 500;
       }
+      .initial-shell__actions {
+        margin-top: 2rem;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: .75rem;
+      }
+      .initial-shell__button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 3rem;
+        border-radius: .85rem;
+        padding: 0 1.25rem;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+        background: linear-gradient(135deg, #7c3aed, #db2777);
+        box-shadow: 0 1rem 2rem rgba(168, 85, 247, .18);
+      }
+      .initial-shell__button--secondary {
+        background: rgba(255, 255, 255, .06);
+        border: 1px solid rgba(168, 85, 247, .32);
+        color: #d8b4fe;
+        box-shadow: none;
+      }
+      .initial-shell__platforms {
+        max-width: 54rem;
+        margin: 3rem auto 0;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .75rem;
+      }
+      .initial-shell__platform {
+        border: 1px solid rgba(255, 255, 255, .1);
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, .05);
+        color: #e5e7eb;
+        padding: .85rem;
+        font-size: .95rem;
+        font-weight: 700;
+      }
+      @media (max-width: 680px) {
+        .initial-shell {
+          padding: 4rem 1rem;
+        }
+        .initial-shell__nav {
+          margin: -2rem auto 3.5rem;
+        }
+        .initial-shell__platforms {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
     </style>
 
     <!-- Security -->
@@ -102,12 +197,20 @@
         "@context": "https://schema.org",
         "@type": "WebSite",
         "name": "DownloadDash",
+        "alternateName": ["Download Dash", "DownloadDash Store", "downloaddash.store"],
         "url": "https://www.downloaddash.store/",
-        "description": "DownloadDash helps users save publicly available videos, shorts, images, and audio from supported social media platforms for personal use.",
+        "description": "DownloadDash is a clean, mobile-friendly media utility for saving supported public videos, images, and audio from major social platforms.",
+        "inLanguage": "en-US",
         "publisher": {
           "@type": "Organization",
           "name": "DownloadDash",
-          "url": "https://www.downloaddash.store/"
+          "url": "https://www.downloaddash.store/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://www.downloaddash.store/icon-512.png",
+            "width": 512,
+            "height": 512
+          }
         },
         "potentialAction": {
           "@type": "SearchAction",
@@ -116,20 +219,102 @@
         }
       }
     </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "DownloadDash",
+        "alternateName": ["Download Dash", "downloaddash.store"],
+        "url": "https://www.downloaddash.store/",
+        "logo": "https://www.downloaddash.store/icon-512.png",
+        "image": "https://www.downloaddash.store/og-image.png",
+        "description": "DownloadDash provides a clean social media media-saving workflow for supported public links."
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "DownloadDash",
+        "url": "https://www.downloaddash.store/",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Web, Android, iOS, Windows, macOS",
+        "image": "https://www.downloaddash.store/icon-512.png",
+        "description": "DownloadDash helps users save supported public videos, images, and audio from YouTube, Instagram, TikTok, Facebook, Pinterest, Reddit, and X through a simple browser-based workflow.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is DownloadDash?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "DownloadDash is a clean, mobile-friendly utility for saving supported public videos, images, and audio from major social platforms."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which platforms does DownloadDash support?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "DownloadDash includes dedicated pages for YouTube, Instagram, TikTok, Facebook, Pinterest, Reddit, and X."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is DownloadDash safe to use?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "DownloadDash is designed as a browser-based public-link tool with a clear interface, visible support pages, and no requirement to install extra software for the web workflow."
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root">
       <main class="initial-shell">
+        <nav class="initial-shell__nav" aria-label="DownloadDash">
+          <div class="initial-shell__brand">
+            <span class="initial-shell__brand-mark">↓</span>
+            DownloadDash
+          </div>
+          <div class="initial-shell__nav-pill">Platforms</div>
+        </nav>
         <section class="initial-shell__inner" aria-labelledby="initial-title">
-          <div class="initial-shell__eyebrow">Fast media saving for public, permitted content</div>
+          <div class="initial-shell__eyebrow">Fast media saving for supported public links</div>
           <h1 id="initial-title">DownloadDash</h1>
           <p>
-            Save publicly available videos, shorts, and audio for personal use when you have the right to do so.
-            <strong>Simple, mobile-friendly, and transparent.</strong>
+            Save supported public videos, images, and audio from major social platforms with a clean browser-based workflow.
+            <strong>Fast, mobile-friendly, and easy to use.</strong>
           </p>
+          <div class="initial-shell__actions">
+            <a class="initial-shell__button" href="/youtube-downloader">Open Downloader</a>
+            <a class="initial-shell__button initial-shell__button--secondary" href="/supported-platforms">Supported Platforms</a>
+          </div>
+          <div class="initial-shell__platforms" aria-label="Supported platform pages">
+            <div class="initial-shell__platform">YouTube</div>
+            <div class="initial-shell__platform">Instagram</div>
+            <div class="initial-shell__platform">TikTok</div>
+            <div class="initial-shell__platform">Facebook</div>
+            <div class="initial-shell__platform">Pinterest</div>
+            <div class="initial-shell__platform">Reddit</div>
+            <div class="initial-shell__platform">X</div>
+            <div class="initial-shell__platform">More</div>
+          </div>
         </section>
       </main>
     </div>
-    <script type="module" src="/src/bootstrap.jsx"></script>
+    <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

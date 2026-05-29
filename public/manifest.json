@@ -1,7 +1,7 @@
 {
   "name": "DownloadDash",
   "short_name": "DownloadDash",
-  "description": "Public media saving platform for supported public links.",
+  "description": "Clean, mobile-friendly media utility for saving supported public videos, images, and audio from major social platforms.",
   "start_url": "/",
   "id": "/",
   "display": "standalone",
@@ -13,6 +13,12 @@
   "lang": "en-US",
   "categories": ["utilities", "productivity"],
   "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",

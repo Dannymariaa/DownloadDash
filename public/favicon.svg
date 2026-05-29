@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="DownloadDash">
+  <rect width="96" height="96" rx="20" fill="#090011"/>
+  <circle cx="48" cy="48" r="34" fill="#2a0644"/>
+  <path d="M48 15v42" stroke="#ffffff" stroke-width="15" stroke-linecap="round"/>
+  <path d="M27 47l21 25 21-25H57V15H39v32H27z" fill="#a855f7" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M20 68c13 12 43 12 56 0" fill="none" stroke="#d946ef" stroke-width="7" stroke-linecap="round"/>
+</svg>

@@ -8,6 +8,15 @@ const bootApp = () => {
   import('@/bootstrap.jsx');
 };
 
+const scheduleHomepageBoot = () => {
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(bootApp, { timeout: HOMEPAGE_BOOT_DELAY_MS });
+    return;
+  }
+
+  window.setTimeout(bootApp, HOMEPAGE_BOOT_DELAY_MS);
+};
+
 if (window.location.pathname !== '/') {
   bootApp();
 } else {
@@ -15,5 +24,5 @@ if (window.location.pathname !== '/') {
   window.addEventListener('keydown', bootApp, { once: true });
   window.addEventListener('touchstart', bootApp, { once: true, passive: true });
   window.addEventListener('scroll', bootApp, { once: true, passive: true });
-  window.setTimeout(bootApp, HOMEPAGE_BOOT_DELAY_MS);
+  scheduleHomepageBoot();
 }

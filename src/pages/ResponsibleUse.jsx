@@ -21,9 +21,9 @@ const principles = [
 ];
 
 const scenarios = [
-  ['Usually more defensible', 'Saving your own work, creator backups, licensed files, or internal review copies where permission already exists.'],
-  ['Needs more caution', 'Educational, research, or archival use where laws and licenses may differ by region and context.'],
-  ['Not what this site should encourage', 'Unauthorized reposting, impersonation, piracy, scraping private material, or bypassing restrictions you were not meant to bypass.'],
+  ['Great fit', 'Saving your own work, creator backups, licensed files, portfolio material, or internal review copies where permission already exists.'],
+  ['Review first', 'Educational, research, or archival use can be legitimate, but users should still confirm the source rules, license, and local requirements.'],
+  ['Respect boundaries', 'DownloadDash is designed for public-link workflows and encourages users to respect creators, attribution, privacy, and platform access rules.'],
 ];
 
 export default function ResponsibleUse() {
@@ -33,9 +33,9 @@ export default function ResponsibleUse() {
         <div className="max-w-6xl mx-auto px-4 py-16 md:py-22 grid lg:grid-cols-[1fr_1fr] gap-8 items-center">
           <div>
             <p className="text-sm uppercase tracking-[0.28em] text-lime-200/70 mb-4">Rights and responsibilities</p>
-            <h1 className="text-4xl md:text-6xl font-black leading-tight mb-6">Responsible use is a product feature, not a legal footnote.</h1>
+            <h1 className="text-4xl md:text-6xl font-black leading-tight mb-6">Responsible use makes DownloadDash more helpful and trustworthy.</h1>
             <p className="text-lg text-slate-300 leading-8 max-w-3xl">
-              This page is styled more like a manifesto than a landing page because it exists to communicate standards. DownloadDash should feel clear about what it supports and equally clear about what it does not want to encourage.
+              DownloadDash is built around clean public-link workflows, clear guidance, and respect for creators. The goal is to help users save supported media with confidence and good judgment.
             </p>
           </div>
           <div className="rounded-[2rem] border border-lime-300/20 bg-black/30 p-8 backdrop-blur-xl">
