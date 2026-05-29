@@ -84,6 +84,12 @@ const BlogMobileFirstModernWebApps = lazy(() => import('./pages/BlogMobileFirstM
 const BlogImportanceOfTrustPages = lazy(() => import('./pages/BlogImportanceOfTrustPages'));
 const BlogFastWebsitesRankBetter = lazy(() => import('./pages/BlogFastWebsitesRankBetter'));
 const BlogGoogleSearchIndexingWorks = lazy(() => import('./pages/BlogGoogleSearchIndexingWorks'));
+const BlogInstagramContentLibrary2026 = lazy(() => import('./pages/BlogInstagramContentLibrary2026'));
+const BlogTikTokCreatorArchiveWorkflow = lazy(() => import('./pages/BlogTikTokCreatorArchiveWorkflow'));
+const BlogFacebookPublicMediaGuide = lazy(() => import('./pages/BlogFacebookPublicMediaGuide'));
+const BlogPinterestVisualResearchLibrary = lazy(() => import('./pages/BlogPinterestVisualResearchLibrary'));
+const BlogRedditMediaResearchGuide = lazy(() => import('./pages/BlogRedditMediaResearchGuide'));
+const BlogXRealTimeMediaArchive = lazy(() => import('./pages/BlogXRealTimeMediaArchive'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const Contact = lazy(() => import('./pages/Contact'));
@@ -137,6 +143,12 @@ export const PAGES = {
     "BlogImportanceOfTrustPages": BlogImportanceOfTrustPages,
     "BlogFastWebsitesRankBetter": BlogFastWebsitesRankBetter,
     "BlogGoogleSearchIndexingWorks": BlogGoogleSearchIndexingWorks,
+    "BlogInstagramContentLibrary2026": BlogInstagramContentLibrary2026,
+    "BlogTikTokCreatorArchiveWorkflow": BlogTikTokCreatorArchiveWorkflow,
+    "BlogFacebookPublicMediaGuide": BlogFacebookPublicMediaGuide,
+    "BlogPinterestVisualResearchLibrary": BlogPinterestVisualResearchLibrary,
+    "BlogRedditMediaResearchGuide": BlogRedditMediaResearchGuide,
+    "BlogXRealTimeMediaArchive": BlogXRealTimeMediaArchive,
     "PrivacyPolicy": PrivacyPolicy,
     "TermsOfService": TermsOfService,
     "Contact": Contact,
