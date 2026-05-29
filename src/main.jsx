@@ -9,11 +9,6 @@ const bootApp = () => {
 };
 
 const scheduleHomepageBoot = () => {
-  if ('requestIdleCallback' in window) {
-    window.requestIdleCallback(bootApp, { timeout: HOMEPAGE_BOOT_DELAY_MS });
-    return;
-  }
-
   window.setTimeout(bootApp, HOMEPAGE_BOOT_DELAY_MS);
 };
 
