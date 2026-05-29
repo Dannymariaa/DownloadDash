@@ -1,4 +1,4 @@
-const HOMEPAGE_BOOT_DELAY_MS = 30000;
+const HOMEPAGE_BOOT_DELAY_MS = 3500;
 
 let started = false;
 

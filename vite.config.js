@@ -1,11 +1,50 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import fs from 'node:fs'
 import path from 'path'
+
+const inlineEntryChunk = () => ({
+  name: 'inline-entry-chunk',
+  closeBundle() {
+    const distDir = path.resolve(__dirname, 'dist');
+    const htmlPath = path.join(distDir, 'index.html');
+
+    if (!fs.existsSync(htmlPath)) {
+      return;
+    }
+
+    let html = fs.readFileSync(htmlPath, 'utf8');
+    const entryScriptPattern = /<script type="module" crossorigin src="\/(assets\/index-[^"]+\.js)"><\/script>/;
+    const match = html.match(entryScriptPattern);
+
+    if (!match) {
+      return;
+    }
+
+    const entryFileName = match[1];
+    const entryPath = path.join(distDir, entryFileName);
+
+    if (!fs.existsSync(entryPath)) {
+      return;
+    }
+
+    const entryCode = fs
+      .readFileSync(entryPath, 'utf8')
+      .replace(/import\("\.\/([^"]+\.js)"\)/g, 'import("./assets/$1")');
+    html = html.replace(
+      entryScriptPattern,
+      `<script type="module">${entryCode}</script>`,
+    );
+    fs.writeFileSync(htmlPath, html);
+    fs.unlinkSync(entryPath);
+  },
+});
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    inlineEntryChunk(),
   ],
   resolve: {
     alias: {
