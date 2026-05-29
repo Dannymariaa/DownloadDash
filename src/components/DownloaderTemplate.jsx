@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, Link as LinkIcon, Loader2, CheckCircle,
   AlertCircle, Bookmark, Shield, Film, Volume2, Image, Crown, Zap, Target, Lock, Eye, Play,
-  Music, Camera, User, MessageCircle, Send, Pin, FileText, Video, Hash
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +12,7 @@ import RewardedAdModal from '@/components/Ads/RewardedAdModal';
 import SkippableAdModal from '@/components/Ads/SkippableAdModal';
 import ShortAdModal from '@/components/Ads/ShortAdModal';
 import { useI18n } from '@/lib/i18n';
+import { getPlatformIcon } from '@/components/PlatformIcons';
 
 // Platform URL validation
 const urlPatterns = {
@@ -43,19 +43,6 @@ const validateUrl = (url, platform, t) => {
   return { valid: true, url: sanitized };
 };
 
-const platformIcons = {
-  tiktok: Music,
-  instagram: Camera,
-  facebook: User,
-  twitter: Hash,
-  youtube: Video,
-  whatsapp: MessageCircle,
-  whatsappbusiness: MessageCircle,
-  telegram: Send,
-  pinterest: Pin,
-  reddit: FileText,
-};
-
 export default function DownloaderTemplate({
   platform,
   platformName,
@@ -77,10 +64,9 @@ export default function DownloaderTemplate({
   const [showPreview, setShowPreview] = useState(false);
   const [pendingDownload, setPendingDownload] = useState(null);
   const [activeAd, setActiveAd] = useState(null);
-  const PlatformIcon = platformIcons[platform] || Download;
   const platformIconNode = React.isValidElement(platformIcon)
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
-    : null;
+    : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
 
   const handleFetch = async () => {
     const validation = validateUrl(url, platform, t);
@@ -261,7 +247,7 @@ export default function DownloaderTemplate({
             whileHover={{ scale: 1.1, rotate: 5 }}
             transition={{ type: 'spring', stiffness: 300 }}
           >
-            {platformIconNode || <PlatformIcon className="h-12 w-12 text-white" strokeWidth={1.8} />}
+            {platformIconNode || <Download className="h-12 w-12 text-white" strokeWidth={1.8} />}
           </motion.div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">
             {t('downloader.title', { platformName })}
