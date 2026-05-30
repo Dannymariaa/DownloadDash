@@ -74,7 +74,7 @@ The full launch kit is preserved in `docs/enterprise-trust-launch-kit`. Core tru
 
 ### Deploy to Web Platforms
 
-DownloadDash can be deployed to any static hosting service. This repository includes both `vercel.json` and `netlify.toml` so the app is configured for SPA routing and static asset delivery.
+DownloadDash can be deployed to any static hosting service. This repository includes both `vercel.json` and `render.yaml` so the app is configured for SPA routing and static asset delivery.
 
 #### Vercel (Recommended)
 ```bash
@@ -82,11 +82,19 @@ npm i -g vercel
 vercel
 ```
 
-#### Netlify
-```bash
-npm i -g netlify-cli
-netlify deploy --prod --dir=dist
-```
+#### Render
+1. Create a new Static Site in Render.
+2. Set the build command to:
+   ```bash
+   npm install && npm run build
+   ```
+3. Set the publish directory to:
+   ```txt
+dist
+   ```
+4. Add a rewrite rule for SPA routing if needed:
+   - Source: `/*`
+   - Destination: `/index.html`
 
 #### Other Platforms
 - Upload the `dist/` folder to any static hosting service
