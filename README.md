@@ -74,7 +74,7 @@ The full launch kit is preserved in `docs/enterprise-trust-launch-kit`. Core tru
 
 ### Deploy to Web Platforms
 
-DownloadDash can be deployed to any static hosting service:
+DownloadDash can be deployed to any static hosting service. This repository includes both `vercel.json` and `netlify.toml` so the app is configured for SPA routing and static asset delivery.
 
 #### Vercel (Recommended)
 ```bash
