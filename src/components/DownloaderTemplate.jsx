@@ -59,6 +59,29 @@ const platformPageContent = {
       'Remember that playlists may resolve differently from individual videos.',
       'Keep the title or source link with saved files so you can trace them later.',
     ],
+    editorial: [
+      {
+        heading: 'A calmer way to save YouTube media',
+        paragraphs: [
+          'YouTube is usually where people go when they need more than a passing clip. A tutorial might explain a repair, a lecture might contain the one section a student needs to revisit, or a creator may want a local backup of a public upload before editing a new version. The best saving workflow respects that slower, more deliberate use. It starts by asking why the file is needed, then keeps the original title, channel, and link close to the saved copy.',
+          'That matters because YouTube videos often carry context outside the video file itself. The description, chapter labels, pinned comments, captions, upload date, and channel identity can all change how the saved media should be understood. DownloadDash gives users a place to process a supported public link, but a thoughtful archive keeps enough notes to make the file useful later.',
+        ],
+      },
+      {
+        heading: 'Quality choices should match the job',
+        paragraphs: [
+          'Not every YouTube save needs the largest file. A student reviewing a short explanation may prefer a smaller format that loads quickly on a phone. A creator checking color, motion, or editing rhythm may need the best available quality. Someone saving a spoken lesson may only need audio. Treating every download as the same job wastes storage and makes personal folders harder to manage.',
+          'A good habit is to name the purpose before choosing the format. If the purpose is study, audio may be enough. If the purpose is visual review, video quality matters. If the purpose is creator backup, keep the cleanest file available and store it with the original public URL. This kind of practical decision-making makes the page more useful than a plain button.',
+        ],
+      },
+      {
+        heading: 'What responsible YouTube saving looks like',
+        paragraphs: [
+          'Responsible saving is not about fear; it is about clarity. Save videos you created, videos you have permission to keep, or content your local law and platform rules allow you to store for personal use. Do not treat a returned file as permission to repost, sell, re-edit, or remove attribution from someone else\'s work.',
+          'When a YouTube link fails, the cause may be ordinary: the video was removed, made private, region-limited, age-limited, or blocked by source-side checks. Reopen the video, confirm visibility, and try the canonical link. If it still fails, the honest answer may simply be that the source is not exposing a usable file at that moment.',
+        ],
+      },
+    ],
   },
   tiktok: {
     intro:
@@ -74,6 +97,29 @@ const platformPageContent = {
       'If a vm.tiktok.com link fails, open it and copy the full TikTok URL.',
       'Treat watermark-free files as formatting only, not permission to repost.',
       'Label saved files by project, sound, or hook so they remain useful later.',
+    ],
+    editorial: [
+      {
+        heading: 'TikTok saving is really about catching fast ideas',
+        paragraphs: [
+          'TikTok moves so quickly that useful posts can disappear from memory before a project even starts. A creator may notice a strong opening line, a student may find a short explanation, or a small business may study how a product demo is framed. Saving a supported public TikTok link is most useful when the file is tied to the reason it was saved, not dropped into a random folder with no explanation.',
+          'The platform is full of sounds, edits, captions, gestures, image posts, and story-style updates that only make sense in context. If the save is for inspiration, label the idea. If it is your own post, mark it as a backup. If it is for campaign research, keep the topic and date. That extra ten seconds turns a download into a real working reference.',
+        ],
+      },
+      {
+        heading: 'Videos, photos, and audio need different treatment',
+        paragraphs: [
+          'A TikTok video might be valuable because of timing. A photo post might be useful because of sequence. An audio trend might matter because the sound carries recognition before the viewer reads a caption. These are different media jobs, so they should not all be archived the same way. The file format should match the part of the post you actually need.',
+          'DownloadDash can show available options from supported public links, but the user still decides what belongs in the archive. If the goal is to study a hook, the video matters. If the goal is to remember a sound, audio may be enough. If the goal is a mood board, a still image might be the cleanest reference.',
+        ],
+      },
+      {
+        heading: 'Keep trend research respectful',
+        paragraphs: [
+          'TikTok trends can make other people\'s work feel public and shared, but individual posts still belong to creators. A clean file is not a license. A watermark-free result does not erase ownership, performance, editing, caption work, or the rights connected to the original media.',
+          'Use downloads for your own content, approved material, learning, review, or lawful personal reference. If a link is private, removed, or restricted, treat that as a boundary. The strongest TikTok workflow is selective, labeled, and honest about what the saved file can and cannot be used for.',
+        ],
+      },
     ],
   },
   instagram: {
@@ -91,6 +137,29 @@ const platformPageContent = {
       'Use downloads for content you own, have permission to save, or can lawfully keep.',
       'Retry later if a public reel fails during source-side rate limiting.',
     ],
+    editorial: [
+      {
+        heading: 'Instagram media loses value when the caption disappears',
+        paragraphs: [
+          'Instagram is rarely just the image or video. A reel may depend on its caption, a carousel may tell a story through order, and a post may matter because of the creator, product, location, or audio. When users save only the media file and ignore the context, the archive becomes harder to understand later.',
+          'A cleaner Instagram workflow keeps the source URL and a short note beside the file. That note can be as simple as "lighting reference", "caption structure", "portfolio backup", or "public tutorial". This makes the saved media useful without pretending it is detached from the creator who published it.',
+        ],
+      },
+      {
+        heading: 'Reels, posts, stories, and carousels are not the same',
+        paragraphs: [
+          'A public reel may resolve differently from a feed image, a carousel, a story, or an older IGTV-style link. Stories are especially sensitive because they can expire or depend on account visibility. That is why a failed story link does not always mean the tool is broken. Sometimes the source simply is not available as a public file anymore.',
+          'Before processing a link, open it in the browser and confirm that it is still visible. If the post is public and available, DownloadDash can attempt the supported workflow. If the post depends on private access, a follow relationship, or temporary story permissions, the result may be limited or unavailable.',
+        ],
+      },
+      {
+        heading: 'Build an Instagram library around purpose',
+        paragraphs: [
+          'Creators and teams often save Instagram media for portfolio review, campaign planning, design references, caption ideas, or personal backup. Those are different folders, not one giant download bucket. Purpose-based folders help prevent confusion and make it easier to delete material that no longer has a reason to stay.',
+          'The rights boundary stays important. Save what you own, what you have permission to use, or what you can lawfully keep for personal reference. Do not use a saved file to strip credit, repost without permission, or turn someone else\'s work into a new asset without approval.',
+        ],
+      },
+    ],
   },
   facebook: {
     intro:
@@ -106,6 +175,29 @@ const platformPageContent = {
       'Use original Facebook links instead of copied redirect chains when possible.',
       'Keep page name, date, and purpose in your filename or notes.',
       'Do not use public visibility as permission to repost someone else\'s media.',
+    ],
+    editorial: [
+      {
+        heading: 'Facebook links need extra patience',
+        paragraphs: [
+          'Facebook is not one simple media surface. A link may point to a public page video, a reel, a group post, a story, a photo, a reshared item, or an event clip. Two links can look similar while requiring completely different access. That is why Facebook saving works best when users first check whether the media is truly public.',
+          'A practical test is to open the link in a private browser window. If the media is not visible there, a public-link downloader may not be able to resolve it. That simple check saves time and reduces the frustration of retrying a private or permission-bound link.',
+        ],
+      },
+      {
+        heading: 'Public page media is the cleanest workflow',
+        paragraphs: [
+          'The most reliable Facebook saves usually come from public pages, public reels, and public video posts. These are useful for keeping business page backups, event clips, community announcements, educational videos, or personal references. Even then, the saved file should be labeled with the page name, date, and reason for saving.',
+          'Stories are a different case. A story may expire, require a viewing account, or depend on permissions that are not available to the backend. If a story fails, users should not assume every setting is wrong. The source may simply be temporary or restricted.',
+        ],
+      },
+      {
+        heading: 'Use Facebook archives carefully',
+        paragraphs: [
+          'Facebook often contains family moments, community updates, business content, and personal media. Public visibility does not remove privacy expectations or creator rights. A file that can be seen publicly should still be handled with care, especially if people, children, private events, or sensitive topics appear in it.',
+          'DownloadDash is best used for lawful personal saving, page backup, research, or content you have permission to keep. If a post changes visibility or disappears, respect that signal. A responsible archive should help users stay organized, not encourage them to bypass boundaries.',
+        ],
+      },
     ],
   },
   pinterest: {
@@ -123,6 +215,29 @@ const platformPageContent = {
       'Remember that a pinned image may belong to an original creator or store.',
       'Use saved media as reference unless you have permission for reuse.',
     ],
+    editorial: [
+      {
+        heading: 'Pinterest saves should keep the trail back to the idea',
+        paragraphs: [
+          'Pinterest is excellent for finding visual direction, but a saved image can lose meaning when it is separated from the pin, board, or destination link. A color palette, room idea, outfit reference, craft tutorial, product shot, or lesson image may need its source context later.',
+          'The strongest Pinterest archive keeps the downloaded media, the public pin URL, and a short project note together. That note might say "kitchen cabinet color", "poster layout reference", "classroom craft", or "product comparison". These little labels make the saved material useful weeks after the original browsing session.',
+        ],
+      },
+      {
+        heading: 'Organize by project, not by platform',
+        paragraphs: [
+          'A single Pinterest folder becomes messy quickly. Project folders are cleaner: wedding ideas, brand palette, classroom resources, product research, photography poses, renovation references, or recipe visuals. When files live near the project they support, users spend less time hunting and more time making decisions.',
+          'This also helps with rights awareness. A visual reference stored inside a research folder is less likely to be mistaken for original material ready to publish. Pinterest often points to photographers, stores, bloggers, designers, or publishers who may own the original work.',
+        ],
+      },
+      {
+        heading: 'Treat inspiration as inspiration',
+        paragraphs: [
+          'Pinterest can make images feel endlessly shareable, but saving a public image is not the same as owning it. Users should avoid copying, reposting, selling, or rebranding visuals unless they have permission or the right license. A good archive respects the difference between reference and reuse.',
+          'DownloadDash can support public pin and media workflows, but the user decides how the file is handled afterward. Keep source notes, credit where appropriate, and use saved files to support planning rather than to erase the original creator.',
+        ],
+      },
+    ],
   },
   reddit: {
     intro:
@@ -139,6 +254,29 @@ const platformPageContent = {
       'External embeds may fail differently from Reddit-hosted media.',
       'Respect posters and communities when saving public media.',
     ],
+    editorial: [
+      {
+        heading: 'Reddit media is tied to the discussion around it',
+        paragraphs: [
+          'A Reddit image or video often makes sense because of the subreddit, title, comments, moderation context, or problem being discussed. Saving the media without the post link can remove the most important part of the reference. For support examples, research, education, or personal collections, the thread matters.',
+          'A practical Reddit archive keeps the public post URL, subreddit name, post title, and date saved. That gives the file a memory. Later, when the image or video appears in a folder, the user can still understand what community it came from and why it was worth keeping.',
+        ],
+      },
+      {
+        heading: 'Hosted media, galleries, and external links behave differently',
+        paragraphs: [
+          'Reddit posts can contain hosted video, single images, galleries, external embeds, crossposts, or links to other sites. These formats do not resolve the same way. A Reddit-hosted image may be simple while an external video depends on another platform entirely.',
+          'When a Reddit link fails, check whether the post was removed, deleted, locked behind age checks, or using an external host. The failure may not be caused by the downloader page. It may come from the original post type or from a media source outside Reddit.',
+        ],
+      },
+      {
+        heading: 'Keep community respect in the workflow',
+        paragraphs: [
+          'Reddit can feel anonymous, but posts still come from real people and communities. A public post should not be saved for harassment, reposted without context, or used to misrepresent the original conversation. Good saving habits protect the user and the community.',
+          'DownloadDash is best used for supported public media, lawful personal reference, research notes, and content the user has a legitimate reason to keep. If a post is removed or no longer public, the respectful choice is to stop chasing it.',
+        ],
+      },
+    ],
   },
   twitter: {
     intro:
@@ -154,6 +292,29 @@ const platformPageContent = {
       'Record the date or thread context for important saves.',
       'Recheck source posts before relying on rapidly changing information.',
       'Public posts can still contain copyrighted or sensitive material.',
+    ],
+    editorial: [
+      {
+        heading: 'X posts are often valuable because of timing',
+        paragraphs: [
+          'X moves around live events, reactions, corrections, jokes, statements, and fast public conversation. A video or image may matter because it appeared at a specific moment in a thread. If the saved file is separated from that moment, the meaning can change.',
+          'A stronger X archive keeps the post URL, date, topic, and thread note with the media. For research, reporting, education, or personal review, this helps users remember whether a file was a first report, a reaction, a correction, or a later summary.',
+        ],
+      },
+      {
+        heading: 'Save the post, not just the file',
+        paragraphs: [
+          'A public X video might be a product demo, news clip, creator post, sports moment, meme, announcement, or commentary. Each one needs different handling. The file alone cannot explain whether it was official, disputed, edited, quoted, or part of a larger conversation.',
+          'DownloadDash can process supported public post links, but the user should keep context manually when it matters. That might mean saving a note with the account name, topic, and any thread the post belongs to. The goal is not only access; it is understanding.',
+        ],
+      },
+      {
+        heading: 'Real-time media needs extra care',
+        paragraphs: [
+          'Information on X can change quickly. A post may be deleted, corrected, challenged, or clarified after it spreads. Before relying on a saved file, users should revisit the source, check the surrounding conversation, and avoid presenting the media without context.',
+          'Public visibility does not remove rights or sensitivity. Save media you own, have permission to keep, or can lawfully store for personal reference. Avoid using saved files to remove credit, distort meaning, or publish material outside the boundaries of the original post.',
+        ],
+      },
     ],
   },
 };
@@ -741,6 +902,36 @@ export default function DownloaderTemplate({
                 Finally, wait and retry if the source platform is rate limiting or changing how it serves media. Public-link downloaders depend on what the upstream platform exposes at that moment.
               </p>
             </div>
+          </div>
+        </motion.section>
+
+        {/* Deep Platform Writing */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-6 md:p-8"
+        >
+          <div className="max-w-3xl">
+            <p className="text-sm uppercase tracking-[0.22em] text-purple-300 mb-3">{platformName} saving guide</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
+              Extra notes for a cleaner, more useful {platformName} media workflow
+            </h2>
+            <p className="text-gray-400 leading-7">
+              The downloader above is only one part of the experience. A good media workflow also keeps context, purpose, file quality, and creator rights in view, especially when a public link comes from a fast-moving social platform.
+            </p>
+          </div>
+          <div className="mt-8 grid gap-6">
+            {pageContent.editorial?.map((section) => (
+              <article key={section.heading} className="rounded-2xl border border-purple-500/10 bg-gray-950/70 p-5 md:p-6">
+                <h3 className="text-xl font-bold text-white mb-4">{section.heading}</h3>
+                <div className="space-y-4 text-gray-400 leading-7">
+                  {section.paragraphs.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
+              </article>
+            ))}
           </div>
         </motion.section>
 
