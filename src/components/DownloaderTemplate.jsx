@@ -43,6 +43,121 @@ const validateUrl = (url, platform, t) => {
   return { valid: true, url: sanitized };
 };
 
+const platformPageContent = {
+  youtube: {
+    intro:
+      'Use this YouTube workflow for supported public videos, Shorts, and audio references when you own the content, have permission, or are saving it for allowed personal use. Results depend on what YouTube exposes for the specific link at the time you process it.',
+    highlights: [
+      { title: 'Long videos and Shorts', body: 'Paste regular watch links, youtu.be links, or Shorts links and review the returned format options before saving.' },
+      { title: 'Audio reference workflow', body: 'When audio is available, DownloadDash can show an audio-only option for lawful listening, review, or creator backup.' },
+      { title: 'Quality-aware saving', body: 'Choose HD when quality matters, or a smaller file when you only need a quick offline reference.' },
+    ],
+    bestFor: ['Creator backups', 'Class notes and tutorials', 'Personal offline reference', 'Internal review clips'],
+    tips: [
+      'Open the original video first and confirm it is still public.',
+      'Use the canonical YouTube link when a shortened or shared link fails.',
+      'Remember that playlists may resolve differently from individual videos.',
+      'Keep the title or source link with saved files so you can trace them later.',
+    ],
+  },
+  tiktok: {
+    intro:
+      'Use this TikTok downloader page for supported public videos, photo posts, stories, and audio-led media. TikTok changes quickly, so a clean workflow keeps the original link, purpose, and creator context attached to every save.',
+    highlights: [
+      { title: 'Videos, photos, and stories', body: 'Process supported public TikTok links and review whatever video, image, or audio options the backend can safely return.' },
+      { title: 'Trend research', body: 'Save examples for studying hooks, edits, captions, and audio patterns without treating them as content you own.' },
+      { title: 'Creator archive support', body: 'Back up your own posts or approved creator assets with a clearer file naming habit.' },
+    ],
+    bestFor: ['Public video references', 'Creator backups', 'Audio ideas', 'Campaign research'],
+    tips: [
+      'Avoid private, deleted, or restricted posts because they usually cannot resolve.',
+      'If a vm.tiktok.com link fails, open it and copy the full TikTok URL.',
+      'Treat watermark-free files as formatting only, not permission to repost.',
+      'Label saved files by project, sound, or hook so they remain useful later.',
+    ],
+  },
+  instagram: {
+    intro:
+      'Use this Instagram page for supported public reels, posts, images, and story-style links. Instagram media is often tied to captions, creators, audio, and account visibility, so context matters as much as the file.',
+    highlights: [
+      { title: 'Reels and public posts', body: 'Paste public Instagram reels or post links and choose from available media options returned by the service.' },
+      { title: 'Image and carousel research', body: 'Save supported visual references for design, education, planning, or personal collections.' },
+      { title: 'Story-aware handling', body: 'Stories can require fresh access or may expire, so failed story links are not always site errors.' },
+    ],
+    bestFor: ['Reel references', 'Public image saves', 'Creator portfolio backups', 'Brand inspiration boards'],
+    tips: [
+      'Confirm the post is visible publicly before processing.',
+      'Keep the original caption or source URL with important saved files.',
+      'Use downloads for content you own, have permission to save, or can lawfully keep.',
+      'Retry later if a public reel fails during source-side rate limiting.',
+    ],
+  },
+  facebook: {
+    intro:
+      'Use this Facebook downloader for supported public videos, reels, posts, and media links. Facebook URLs can point to many different surfaces, so public visibility is the most important first check.',
+    highlights: [
+      { title: 'Public videos and reels', body: 'Process supported public Facebook video or reel links when the source is available without private access.' },
+      { title: 'Page and post media', body: 'Useful for saving public page assets, announcements, educational clips, and personal references.' },
+      { title: 'Story limitations explained', body: 'Stories often depend on account permissions or expiry, so they may require fresh access or may not resolve.' },
+    ],
+    bestFor: ['Public page videos', 'Event clips', 'Business page backups', 'Educational posts'],
+    tips: [
+      'Test the link in a private browser window; if it is not visible there, it is not a simple public link.',
+      'Use original Facebook links instead of copied redirect chains when possible.',
+      'Keep page name, date, and purpose in your filename or notes.',
+      'Do not use public visibility as permission to repost someone else\'s media.',
+    ],
+  },
+  pinterest: {
+    intro:
+      'Use this Pinterest downloader for supported public pins, images, and media links. Pinterest is a discovery platform, so the strongest workflow keeps the saved media close to the project or idea it supports.',
+    highlights: [
+      { title: 'Pin and image saving', body: 'Process supported public Pinterest links and keep the returned image or media with source notes.' },
+      { title: 'Visual research boards', body: 'Build cleaner collections for design, product research, teaching, planning, and inspiration.' },
+      { title: 'Source-aware organization', body: 'Pins can point to external sites, so keep the pin URL and destination context when it matters.' },
+    ],
+    bestFor: ['Mood boards', 'Design references', 'Product research', 'Lesson planning'],
+    tips: [
+      'Save files into project folders instead of one large downloads folder.',
+      'Keep the original pin link beside important visual references.',
+      'Remember that a pinned image may belong to an original creator or store.',
+      'Use saved media as reference unless you have permission for reuse.',
+    ],
+  },
+  reddit: {
+    intro:
+      'Use this Reddit downloader for supported public posts, hosted videos, images, and galleries. Reddit media often depends on subreddit context, so save the source post link with the file.',
+    highlights: [
+      { title: 'Hosted video and image posts', body: 'Process supported Reddit or redd.it links for public media that is still available.' },
+      { title: 'Gallery-aware saving', body: 'Some posts include multiple images, external links, or embeds, so available results can vary by post type.' },
+      { title: 'Conversation context', body: 'The subreddit, title, and comments may explain why a file mattered in the first place.' },
+    ],
+    bestFor: ['Research examples', 'Public galleries', 'Troubleshooting references', 'Personal collections'],
+    tips: [
+      'Keep the subreddit and post title in your notes.',
+      'Do not force deleted, private, or removed posts.',
+      'External embeds may fail differently from Reddit-hosted media.',
+      'Respect posters and communities when saving public media.',
+    ],
+  },
+  twitter: {
+    intro:
+      'Use this X downloader for supported public posts with video, image, or audio media. X moves in real time, so timing, thread context, and the original post link are important.',
+    highlights: [
+      { title: 'Public post media', body: 'Paste supported x.com or twitter.com status links and review the media formats returned by the backend.' },
+      { title: 'Thread and event context', body: 'Save the source URL and a short note when a post matters because of a live event or conversation.' },
+      { title: 'Fast reference workflow', body: 'Useful for saving public media for review, research, or personal offline access when allowed.' },
+    ],
+    bestFor: ['Public video clips', 'Image references', 'Thread research', 'Event documentation'],
+    tips: [
+      'Use the direct post URL, not only a profile or search URL.',
+      'Record the date or thread context for important saves.',
+      'Recheck source posts before relying on rapidly changing information.',
+      'Public posts can still contain copyrighted or sensitive material.',
+    ],
+  },
+};
+
 export default function DownloaderTemplate({
   platform,
   platformName,
@@ -203,6 +318,17 @@ export default function DownloaderTemplate({
   const hasVideoSD = !!result?.downloads?.videoSD;
   const hasAudio = !!result?.downloads?.audio;
   const hasVideoOrAudio = hasVideoHD || hasVideoSD || hasAudio;
+  const pageContent = platformPageContent[platform] || {
+    intro:
+      `${platformName} links can return different media options depending on privacy, source availability, and platform changes. Use public links, keep creator context, and save only media you are allowed to keep.`,
+    highlights: [
+      { title: 'Public link workflow', body: 'Paste a supported public link and review the returned media options before saving.' },
+      { title: 'Format awareness', body: 'Available video, image, or audio formats depend on the source link.' },
+      { title: 'Responsible saving', body: 'Use the tool for personal, lawful, permitted media workflows.' },
+    ],
+    bestFor: ['Public links', 'Personal reference', 'Creator backups', 'Project notes'],
+    tips: ['Confirm the source is public.', 'Keep the original URL.', 'Respect creator rights.', 'Retry later if the source platform is temporarily blocking requests.'],
+  };
 
   const downloadOptionsVariants = {
     hidden: { opacity: 0 },
@@ -259,6 +385,49 @@ export default function DownloaderTemplate({
             ))}
           </div>
         </motion.div>
+
+        {/* Platform Overview */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08 }}
+          className="mt-8 rounded-3xl border border-purple-500/15 bg-gradient-to-br from-gray-950 via-gray-900 to-black p-6 md:p-8"
+        >
+          <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-8 items-start">
+            <div>
+              <p className="text-sm uppercase tracking-[0.22em] text-purple-300 mb-3">{platformName} workflow</p>
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
+                Save supported public {platformName} media with context, clarity, and control.
+              </h2>
+              <p className="text-gray-400 leading-7">{pageContent.intro}</p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {pageContent.bestFor.map((item) => (
+                <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <p className="text-sm font-semibold text-white">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Supported Workflow Details */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+          className="mt-6 grid md:grid-cols-3 gap-4"
+        >
+          {pageContent.highlights.map((item, index) => (
+            <div key={item.title} className="rounded-2xl border border-purple-500/10 bg-gray-900/60 p-5">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/15 text-purple-300 flex items-center justify-center font-bold mb-4">
+                {index + 1}
+              </div>
+              <h3 className="text-white font-bold mb-2">{item.title}</h3>
+              <p className="text-sm text-gray-500 leading-6">{item.body}</p>
+            </div>
+          ))}
+        </motion.section>
 
         {/* How It Works */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mt-8 text-center">
@@ -537,6 +706,43 @@ export default function DownloaderTemplate({
         <div className="mt-8">
           <AdBanner position="middle" size="large" />
         </div>
+
+        {/* Platform Guide */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="mt-10 grid lg:grid-cols-2 gap-6"
+        >
+          <div className="rounded-3xl border border-purple-500/15 bg-gray-900/60 p-6">
+            <h2 className="text-2xl font-bold text-white mb-4">Best way to use this {platformName} downloader</h2>
+            <div className="space-y-4">
+              {pageContent.tips.map((tip, index) => (
+                <div key={tip} className="flex gap-3">
+                  <div className="mt-1 w-7 h-7 rounded-full bg-purple-500/20 text-purple-200 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                    {index + 1}
+                  </div>
+                  <p className="text-gray-400 leading-7">{tip}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-green-500/15 bg-gradient-to-br from-green-950/30 to-gray-950 p-6">
+            <h2 className="text-2xl font-bold text-white mb-4">What to check if a link fails</h2>
+            <div className="space-y-4 text-gray-400 leading-7">
+              <p>
+                First, reopen the original {platformName} link and confirm the media is still public. Private, removed, expired, or account-restricted content can fail even when the URL looks correct.
+              </p>
+              <p>
+                Second, try the clean original URL instead of a copied redirect link. Some shared links hide the final media page behind tracking or short-link redirects.
+              </p>
+              <p>
+                Finally, wait and retry if the source platform is rate limiting or changing how it serves media. Public-link downloaders depend on what the upstream platform exposes at that moment.
+              </p>
+            </div>
+          </div>
+        </motion.section>
 
         {/* Feature pills */}
         <div className="mt-8 grid md:grid-cols-3 gap-4">
