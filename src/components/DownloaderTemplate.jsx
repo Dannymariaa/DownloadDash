@@ -386,49 +386,6 @@ export default function DownloaderTemplate({
           </div>
         </motion.div>
 
-        {/* Platform Overview */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 }}
-          className="mt-8 rounded-3xl border border-purple-500/15 bg-gradient-to-br from-gray-950 via-gray-900 to-black p-6 md:p-8"
-        >
-          <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-8 items-start">
-            <div>
-              <p className="text-sm uppercase tracking-[0.22em] text-purple-300 mb-3">{platformName} workflow</p>
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
-                Save supported public {platformName} media with context, clarity, and control.
-              </h2>
-              <p className="text-gray-400 leading-7">{pageContent.intro}</p>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              {pageContent.bestFor.map((item) => (
-                <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                  <p className="text-sm font-semibold text-white">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.section>
-
-        {/* Supported Workflow Details */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          className="mt-6 grid md:grid-cols-3 gap-4"
-        >
-          {pageContent.highlights.map((item, index) => (
-            <div key={item.title} className="rounded-2xl border border-purple-500/10 bg-gray-900/60 p-5">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/15 text-purple-300 flex items-center justify-center font-bold mb-4">
-                {index + 1}
-              </div>
-              <h3 className="text-white font-bold mb-2">{item.title}</h3>
-              <p className="text-sm text-gray-500 leading-6">{item.body}</p>
-            </div>
-          ))}
-        </motion.section>
-
         {/* How It Works */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mt-8 text-center">
           <h2 className="text-2xl font-bold text-white mb-6">{t('downloader.howItWorks')}</h2>
@@ -706,6 +663,49 @@ export default function DownloaderTemplate({
         <div className="mt-8">
           <AdBanner position="middle" size="large" />
         </div>
+
+        {/* Platform Overview */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.28 }}
+          className="mt-10 rounded-3xl border border-purple-500/15 bg-gradient-to-br from-gray-950 via-gray-900 to-black p-6 md:p-8"
+        >
+          <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-8 items-start">
+            <div>
+              <p className="text-sm uppercase tracking-[0.22em] text-purple-300 mb-3">{platformName} workflow</p>
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
+                Save supported public {platformName} media with context, clarity, and control.
+              </h2>
+              <p className="text-gray-400 leading-7">{pageContent.intro}</p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {pageContent.bestFor.map((item) => (
+                <div key={item} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                  <p className="text-sm font-semibold text-white">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Supported Workflow Details */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.32 }}
+          className="mt-6 grid md:grid-cols-3 gap-4"
+        >
+          {pageContent.highlights.map((item, index) => (
+            <div key={item.title} className="rounded-2xl border border-purple-500/10 bg-gray-900/60 p-5">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/15 text-purple-300 flex items-center justify-center font-bold mb-4">
+                {index + 1}
+              </div>
+              <h3 className="text-white font-bold mb-2">{item.title}</h3>
+              <p className="text-sm text-gray-500 leading-6">{item.body}</p>
+            </div>
+          ))}
+        </motion.section>
 
         {/* Platform Guide */}
         <motion.section
