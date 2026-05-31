@@ -60,6 +60,7 @@ const FacebookDownloader = lazy(() => import('./pages/FacebookDownloader'));
 const TwitterDownloader = lazy(() => import('./pages/TwitterDownloader'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Account = lazy(() => import('./pages/Account'));
+const Settings = lazy(() => import('./pages/Settings'));
 const RecommendedApps = lazy(() => import('./pages/RecommendedApps'));
 const HowDownloadDashWorks = lazy(() => import('./pages/HowDownloadDashWorks'));
 const SupportedPlatforms = lazy(() => import('./pages/SupportedPlatforms'));
@@ -120,6 +121,7 @@ export const PAGES = {
     "TwitterDownloader": TwitterDownloader,
     "Dashboard": Dashboard,
     "Account": Account,
+    "Settings": Settings,
     "RecommendedApps": RecommendedApps,
     "HowDownloadDashWorks": HowDownloadDashWorks,
     "SupportedPlatforms": SupportedPlatforms,

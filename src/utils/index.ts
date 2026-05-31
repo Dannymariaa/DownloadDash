@@ -9,6 +9,7 @@ export const PAGE_ROUTES: Record<string, string> = {
   TwitterDownloader: '/x-downloader',
   Dashboard: '/dashboard',
   Account: '/account',
+  Settings: '/settings',
   RecommendedApps: '/guides',
   HowDownloadDashWorks: '/how-it-works',
   SupportedPlatforms: '/supported-platforms',
@@ -69,6 +70,7 @@ const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
   TwitterDownloader: ['/TwitterDownloader', '/twitter-downloader'],
   Dashboard: ['/Dashboard'],
   Account: ['/Account'],
+  Settings: ['/Settings'],
   RecommendedApps: ['/RecommendedApps'],
   HowDownloadDashWorks: ['/HowDownloadDashWorks'],
   SupportedPlatforms: ['/SupportedPlatforms'],
@@ -142,4 +144,3 @@ export function getPageNameFromPath(path: string) {
   );
   return match || null;
 }
-

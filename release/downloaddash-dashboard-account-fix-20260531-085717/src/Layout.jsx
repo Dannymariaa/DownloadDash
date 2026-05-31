@@ -272,15 +272,6 @@ const getPageTheme = (pageName) => {
       ribbonTitle: 'Account Settings',
       ribbonBody: 'This page covers identity, privacy, notifications, exports, and responsible saved-media habits.',
     },
-    Settings: {
-      border: 'border-blue-400/20',
-      accentText: 'text-blue-300',
-      brand: 'from-blue-300 to-emerald-300',
-      badgeBg: 'bg-blue-400/10',
-      badgeBorder: 'border-blue-400/25',
-      ribbonTitle: 'Product Settings',
-      ribbonBody: 'This page controls media preferences, quality defaults, reminders, and device-level behavior.',
-    },
   };
 
   return themes[pageName] || themes.Home;
@@ -399,9 +390,11 @@ export default function Layout({ children, currentPageName }) {
                   <History className="h-4 w-4" /> {t('nav.dashboard')}
                 </Link>
               )}
-              <Link to={createPageUrl('Settings')} className="text-gray-300 hover:text-blue-300 transition-colors flex items-center gap-2">
-                <Settings2 className="h-4 w-4" /> Settings
-              </Link>
+              {user && (
+                <Link to={createPageUrl('Account')} className="text-gray-300 hover:text-emerald-300 transition-colors flex items-center gap-2">
+                  <User className="h-4 w-4" /> {t('nav.account')}
+                </Link>
+              )}
             </nav>
 
             <div className="flex items-center gap-3">
@@ -474,15 +467,15 @@ export default function Layout({ children, currentPageName }) {
                   <Link to={createPageUrl('Dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                     <User className="h-5 w-5" /> {t('nav.dashboard')}
                   </Link>
+                  <Link to={createPageUrl('Account')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-emerald-500/20" onClick={() => setIsMenuOpen(false)}>
+                    <Settings2 className="h-5 w-5" /> {t('nav.account')}
+                  </Link>
                   </>
                 ) : (
                   <Button onClick={() => { downloadDash.auth.redirectToLogin(); setIsMenuOpen(false); }} className="w-full bg-gradient-to-r from-purple-600 to-pink-600">
                     <LogIn className="mr-2 h-4 w-4" /> {t('nav.loginSignup')}
                   </Button>
                 )}
-                <Link to={createPageUrl('Settings')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-blue-500/20" onClick={() => setIsMenuOpen(false)}>
-                  <Settings2 className="h-5 w-5" /> Settings
-                </Link>
               </nav>
             </div>
           )}
@@ -545,7 +538,7 @@ export default function Layout({ children, currentPageName }) {
               <div className="space-y-2">
                 <Link to={createPageUrl('Home')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.home')}</Link>
                 <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.dashboard')}</Link>
-                <Link to={createPageUrl('Settings')} className="block text-gray-400 hover:text-blue-300 text-sm">Settings</Link>
+                <Link to={createPageUrl('Account')} className="block text-gray-400 hover:text-emerald-300 text-sm">{t('nav.account')}</Link>
                 <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.guides')}</Link>
                 <Link to={createPageUrl('HowDownloadDashWorks')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.howItWorks')}</Link>
                 <Link to={createPageUrl('SupportedPlatforms')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.supportedPlatforms')}</Link>
