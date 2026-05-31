@@ -420,12 +420,12 @@ export default function Layout({ children, currentPageName }) {
               <LanguageSelector />
               {user ? (
                 <Link
-                  to={createPageUrl('Dashboard')}
-                  aria-label="Open DownloadDash dashboard"
-                  title="Open DownloadDash dashboard"
+                  to={createPageUrl('Account')}
+                  aria-label="Open DownloadDash account"
+                  title="Open DownloadDash account"
                 >
                   <Button variant="ghost" className="hidden sm:flex items-center gap-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/20">
-                    <User className="h-4 w-4" /> {user.full_name?.split(' ')[0] || t('nav.dashboard')}
+                    <User className="h-4 w-4" /> {user.full_name?.split(' ')[0] || t('nav.account')}
                   </Button>
                 </Link>
               ) : (
