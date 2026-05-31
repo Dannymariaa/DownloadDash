@@ -16,7 +16,7 @@ const sections = [
   },
   {
     title: '4. Cookies, analytics, and advertising',
-    body: 'DownloadDash may use cookies or similar technologies for security, preferences, analytics, and advertising. Third-party services such as analytics tools or advertising partners may also use their own technologies according to their policies.',
+    body: 'DownloadDash may use cookies or similar technologies for security, preferences, analytics, and advertising. Third-party vendors, including Google, use cookies to serve ads based on a user\'s prior visits to DownloadDash or other websites. Google\'s use of advertising cookies enables Google and its partners to serve ads based on visits to this site and other sites on the Internet.',
   },
   {
     title: '5. How information is used',
@@ -28,7 +28,15 @@ const sections = [
   },
   {
     title: '7. Your choices',
-    body: 'You can manage cookies in your browser and contact us if you need help with access, correction, or deletion requests associated with account-linked information. Questions can be sent to the support address listed below.',
+    body: 'You can manage cookies in your browser, opt out of personalized advertising by visiting Google Ads Settings, and review industry opt-out choices at aboutads.info where available. You can also contact us if you need help with access, correction, or deletion requests associated with account-linked information.',
+  },
+  {
+    title: '8. Third-party ad vendors',
+    body: 'If third-party ad serving is enabled, other vendors or ad networks may use cookies for personalized advertising according to their own policies. DownloadDash will keep this policy updated as advertising partners are added, removed, or changed.',
+  },
+  {
+    title: '9. Ad placement and user experience',
+    body: 'Advertising should not be disguised as navigation, download buttons, system alerts, or required actions. DownloadDash aims to keep ad areas clearly labeled and separate from core media controls so users can make choices without confusion.',
   },
 ];
 
@@ -60,7 +68,7 @@ export default function PrivacyPolicy() {
           <section className="rounded-[2rem] border border-slate-200 bg-slate-950 text-white p-7 md:p-8">
             <h2 className="text-2xl font-bold mb-3">Contact</h2>
             <p className="text-slate-300 leading-8">
-              Questions about this Privacy Policy can be sent to <a className="text-sky-300 hover:text-sky-200" href="mailto:support@downloaddash.store">support@downloaddash.store</a> or through the Contact page.
+              Questions about this Privacy Policy can be sent to <a className="text-sky-300 hover:text-sky-200" href="mailto:legal@downloaddash.store?subject=DownloadDash%20Privacy%20Policy%20Question">legal@downloaddash.store</a> or through the Contact page.
             </p>
           </section>
         </main>

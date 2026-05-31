@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck, ChevronDown, Settings2, Bell } from 'lucide-react';
@@ -15,8 +15,6 @@ import { Button } from '@/components/ui/button';
 import downloadDash from '@/api/downloadDashClient';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useI18n } from '@/lib/i18n';
-
-const AutoAdManager = lazy(() => import('@/components/Ads/AutoAdManager.jsx'));
 
 const platformNavItems = [
   { page: 'YouTubeDownloader', label: 'YouTube', Icon: YouTubeIcon, hover: 'hover:text-red-400', mobileHover: 'hover:bg-red-500/20' },
@@ -337,12 +335,6 @@ export default function Layout({ children, currentPageName }) {
         *::-webkit-scrollbar-thumb { background: rgba(168,85,247,.3); border-radius: 3px; }
         *::-webkit-scrollbar-thumb:hover { background: rgba(168,85,247,.5); }
       `}</style>
-
-      {currentPageName !== 'Home' && (
-        <Suspense fallback={null}>
-          <AutoAdManager />
-        </Suspense>
-      )}
 
       {/* Header */}
       <header className={`sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b ${theme.border}`}>

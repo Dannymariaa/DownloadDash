@@ -8,9 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
-import RewardedAdModal from '@/components/Ads/RewardedAdModal';
-import SkippableAdModal from '@/components/Ads/SkippableAdModal';
-import ShortAdModal from '@/components/Ads/ShortAdModal';
 import { useI18n } from '@/lib/i18n';
 import { getPlatformIcon } from '@/components/PlatformIcons';
 
@@ -338,8 +335,6 @@ export default function DownloaderTemplate({
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [pendingDownload, setPendingDownload] = useState(null);
-  const [activeAd, setActiveAd] = useState(null);
   const platformIconNode = React.isValidElement(platformIcon)
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
     : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
@@ -425,38 +420,9 @@ export default function DownloaderTemplate({
     }
   };
 
-  const handleAdComplete = async () => {
-    if (!pendingDownload) return;
-    const { downloadUrl, type } = pendingDownload;
-    setActiveAd(null);
-    setPendingDownload(null);
-    await startDownload(downloadUrl, type);
-  };
-
-  const handleAdCancel = () => {
-    setActiveAd(null);
-    setPendingDownload(null);
-  };
-
   const requestDownload = (downloadUrl, type, label) => {
     if (!downloadUrl) {
       setError(t('errors.processFailed'));
-      return;
-    }
-
-    const shortAdDuration = 5 + Math.floor(Math.random() * 6);
-    setPendingDownload({ downloadUrl, type, label, shortAdDuration });
-
-    if (type === 'videoHD') {
-      setActiveAd('rewarded');
-      return;
-    }
-    if (type === 'videoSD') {
-      setActiveAd('skippable');
-      return;
-    }
-    if (type === 'audio') {
-      setActiveAd('short');
       return;
     }
 
@@ -982,28 +948,6 @@ export default function DownloaderTemplate({
           <AdBanner position="bottom" size="medium" />
         </div>
       </div>
-
-      {/* Download Ad Modals */}
-      <RewardedAdModal
-        isOpen={activeAd === 'rewarded'}
-        onComplete={handleAdComplete}
-        onCancel={handleAdCancel}
-        downloadLabel={pendingDownload?.label || 'HD Download'}
-      />
-      <SkippableAdModal
-        isOpen={activeAd === 'skippable'}
-        onComplete={handleAdComplete}
-        onCancel={handleAdCancel}
-        downloadLabel={pendingDownload?.label || 'SD Download'}
-        duration={pendingDownload?.shortAdDuration || 7}
-      />
-      <ShortAdModal
-        isOpen={activeAd === 'short'}
-        onComplete={handleAdComplete}
-        onCancel={handleAdCancel}
-        downloadLabel={pendingDownload?.label || 'Audio / MP3'}
-        duration={pendingDownload?.shortAdDuration || 7}
-      />
 
       {/* Preview Modal */}
       <AnimatePresence>
