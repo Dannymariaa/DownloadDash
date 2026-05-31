@@ -6,16 +6,20 @@ import {
   Download,
   Eye,
   FileAudio,
+  FileCheck2,
+  FolderTree,
   Image,
   KeyRound,
   LayoutDashboard,
   MonitorSmartphone,
   Palette,
+  Search,
   RotateCcw,
   Save,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
+  Trash2,
   User,
   Video,
 } from 'lucide-react';
@@ -104,6 +108,75 @@ const notes = [
   'Settings are stored on this device so the page works immediately, even before a full cloud preferences backend is added.',
   'Account-level privacy, sign-in, and identity details belong on the Account page. This page focuses on product behavior and media workflow preferences.',
   'Changing quality preferences does not override the formats provided by source platforms; it only guides which option should be easiest to choose first.',
+];
+
+const workflowPresets = [
+  {
+    title: 'Creator Archive',
+    text: 'Best for creators who save source clips, campaign examples, thumbnails, captions, and reference posts before editing or repost planning.',
+    points: ['Highest quality first', 'Thumbnails enabled', 'Caption reminders on', 'History kept for review'],
+  },
+  {
+    title: 'Research Library',
+    text: 'Best for students, researchers, journalists, and teams that collect public posts for review, citations, and evidence trails.',
+    points: ['Balanced quality', 'Privacy reminders on', 'Compact dashboard rows', 'Clear labels before export'],
+  },
+  {
+    title: 'Mobile Saver',
+    text: 'Best when you save media from a phone and need smaller files, fast previews, and fewer storage surprises.',
+    points: ['Compact quality', 'Download alerts on', 'Images or video first', 'Clean old files weekly'],
+  },
+];
+
+const managementGuides = [
+  {
+    title: 'Naming and folders',
+    icon: FolderTree,
+    body: 'Use simple folder names like Tutorials, Client References, Funny Clips, Product Ideas, and Archive. Rename important files before they become a pile of random platform IDs.',
+  },
+  {
+    title: 'Before you share',
+    icon: ShieldCheck,
+    body: 'Check whether the file is yours to share, whether credit is needed, and whether the platform or creator allows reuse. Saving for personal use is not the same as republishing.',
+  },
+  {
+    title: 'Find things faster',
+    icon: Search,
+    body: 'Keep thumbnails on when you work visually. Use compact rows only when you already know the files and want a faster list view with less scrolling.',
+  },
+  {
+    title: 'Clean up old saves',
+    icon: Trash2,
+    body: 'Delete failed downloads, duplicate clips, unfinished experiments, and files you no longer need. A smaller library is easier to back up and easier to trust.',
+  },
+];
+
+const deviceChecklist = [
+  'Confirm your browser allows downloads from DownloadDash.',
+  'Keep enough device storage available before saving large HD or 4K files.',
+  'Use a stable connection when saving longer videos or multi-file downloads.',
+  'Back up files you cannot replace before clearing browser data or app storage.',
+  'Review privacy reminders before moving saved media into public folders.',
+  'Keep captions or notes beside educational, interview, or tutorial content.',
+];
+
+const settingFaqs = [
+  {
+    question: 'Do these settings change every platform?',
+    answer: 'No. They guide DownloadDash behavior. Source platforms still decide which formats, thumbnails, captions, and quality options are available for a public link.',
+  },
+  {
+    question: 'Why are some preferences stored on this device?',
+    answer: 'Device storage keeps the page fast and useful immediately. Account sync can be added later without changing the visible preference model.',
+  },
+  {
+    question: 'Should Dashboard and Account settings be separate?',
+    answer: 'Yes. Dashboard is for saved media activity. Account is for identity and personal controls. Settings is for product behavior and workflow preferences.',
+  },
+  {
+    question: 'What should I choose for quality?',
+    answer: 'Choose Highest for archives and editing, Balanced for everyday saving, and Compact when storage or mobile sharing matters more than maximum detail.',
+  },
 ];
 
 export default function Settings() {
@@ -317,6 +390,103 @@ export default function Settings() {
             </div>
           </section>
         )}
+
+        <section className="mt-10">
+          <div className="max-w-3xl">
+            <p className="text-sm uppercase tracking-[0.24em] text-blue-300">Workflow Presets</p>
+            <h2 className="mt-3 text-3xl font-bold">Choose Settings That Match How You Save</h2>
+            <p className="mt-3 text-gray-400">
+              These presets are not extra buttons yet; they explain the best combination of preferences for common
+              DownloadDash use cases so users understand what each setting is meant to support.
+            </p>
+          </div>
+          <div className="mt-6 grid lg:grid-cols-3 gap-5">
+            {workflowPresets.map((preset) => (
+              <article key={preset.title} className="rounded-xl border border-white/10 bg-zinc-950 p-6">
+                <FileCheck2 className="h-7 w-7 text-blue-300" />
+                <h3 className="mt-4 text-xl font-semibold">{preset.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-gray-400">{preset.text}</p>
+                <ul className="mt-5 space-y-3">
+                  {preset.points.map((point) => (
+                    <li key={point} className="flex gap-3 text-sm text-gray-300">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-10 rounded-xl border border-white/10 bg-zinc-950 p-6">
+          <div className="grid lg:grid-cols-[0.75fr_1.25fr] gap-8">
+            <div>
+              <FolderTree className="h-8 w-8 text-emerald-300" />
+              <h2 className="mt-4 text-3xl font-bold">Library Management Guide</h2>
+              <p className="mt-3 text-gray-400">
+                A good settings page should help users make better choices after they leave the page. Use these
+                reminders to keep saved media organized, respectful, and easy to recover.
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              {managementGuides.map((guide) => {
+                const Icon = guide.icon;
+                return (
+                  <div key={guide.title} className="rounded-lg border border-white/10 bg-black/40 p-5">
+                    <Icon className="h-5 w-5 text-blue-300" />
+                    <h3 className="mt-4 font-semibold">{guide.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-gray-400">{guide.body}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-10 grid lg:grid-cols-[1.15fr_0.85fr] gap-6">
+          <div className="rounded-xl border border-white/10 bg-zinc-950 p-6">
+            <h2 className="text-2xl font-bold">Device Readiness Checklist</h2>
+            <p className="mt-2 text-gray-400">
+              Settings work best when the browser, device, and storage setup are ready for large media files.
+            </p>
+            <div className="mt-5 grid md:grid-cols-2 gap-3">
+              {deviceChecklist.map((item) => (
+                <div key={item} className="flex gap-3 rounded-lg border border-white/10 bg-black/40 p-4">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" />
+                  <p className="text-sm leading-6 text-gray-300">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-blue-400/20 bg-blue-500/10 p-6">
+            <SlidersHorizontal className="h-8 w-8 text-blue-300" />
+            <h2 className="mt-4 text-2xl font-bold">Recommended Starting Setup</h2>
+            <p className="mt-3 text-gray-300">
+              For most users, keep history, thumbnails, privacy reminders, caption reminders, and download alerts on.
+              Use Balanced quality until you know you need bigger archive files or smaller mobile files.
+            </p>
+            <div className="mt-5 rounded-lg border border-blue-300/20 bg-black/30 p-4">
+              <p className="text-sm font-semibold text-blue-100">Best default mix</p>
+              <p className="mt-2 text-sm leading-6 text-gray-300">
+                Video first, Balanced quality, normal row spacing, visible thumbnails, and safety reminders enabled.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-10 rounded-xl border border-white/10 bg-zinc-950 p-6">
+          <h2 className="text-2xl font-bold">Settings Questions</h2>
+          <div className="mt-5 grid md:grid-cols-2 gap-4">
+            {settingFaqs.map((faq) => (
+              <div key={faq.question} className="rounded-lg border border-white/10 bg-black/40 p-5">
+                <h3 className="font-semibold">{faq.question}</h3>
+                <p className="mt-2 text-sm leading-6 text-gray-400">{faq.answer}</p>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
 
       <div className="px-4 pb-8">
