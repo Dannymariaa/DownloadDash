@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck, ChevronDown, Settings2 } from 'lucide-react';
+import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck, ChevronDown, Settings2, Bell } from 'lucide-react';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -281,6 +281,15 @@ const getPageTheme = (pageName) => {
       ribbonTitle: 'Product Settings',
       ribbonBody: 'This page controls media preferences, quality defaults, reminders, and device-level behavior.',
     },
+    Notifications: {
+      border: 'border-purple-300/30',
+      accentText: 'text-purple-200',
+      brand: 'from-purple-200 to-white',
+      badgeBg: 'bg-purple-400/10',
+      badgeBorder: 'border-purple-200/35',
+      ribbonTitle: 'Notification Center',
+      ribbonBody: 'This page controls glowing popup alerts for web app and mobile app updates.',
+    },
   };
 
   return themes[pageName] || themes.Home;
@@ -402,18 +411,21 @@ export default function Layout({ children, currentPageName }) {
               <Link to={createPageUrl('Settings')} className="text-gray-300 hover:text-blue-300 transition-colors flex items-center gap-2">
                 <Settings2 className="h-4 w-4" /> Settings
               </Link>
+              <Link to={createPageUrl('Notifications')} className="text-gray-300 hover:text-purple-200 transition-colors flex items-center gap-2">
+                <Bell className="h-4 w-4" /> Notifications
+              </Link>
             </nav>
 
             <div className="flex items-center gap-3">
               <LanguageSelector />
               {user ? (
                 <Link
-                  to={createPageUrl('Account')}
-                  aria-label="Open DownloadDash account"
-                  title="Open DownloadDash account"
+                  to={createPageUrl('Dashboard')}
+                  aria-label="Open DownloadDash dashboard"
+                  title="Open DownloadDash dashboard"
                 >
                   <Button variant="ghost" className="hidden sm:flex items-center gap-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/20">
-                    <User className="h-4 w-4" /> {user.full_name?.split(' ')[0] || t('nav.account')}
+                    <User className="h-4 w-4" /> {user.full_name?.split(' ')[0] || t('nav.dashboard')}
                   </Button>
                 </Link>
               ) : (
@@ -483,6 +495,9 @@ export default function Layout({ children, currentPageName }) {
                 <Link to={createPageUrl('Settings')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-blue-500/20" onClick={() => setIsMenuOpen(false)}>
                   <Settings2 className="h-5 w-5" /> Settings
                 </Link>
+                <Link to={createPageUrl('Notifications')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
+                  <Bell className="h-5 w-5" /> Notifications
+                </Link>
               </nav>
             </div>
           )}
@@ -546,6 +561,7 @@ export default function Layout({ children, currentPageName }) {
                 <Link to={createPageUrl('Home')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.home')}</Link>
                 <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.dashboard')}</Link>
                 <Link to={createPageUrl('Settings')} className="block text-gray-400 hover:text-blue-300 text-sm">Settings</Link>
+                <Link to={createPageUrl('Notifications')} className="block text-gray-400 hover:text-purple-200 text-sm">Notifications</Link>
                 <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.guides')}</Link>
                 <Link to={createPageUrl('HowDownloadDashWorks')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.howItWorks')}</Link>
                 <Link to={createPageUrl('SupportedPlatforms')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.supportedPlatforms')}</Link>
