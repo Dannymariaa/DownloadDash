@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck, ChevronDown } from 'lucide-react';
+import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck, ChevronDown, Settings2 } from 'lucide-react';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -254,6 +254,24 @@ const getPageTheme = (pageName) => {
       ribbonTitle: 'Android App',
       ribbonBody: 'This page explains the mobile app path and signed APK expectations.',
     },
+    Dashboard: {
+      border: 'border-cyan-400/20',
+      accentText: 'text-cyan-300',
+      brand: 'from-cyan-300 to-emerald-300',
+      badgeBg: 'bg-cyan-400/10',
+      badgeBorder: 'border-cyan-400/25',
+      ribbonTitle: 'Media Dashboard',
+      ribbonBody: 'This page manages saved video, image, and audio activity separately from account settings.',
+    },
+    Account: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-blue-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'Account Settings',
+      ribbonBody: 'This page covers identity, privacy, notifications, exports, and responsible saved-media habits.',
+    },
   };
 
   return themes[pageName] || themes.Home;
@@ -372,15 +390,20 @@ export default function Layout({ children, currentPageName }) {
                   <History className="h-4 w-4" /> {t('nav.dashboard')}
                 </Link>
               )}
+              {user && (
+                <Link to={createPageUrl('Account')} className="text-gray-300 hover:text-emerald-300 transition-colors flex items-center gap-2">
+                  <User className="h-4 w-4" /> {t('nav.account')}
+                </Link>
+              )}
             </nav>
 
             <div className="flex items-center gap-3">
               <LanguageSelector />
               {user ? (
                 <Link
-                  to={createPageUrl('Dashboard')}
-                  aria-label="Open DownloadDash dashboard"
-                  title="Open DownloadDash dashboard"
+                  to={createPageUrl('Account')}
+                  aria-label="Open DownloadDash account"
+                  title="Open DownloadDash account"
                 >
                   <Button variant="ghost" className="hidden sm:flex items-center gap-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/20">
                     <User className="h-4 w-4" /> {user.full_name?.split(' ')[0] || t('nav.account')}
@@ -440,9 +463,14 @@ export default function Layout({ children, currentPageName }) {
                   <LifeBuoy className="h-5 w-5" /> {t('nav.troubleshooting')}
                 </Link>
                 {user ? (
+                  <>
                   <Link to={createPageUrl('Dashboard')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                     <User className="h-5 w-5" /> {t('nav.dashboard')}
                   </Link>
+                  <Link to={createPageUrl('Account')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-emerald-500/20" onClick={() => setIsMenuOpen(false)}>
+                    <Settings2 className="h-5 w-5" /> {t('nav.account')}
+                  </Link>
+                  </>
                 ) : (
                   <Button onClick={() => { downloadDash.auth.redirectToLogin(); setIsMenuOpen(false); }} className="w-full bg-gradient-to-r from-purple-600 to-pink-600">
                     <LogIn className="mr-2 h-4 w-4" /> {t('nav.loginSignup')}
@@ -510,6 +538,7 @@ export default function Layout({ children, currentPageName }) {
               <div className="space-y-2">
                 <Link to={createPageUrl('Home')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.home')}</Link>
                 <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.dashboard')}</Link>
+                <Link to={createPageUrl('Account')} className="block text-gray-400 hover:text-emerald-300 text-sm">{t('nav.account')}</Link>
                 <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.guides')}</Link>
                 <Link to={createPageUrl('HowDownloadDashWorks')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.howItWorks')}</Link>
                 <Link to={createPageUrl('SupportedPlatforms')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.supportedPlatforms')}</Link>
