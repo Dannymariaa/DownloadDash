@@ -107,6 +107,26 @@
   ],
   "rewrites": [
     {
+      "source": "/privacy-policy",
+      "destination": "/privacy-policy.html"
+    },
+    {
+      "source": "/terms-of-service",
+      "destination": "/terms-of-service.html"
+    },
+    {
+      "source": "/responsible-use",
+      "destination": "/responsible-use.html"
+    },
+    {
+      "source": "/dmca",
+      "destination": "/dmca.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/contact.html"
+    },
+    {
       "source": "/((?!downloads/|api/).*)",
       "destination": "/index.html"
     }

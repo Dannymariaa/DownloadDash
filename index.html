@@ -177,6 +177,47 @@
         font-size: .95rem;
         font-weight: 700;
       }
+      .initial-shell__trust {
+        max-width: 64rem;
+        margin: 3rem auto 0;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+        text-align: left;
+      }
+      .initial-shell__trust-card {
+        border: 1px solid rgba(255, 255, 255, .12);
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, .045);
+        padding: 1rem;
+      }
+      .initial-shell__trust-card h2 {
+        margin: 0 0 .5rem;
+        font-size: 1rem;
+      }
+      .initial-shell__trust-card p {
+        margin: 0;
+        color: #a1a1aa;
+        font-size: .95rem;
+        line-height: 1.55;
+      }
+      .initial-shell__links {
+        max-width: 64rem;
+        margin: 2rem auto 0;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: .75rem;
+      }
+      .initial-shell__link {
+        color: #d8b4fe;
+        text-decoration: none;
+        border: 1px solid rgba(168, 85, 247, .24);
+        border-radius: 999px;
+        padding: .55rem .85rem;
+        background: rgba(0, 0, 0, .24);
+        font-size: .9rem;
+      }
       @media (max-width: 680px) {
         .initial-shell {
           padding: 4rem 1rem;
@@ -186,6 +227,9 @@
         }
         .initial-shell__platforms {
           grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .initial-shell__trust {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -313,6 +357,28 @@
             <div class="initial-shell__platform">X</div>
             <div class="initial-shell__platform">More</div>
           </div>
+          <div class="initial-shell__trust" aria-label="DownloadDash trust and policy summary">
+            <article class="initial-shell__trust-card">
+              <h2>Public links and permission</h2>
+              <p>DownloadDash is intended for supported public links, creator-owned media, licensed files, personal reference, and content users have permission to save.</p>
+            </article>
+            <article class="initial-shell__trust-card">
+              <h2>Clear ad placement</h2>
+              <p>Advertisements are labeled separately from navigation, download controls, account controls, and support links to reduce accidental clicks.</p>
+            </article>
+            <article class="initial-shell__trust-card">
+              <h2>Privacy and support</h2>
+              <p>The site includes privacy, terms, DMCA, responsible-use, contact, help, and transparency pages for users and reviewers.</p>
+            </article>
+          </div>
+          <nav class="initial-shell__links" aria-label="Important policy links">
+            <a class="initial-shell__link" href="/privacy-policy">Privacy Policy</a>
+            <a class="initial-shell__link" href="/terms-of-service">Terms</a>
+            <a class="initial-shell__link" href="/responsible-use">Responsible Use</a>
+            <a class="initial-shell__link" href="/dmca">DMCA</a>
+            <a class="initial-shell__link" href="/contact">Contact</a>
+            <a class="initial-shell__link" href="/help-center">Help Center</a>
+          </nav>
         </section>
       </main>
     </div>
