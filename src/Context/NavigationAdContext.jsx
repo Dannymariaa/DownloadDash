@@ -47,7 +47,7 @@ export function NavigationAdProvider({ children }) {
                 {isMobileApp ? (
                   <div className="flex flex-col items-center text-center p-8">
                     <Smartphone className="h-12 w-12 mb-3 text-gray-300" />
-                    <p className="text-gray-400">AdMob Transition Ad</p>
+                    <p className="text-gray-400">Native Transition Ad</p>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center">
@@ -58,9 +58,8 @@ export function NavigationAdProvider({ children }) {
                     />
                     <p className="text-white text-lg font-bold">Switching Platform</p>
                     <p className="text-gray-400 text-sm mt-1">Quick ad while we load the page</p>
-                    {/* Replace with your real AdSense ins tag */}
                     <div className="mt-5 w-64 h-12 bg-gray-800 rounded-xl border border-purple-500/20 flex items-center justify-center">
-                      <span className="text-gray-600 text-xs">AdSense Transition Space</span>
+                      <span className="text-gray-600 text-xs">Monetag Transition Space</span>
                     </div>
                   </div>
                 )}

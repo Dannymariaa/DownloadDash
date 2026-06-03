@@ -1,6 +1,23 @@
 {
   "headers": [
     {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/javascript; charset=utf-8"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/"
+        }
+      ]
+    },
+    {
       "source": "/downloads/(.*).apk",
       "headers": [
         {
@@ -127,7 +144,7 @@
       "destination": "/contact.html"
     },
     {
-      "source": "/((?!downloads/|api/).*)",
+      "source": "/((?!downloads/|api/|sw\\.js$).*)",
       "destination": "/index.html"
     }
   ]

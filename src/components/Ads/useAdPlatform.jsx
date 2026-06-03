@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react';
 
 /**
  * Detects if the app is running as a native mobile app (Capacitor/WebView)
- * vs a web browser. This prevents AdSense and AdMob from colliding.
+ * vs a web browser. This prevents Monetag web ads and native app ads from colliding.
  *
- * - isMobileApp === true  → use AdMob (native layer handles ads)
- * - isMobileApp === false → use AdSense (web-based ads)
+ * - isMobileApp === true: native layer handles ads
+ * - isMobileApp === false: use Monetag web ads
  *
  * To force native mode in Capacitor, add to your capacitor init:
  *   localStorage.setItem('NATIVE_APP', 'true');

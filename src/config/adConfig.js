@@ -1,7 +1,6 @@
-import { ADSENSE_CLIENT_ID, loadAdsenseAfterDelay } from '@/utils/delayed-ads-loader';
+import { loadMonetagAfterDelay } from '@/utils/delayed-ads-loader';
 
-// Google AdMob Configuration
-// These are unit IDs for both Android and iOS
+// Monetag powers web ads. Native app ad unit IDs are kept for Capacitor builds.
 
 export const adConfig = {
   // Android Ad Unit IDs
@@ -82,65 +81,42 @@ export const getPlatformAdConfig = () => {
   }
 };
 
-// Initialize Google AdSense for web. Native AdMob uses the platform unit IDs above.
+// Initialize Monetag for web. Kept as initializeAdMob for older imports.
 export const initializeAdMob = () => {
-  if (typeof window !== 'undefined' && !window.adsbygoogle) {
-    loadAdsenseAfterDelay().then((loaded) => {
-      if (!loaded) return;
-
-      window.adsbygoogle = window.adsbygoogle || [];
-      window.adsbygoogle.push({
-        google_ad_client: ADSENSE_CLIENT_ID,
-        enable_page_level_ads: true
-      });
-    });
+  if (typeof window !== 'undefined') {
+    return loadMonetagAfterDelay();
   }
+
+  return Promise.resolve(false);
 };
 
-// Display banner ad
+// Display banner ad through Monetag on web.
 export const displayBannerAd = (unitId) => {
-  if (typeof window !== 'undefined' && window.adsbygoogle) {
-    try {
-      window.adsbygoogle.push({});
-    } catch (e) {
-      console.log('AdMob banner ad error:', e);
-    }
+  if (typeof window !== 'undefined') {
+    return loadMonetagAfterDelay();
+  }
+
+  return Promise.resolve(false);
+};
+
+// Display interstitial ad through Monetag on web.
+export const showInterstitialAd = async (unitId) => {
+  try {
+    return await loadMonetagAfterDelay();
+  } catch (e) {
+    console.log('Interstitial ad error:', e);
+    return false;
   }
 };
 
-// Display interstitial ad
-export const showInterstitialAd = async (unitId) => {
-  return new Promise((resolve) => {
-    try {
-      if (typeof window !== 'undefined' && window.google && window.google.ima) {
-        // Ad will be shown if available
-        setTimeout(() => resolve(true), 2000);
-      } else {
-        // AdMob not ready
-        resolve(false);
-      }
-    } catch (e) {
-      console.log('Interstitial ad error:', e);
-      resolve(false);
-    }
-  });
-};
-
-// Display rewarded ad
+// Display rewarded ad through Monetag on web.
 export const showRewardedAd = async (unitId) => {
-  return new Promise((resolve) => {
-    try {
-      if (typeof window !== 'undefined' && window.google && window.google.ima) {
-        // Rewarded ad shown
-        setTimeout(() => resolve(true), 3000);
-      } else {
-        resolve(false);
-      }
-    } catch (e) {
-      console.log('Rewarded ad error:', e);
-      resolve(false);
-    }
-  });
+  try {
+    return await loadMonetagAfterDelay();
+  } catch (e) {
+    console.log('Rewarded ad error:', e);
+    return false;
+  }
 };
 
 export default adConfig;
