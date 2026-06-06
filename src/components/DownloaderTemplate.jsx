@@ -11,6 +11,13 @@ import AdBanner from './AdBanner';
 import { useI18n } from '@/lib/i18n';
 import { getPlatformIcon } from '@/components/PlatformIcons';
 
+const AD_GATE_SECONDS = {
+  videoHD: 30,
+  videoSD: 5,
+  image: 5,
+  album: 5,
+};
+
 // Platform URL validation
 const urlPatterns = {
   tiktok: /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\/.+/i,
@@ -335,6 +342,7 @@ export default function DownloaderTemplate({
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [adGate, setAdGate] = useState(null);
   const platformIconNode = React.isValidElement(platformIcon)
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
     : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
@@ -380,7 +388,22 @@ export default function DownloaderTemplate({
     }
   };
 
-  const startDownload = async (downloadUrl, type) => {
+  const getDownloadExtension = (type, urlValue = '') => {
+    const cleanUrl = String(urlValue || '').split('?')[0].toLowerCase();
+    const match = cleanUrl.match(/\.([a-z0-9]{2,5})$/);
+    if (match) return match[1];
+    if (type === 'audio') return 'mp3';
+    if (type === 'image' || type === 'album') return 'jpg';
+    return 'mp4';
+  };
+
+  const buildFilename = (type, urlValue = '', index = null) => {
+    const randomDigits = Math.floor(Math.random() * 9000000000) + 1000000000;
+    const suffix = index === null ? '' : `-${String(index + 1).padStart(2, '0')}`;
+    return `DownloadDash${randomDigits}${suffix}.${getDownloadExtension(type, urlValue)}`;
+  };
+
+  const startDownload = async (downloadUrl, type, index = null) => {
     if (!downloadUrl) return;
 
     try {
@@ -388,13 +411,10 @@ export default function DownloaderTemplate({
       setIsLoading(true);
       setIsDownloading(true);
 
-      // Generate filename with DownloadDash prefix and 10 random digits
-      const randomDigits = Math.floor(Math.random() * 9000000000) + 1000000000; // 10-digit number
-      const ext = type === 'audio' ? 'mp3' : type === 'image' ? 'jpg' : 'mp4';
-      const filename = `DownloadDash${randomDigits}.${ext}`;
+      const filename = buildFilename(type, downloadUrl, index);
 
       // Use the client's downloadToDevice function which handles CORS and proxy fallback
-      await downloadDash.downloadToDevice(downloadUrl, filename);
+      await downloadDash.downloadToDevice(downloadUrl, filename, result?.original_url || url);
 
       // Check if mobile device (limited download support)
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -420,13 +440,78 @@ export default function DownloaderTemplate({
     }
   };
 
-  const requestDownload = (downloadUrl, type, label) => {
+  const startAlbumDownload = async (items) => {
+    if (!items?.length) return;
+
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const itemType = item.type === 'video' ? 'videoHD' : item.type === 'audio' ? 'audio' : 'image';
+      await startDownload(item.url, itemType, index);
+    }
+  };
+
+  const beginDownloadAfterGate = (downloadUrl, type, label, items = null) => {
     if (!downloadUrl) {
       setError(t('errors.processFailed'));
       return;
     }
 
-    startDownload(downloadUrl, type);
+    const waitSeconds = AD_GATE_SECONDS[type] || 0;
+    if (!waitSeconds) {
+      if (items?.length) {
+        startAlbumDownload(items);
+      } else {
+        startDownload(downloadUrl, type);
+      }
+      return;
+    }
+
+    setAdGate({
+      label,
+      type,
+      secondsLeft: waitSeconds,
+      canClaim: false,
+      action: () => {
+        if (items?.length) {
+          startAlbumDownload(items);
+        } else {
+          startDownload(downloadUrl, type);
+        }
+      },
+    });
+
+    let remaining = waitSeconds;
+    const intervalId = window.setInterval(() => {
+      remaining -= 1;
+      setAdGate((current) => {
+        if (!current) {
+          window.clearInterval(intervalId);
+          return current;
+        }
+        return {
+          ...current,
+          secondsLeft: Math.max(remaining, 0),
+          canClaim: remaining <= 0,
+        };
+      });
+      if (remaining <= 0) {
+        window.clearInterval(intervalId);
+      }
+    }, 1000);
+  };
+
+  const requestDownload = (downloadUrl, type, label, items = null) => {
+    beginDownloadAfterGate(downloadUrl, type, label, items);
+  };
+
+  const claimAdReward = () => {
+    const action = adGate?.action;
+    setAdGate(null);
+    if (action) action();
+  };
+
+  const cancelAdGate = () => {
+    setAdGate(null);
   };
 
   const handleSave = async () => {
@@ -444,6 +529,17 @@ export default function DownloaderTemplate({
   const hasVideoHD = !!result?.downloads?.videoHD;
   const hasVideoSD = !!result?.downloads?.videoSD;
   const hasAudio = !!result?.downloads?.audio;
+  const albumItems = Array.isArray(result?.downloads?.items)
+    ? result.downloads.items.filter((item) => item?.url)
+    : [];
+  const hasAlbumItems = albumItems.length > 1;
+  const photoItems = albumItems.filter((item) => {
+    const itemType = (item.type || '').toLowerCase();
+    return itemType !== 'audio' && itemType !== 'video';
+  });
+  const hasImage = !!result?.downloads?.image;
+  const hasPhotoDownload = (hasAlbumItems && photoItems.length > 0) || hasImage;
+  const photoDownloadUrl = hasAlbumItems ? photoItems[0]?.url : result?.downloads?.image;
   const hasVideoOrAudio = hasVideoHD || hasVideoSD || hasAudio;
   const pageContent = platformPageContent[platform] || {
     intro:
@@ -486,6 +582,55 @@ export default function DownloaderTemplate({
           <span className="font-medium">{t('downloader.downloading')}</span>
         </motion.div>
       )}
+
+      <AnimatePresence>
+        {adGate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              className="w-full max-w-md rounded-2xl border border-purple-500/30 bg-gray-950 p-5 shadow-2xl"
+            >
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-wide text-purple-300">Advertisement</p>
+                  <h2 className="mt-1 text-xl font-bold text-white">{adGate.label}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelAdGate}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-sm text-gray-300 hover:border-white/30 hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <AdBanner position="rewarded" size="large" />
+
+              <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-center">
+                <p className="text-sm text-gray-400">
+                  {adGate.canClaim
+                    ? 'Ad complete. Claim your award to start the download.'
+                    : `Claim award unlocks in ${adGate.secondsLeft}s.`}
+                </p>
+                <Button
+                  onClick={claimAdReward}
+                  disabled={!adGate.canClaim}
+                  className="mt-4 w-full rounded-xl bg-green-600 font-bold text-white hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Claim Award
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <AdBanner position="top" size="medium" />
@@ -670,7 +815,7 @@ export default function DownloaderTemplate({
                   initial="hidden"
                   animate="visible"
                 >
-                  {hasVideoOrAudio ? (
+                  {hasVideoOrAudio && (
                     <>
                       {/* HD Video — full rewarded ad */}
                       <motion.button
@@ -738,13 +883,22 @@ export default function DownloaderTemplate({
                         </div>
                       </motion.button>
                     </>
-                  ) : (
+                  )}
+
+                  {hasPhotoDownload && (
                     /* Image — skippable after 5s */
                     <motion.button
                       variants={downloadOptionVariants}
                       whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)' }}
                       whileTap={{ scale: 0.99 }}
-                      onClick={() => requestDownload(result.downloads?.image, 'image', 'HD Photo')}
+                      onClick={() =>
+                        requestDownload(
+                          photoDownloadUrl,
+                          hasAlbumItems ? 'album' : 'image',
+                          hasAlbumItems ? `All Photos (${photoItems.length})` : 'HD Photo',
+                          hasAlbumItems ? photoItems : null
+                        )
+                      }
                       className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/40 hover:border-blue-500/70 transition-all group"
                     >
                       <div className="flex items-center gap-3">
@@ -752,7 +906,9 @@ export default function DownloaderTemplate({
                           <Image className="h-5 w-5 text-white" />
                         </div>
                         <div className="text-left">
-                          <p className="font-bold text-white">{t('downloader.photoDownload')}</p>
+                          <p className="font-bold text-white">
+                            {hasAlbumItems ? `Download All Photos (${photoItems.length})` : t('downloader.photoDownload')}
+                          </p>
                           <p className="text-xs text-gray-400">{t('downloader.fullResolutionImage')}</p>
                         </div>
                       </div>

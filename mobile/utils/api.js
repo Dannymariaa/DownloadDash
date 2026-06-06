@@ -59,15 +59,30 @@ const normalizeDownloads = (data) => {
   if (!downloads.videoHD && downloads.video) downloads.videoHD = downloads.video;
   if (!downloads.videoSD && downloads.video) downloads.videoSD = downloads.video;
   if (!downloads.audio && downloads.audio_url) downloads.audio = downloads.audio_url;
+  if (!downloads.items && Array.isArray(downloads.images)) downloads.items = downloads.images;
   if (!downloads.image && data?.media_info?.download_url && data?.media_info?.media_type === 'image') {
     downloads.image = data.media_info.download_url;
   }
+
+  const items = Array.isArray(downloads.items)
+    ? downloads.items
+        .map((item, index) => {
+          const entry = typeof item === 'string' ? { url: item } : item;
+          return {
+            url: absolutizeUrl(entry.url || entry.download_url),
+            type: entry.type || entry.media_type || 'image',
+            index,
+          };
+        })
+        .filter((item) => item.url)
+    : [];
 
   return {
     videoHD: absolutizeUrl(downloads.videoHD),
     videoSD: absolutizeUrl(downloads.videoSD),
     audio: absolutizeUrl(downloads.audio),
     image: absolutizeUrl(downloads.image),
+    items,
     fallback: absolutizeUrl(
       data?.download_url ||
         data?.media_info?.download_url ||

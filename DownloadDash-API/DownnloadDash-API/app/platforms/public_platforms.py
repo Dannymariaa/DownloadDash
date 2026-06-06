@@ -1085,6 +1085,19 @@ class PublicPlatformDownloader:
         title = media.get("title") or "Untitled"
         display_url = media.get("display_url")
         video_url = media.get("video_url")
+        sidecar_edges = (
+            media.get("edge_sidecar_to_children", {}).get("edges")
+            or media.get("carousel_media")
+            or []
+        )
+        images = []
+        for edge in sidecar_edges:
+            node = edge.get("node") if isinstance(edge, dict) and "node" in edge else edge
+            if not isinstance(node, dict):
+                continue
+            image_url = node.get("display_url") or node.get("image_versions2", {}).get("candidates", [{}])[0].get("url")
+            if image_url:
+                images.append({"url": image_url, "type": "image"})
 
         if is_video and video_url:
             return {
@@ -1098,6 +1111,22 @@ class PublicPlatformDownloader:
                     "videoHD": video_url,
                     "videoSD": video_url,
                     "image": display_url,
+                },
+            }
+
+        if images:
+            primary = images[0]["url"]
+            return {
+                "direct_url": primary,
+                "title": title,
+                "thumbnail": primary,
+                "ext": "jpg",
+                "filesize": None,
+                "kind": "album" if len(images) > 1 else "image",
+                "downloads": {
+                    "image": primary,
+                    "items": images,
+                    "images": images,
                 },
             }
 
@@ -1145,6 +1174,7 @@ class PublicPlatformDownloader:
 
         video_match = re.search(r'"video_url":"([^"]+)"', html)
         image_match = re.search(r'"display_url":"([^"]+)"', html)
+        image_urls = list(dict.fromkeys(_unescape(match) for match in re.findall(r'"display_url":"([^"]+)"', html)))
         is_video = bool(video_match)
 
         title_match = re.search(r'"title":"([^"]*)"', html)
@@ -1167,17 +1197,20 @@ class PublicPlatformDownloader:
                 },
             }
 
-        if image_match:
-            image_url = _unescape(image_match.group(1))
+        if image_urls:
+            image_url = image_urls[0]
+            images = [{"url": item, "type": "image"} for item in image_urls]
             return {
                 "direct_url": image_url,
                 "title": title,
                 "thumbnail": image_url,
                 "ext": "jpg",
                 "filesize": None,
-                "kind": "image",
+                "kind": "album" if len(images) > 1 else "image",
                 "downloads": {
                     "image": image_url,
+                    "items": images,
+                    "images": images,
                 },
             }
 

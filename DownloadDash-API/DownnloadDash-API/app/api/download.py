@@ -1,10 +1,10 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Body
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Body
+from fastapi.responses import Response
 import httpx
 import re
+from urllib.parse import urlparse
 
 from app.api.shared import detect_platform, download_public
-from app.api.security import require_api_key
 from app.config import settings
 from app.models.schemas import DownloadRequest, DownloadResponse, DownloadStatus, Platform
 from app.state import public_downloader, whatsapp_downloader
@@ -16,7 +16,6 @@ router = APIRouter(tags=["download"])
 async def download_media(
     request: DownloadRequest,
     background_tasks: BackgroundTasks,
-    _auth: None = Depends(require_api_key),
 ):
     url_str = str(request.url)
     platform = request.platform or detect_platform(url_str)
@@ -68,10 +67,10 @@ def _httpx_client_kwargs(**kwargs):
 @router.post("/download/file")
 async def download_file_proxy(
     payload: dict = Body(...),
-    _auth: None = Depends(require_api_key),
 ):
     url = payload.get("url")
     filename = payload.get("filename") or "download"
+    source_url = payload.get("sourceUrl") or payload.get("source_url") or payload.get("referrer")
 
     if not url or not isinstance(url, str):
         raise HTTPException(status_code=400, detail="url is required")
@@ -84,6 +83,11 @@ async def download_file_proxy(
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         "Accept": "*/*",
     }
+    if isinstance(source_url, str) and source_url.startswith(("http://", "https://")):
+        parsed_source = urlparse(source_url)
+        headers["Referer"] = source_url
+        if parsed_source.scheme and parsed_source.netloc:
+            headers["Origin"] = f"{parsed_source.scheme}://{parsed_source.netloc}"
 
     async with httpx.AsyncClient(
         **_httpx_client_kwargs(timeout=60.0, follow_redirects=True)
@@ -99,7 +103,7 @@ async def download_file_proxy(
         content_type = upstream.headers.get("content-type") or "application/octet-stream"
         content_length = upstream.headers.get("content-length")
 
-        response = StreamingResponse(upstream.aiter_bytes(), media_type=content_type)
+        response = Response(content=upstream.content, media_type=content_type)
         response.headers["Content-Disposition"] = f'attachment; filename="{safe_name}"'
         if content_length:
             response.headers["Content-Length"] = content_length

@@ -85,7 +85,7 @@ const sanitizeFilename = (name) =>
     .trim()
     .slice(0, 160);
 
-export const downloadToDevice = async (fileUrl, filename) => {
+export const downloadToDevice = async (fileUrl, filename, sourceUrl = '') => {
   const safeName = sanitizeFilename(filename);
   const absoluteFileUrl = absolutizeApiUrl(fileUrl);
   const baseUrl = getApiBaseUrl();
@@ -120,10 +120,18 @@ export const downloadToDevice = async (fileUrl, filename) => {
     const proxyRes = await fetch(`${baseUrl}/download/file`, {
       method: 'POST',
       headers: buildHeaders(),
-      body: JSON.stringify({ url: absoluteFileUrl, filename: safeName || 'download' }),
+      body: JSON.stringify({
+        url: absoluteFileUrl,
+        filename: safeName || 'download',
+        sourceUrl,
+      }),
     });
     if (!proxyRes.ok) {
       const message = await getResponseMessage(proxyRes, `Proxy download failed (${proxyRes.status})`);
+      if (/upstream download failed/i.test(message) && typeof window !== 'undefined') {
+        window.open(absoluteFileUrl, '_blank', 'noopener,noreferrer');
+        return true;
+      }
       throw new Error(message);
     }
     const blob = await proxyRes.blob();
@@ -188,6 +196,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   if (!downloads.videoHD && downloads.video) downloads.videoHD = downloads.video;
   if (!downloads.videoSD && downloads.video) downloads.videoSD = downloads.video;
   if (!downloads.audio && downloads.audio_url) downloads.audio = downloads.audio_url;
+  if (!downloads.items && Array.isArray(downloads.images)) downloads.items = downloads.images;
   downloads.videoHD = absolutizeApiUrl(downloads.videoHD);
   downloads.videoSD = absolutizeApiUrl(downloads.videoSD);
   downloads.video = absolutizeApiUrl(downloads.video);
@@ -246,18 +255,40 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
 
   const platformOut = data?.media_info?.platform || platform || 'unknown';
 
-  const albumItems = Array.isArray(data?.images)
-    ? data.images.map((img) => ({
-        url: img.url,
-        type: img.type || 'image',
-        width: img.width,
-        height: img.height,
-        thumbnail: img.thumbnail,
-      }))
-    : null;
+  const albumItems = Array.isArray(downloads.items)
+    ? downloads.items
+        .map((item, index) => {
+          const entry = typeof item === 'string' ? { url: item } : item;
+          return {
+          url: absolutizeApiUrl(entry.url || entry.download_url),
+          type: entry.type || entry.media_type || 'image',
+          filename: entry.filename,
+          extension: entry.extension,
+          width: entry.width,
+          height: entry.height,
+          thumbnail: absolutizeApiUrl(entry.thumbnail || entry.url || entry.download_url),
+          index,
+        };
+        })
+        .filter((item) => item.url)
+    : Array.isArray(data?.images)
+      ? data.images
+          .map((img, index) => ({
+            url: absolutizeApiUrl(img.url || img.download_url),
+            type: img.type || img.media_type || 'image',
+            filename: img.filename,
+            extension: img.extension,
+            width: img.width,
+            height: img.height,
+            thumbnail: absolutizeApiUrl(img.thumbnail || img.url || img.download_url),
+            index,
+          }))
+          .filter((item) => item.url)
+      : null;
 
   if (albumItems && albumItems.length) {
     downloads.items = albumItems;
+    if (albumItems.length > 1 && !hasVideo) kind = 'album';
   }
 
   return {

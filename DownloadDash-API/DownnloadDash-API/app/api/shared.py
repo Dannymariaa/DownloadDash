@@ -187,6 +187,29 @@ async def download_public(
     kind = (result.get("kind") or "").lower()
     warnings = list(result.get("warnings") or [])
 
+    image_items = []
+    for item in downloads.get("items") or downloads.get("images") or result.get("images") or []:
+        if isinstance(item, str):
+            image_items.append({"url": item, "type": "image"})
+        elif isinstance(item, dict):
+            item_url = item.get("url") or item.get("download_url") or item.get("src")
+            if item_url:
+                image_items.append(
+                    {
+                        "url": item_url,
+                        "type": item.get("type") or item.get("media_type") or "image",
+                        "filename": item.get("filename"),
+                        "extension": item.get("extension") or item.get("ext"),
+                        "width": item.get("width"),
+                        "height": item.get("height"),
+                    }
+                )
+    if image_items:
+        downloads["items"] = image_items
+        downloads["image"] = downloads.get("image") or image_items[0]["url"]
+        if kind in {"album", "carousel", "post"}:
+            kind = "image"
+
     # Normalize download keys so frontend always gets a stable shape.
     if downloads.get("video") and not downloads.get("videoHD"):
         downloads["videoHD"] = downloads["video"]
