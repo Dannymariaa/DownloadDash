@@ -7,7 +7,18 @@ const getApiBaseUrl = () => {
   return String(raw).replace(/\/+$/, '');
 };
 
-const getApiKey = () => import.meta.env.VITE_SMD_API_KEY || '';
+const shouldSendApiKey = () => {
+  const flag = String(import.meta.env.VITE_SMD_REQUIRE_API_KEY || '').toLowerCase();
+  return flag === '1' || flag === 'true' || flag === 'yes';
+};
+
+const getApiKey = () => {
+  if (!shouldSendApiKey()) return '';
+
+  const value = String(import.meta.env.VITE_SMD_API_KEY || '').trim();
+  if (!value || value === 'your_api_key_here') return '';
+  return value;
+};
 const useRapidApiForYoutube = () => {
   const flag = String(import.meta.env.VITE_USE_RAPIDAPI_YOUTUBE || '').toLowerCase();
   return flag === '1' || flag === 'true' || flag === 'yes';

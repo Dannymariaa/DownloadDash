@@ -2,6 +2,7 @@
   "expo": {
     "name": "DownloadDash",
     "slug": "downloaddash",
+    "scheme": "downloaddash",
     "version": "1.0.0",
     "assetBundlePatterns": [
       "**/*"
@@ -24,14 +25,7 @@
         "android.permission.READ_EXTERNAL_STORAGE"
       ]
     },
-    "plugins": [
-      [
-        "expo-ads-admob",
-        {
-          "userTrackingPermission": "This app needs permission to track your behavior to show personalized ads based on your activity."
-        }
-      ]
-    ],
+    "plugins": [],
     "icon": "./assets/app-icon.png",
     "splash": {
       "image": "./assets/app-icon.png",
@@ -39,20 +33,20 @@
       "backgroundColor": "#000000"
     },
     "extra": {
-      "admob": {
-        "appId": "ca-app-pub-2390460896724446~4738934082",
-        "android": {
-          "bannerBottom": "ca-app-pub-2390460896724446/3282382183",
-          "interstitialAfterSave": "ca-app-pub-2390460896724446/5625668013",
-          "rewardedUnlockPremium": "ca-app-pub-2390460896724446/9213559236",
-          "rewardedInterstitial": "ca-app-pub-2390460896724446/3045081919"
+      "apiBaseUrl": "https://api.downloaddash.store",
+      "requireApiKey": false,
+      "ads": {
+        "provider": "monetag",
+        "format": "multitag",
+        "scriptSrc": "https://3nbf4.com/88/tag.min.js",
+        "zoneId": "11099484",
+        "zones": {
+          "pushNotifications": "11099484",
+          "vignetteBanner": "11099483",
+          "inPagePush": "11099482",
+          "onclickPopunder": "11099481"
         },
-        "ios": {
-          "bannerBottom": "ca-app-pub-2390460896724446/8088179829",
-          "interstitialAfterSave": "ca-app-pub-2390460896724446/5789319547",
-          "rewardedUnlockPremium": "ca-app-pub-2390460896724446/2835853148",
-          "rewardedInterstitial": "ca-app-pub-2390460896724446/6792755235"
-        }
+        "dataCfasync": "false"
       }
     }
   }
