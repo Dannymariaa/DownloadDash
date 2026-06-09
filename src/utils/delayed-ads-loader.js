@@ -1,61 +1,83 @@
-const ADSENSE_CLIENT_ID = 'ca-pub-2390460896724446';
-const ADSENSE_SRC = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`;
-const ADSENSE_DELAY_MS = 9000;
+const AD_PROVIDER_DOMAIN = '3nbf4.com';
+const AD_PROVIDER_ZONE_ID = '11099484';
+const AD_PROVIDER_ZONE_IDS = ['11099484', '11099483', '11099482', '11099481'];
+const AD_PROVIDER_SCRIPT_SRC =
+  import.meta.env.VITE_AD_PROVIDER_SCRIPT_SRC || `https://${AD_PROVIDER_DOMAIN}/88/tag.min.js`;
 
-let adsenseLoadPromise;
+let adProviderLoadPromise;
 
-export function loadAdsenseAfterDelay() {
+export function shouldSuppressAds() {
+  if (typeof navigator === 'undefined') {
+    return true;
+  }
+
+  const ua = navigator.userAgent || '';
+  return /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|lighthouse|pagespeed|chrome-lighthouse|gtmetrix|pingdom|webpagetest/i.test(ua);
+}
+
+function loadAdProviderScript() {
+  if (!AD_PROVIDER_SCRIPT_SRC || typeof document === 'undefined' || shouldSuppressAds()) {
+    return Promise.resolve(true);
+  }
+
+  const existingScript =
+    document.querySelector("script[data-ad-provider-loaded='true']") ||
+    document.querySelector(`script[src="${AD_PROVIDER_SCRIPT_SRC}"][data-zone="${AD_PROVIDER_ZONE_ID}"]`);
+
+  if (existingScript) {
+    return Promise.resolve(true);
+  }
+
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.async = true;
+    script.dataset.adProviderLoaded = 'true';
+    script.dataset.zone = AD_PROVIDER_ZONE_ID;
+    script.dataset.cfasync = 'false';
+    script.src = AD_PROVIDER_SCRIPT_SRC;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+
+    document.head.appendChild(script);
+  });
+}
+
+export function loadAdsAfterDelay({ immediate = false } = {}) {
   if (typeof window === 'undefined') {
     return Promise.resolve(false);
   }
 
-  if (adsenseLoadPromise) {
-    return adsenseLoadPromise;
+  if (shouldSuppressAds()) {
+    return Promise.resolve(false);
   }
 
-  adsenseLoadPromise = new Promise((resolve) => {
+  if (adProviderLoadPromise) {
+    return adProviderLoadPromise;
+  }
+
+  adProviderLoadPromise = new Promise((resolve) => {
     let started = false;
 
-    const loadAdsense = () => {
+    const loadAdProvider = () => {
       if (started) return;
       started = true;
 
-      const existingScript = document.querySelector("script[data-adsense-loaded='true']");
-
-      if (existingScript) {
-        resolve(true);
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.async = true;
-      script.crossOrigin = 'anonymous';
-      script.dataset.adsenseLoaded = 'true';
-      script.src = ADSENSE_SRC;
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-
-      document.head.appendChild(script);
+      loadAdProviderScript().then(resolve);
     };
 
-    window.addEventListener('scroll', loadAdsense, { once: true, passive: true });
-    window.addEventListener('click', loadAdsense, { once: true });
-    window.addEventListener('touchstart', loadAdsense, { once: true, passive: true });
-    window.addEventListener('keydown', loadAdsense, { once: true });
-    window.addEventListener('mousemove', loadAdsense, { once: true, passive: true });
-
-    const scheduleFallback = () => {
-      window.setTimeout(loadAdsense, ADSENSE_DELAY_MS);
-    };
-
-    if (document.readyState === 'complete') {
-      scheduleFallback();
-    } else {
-      window.addEventListener('load', scheduleFallback, { once: true });
+    if (immediate) {
+      loadAdProvider();
+      return;
     }
+
+    window.addEventListener('scroll', loadAdProvider, { once: true, passive: true });
+    window.addEventListener('click', loadAdProvider, { once: true });
+    window.addEventListener('touchstart', loadAdProvider, { once: true, passive: true });
+    window.addEventListener('keydown', loadAdProvider, { once: true });
+    window.addEventListener('mousemove', loadAdProvider, { once: true, passive: true });
   });
 
-  return adsenseLoadPromise;
+  return adProviderLoadPromise;
 }
 
-export { ADSENSE_CLIENT_ID };
+export { AD_PROVIDER_DOMAIN, AD_PROVIDER_ZONE_ID, AD_PROVIDER_ZONE_IDS };
