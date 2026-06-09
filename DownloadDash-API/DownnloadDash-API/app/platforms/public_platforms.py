@@ -549,6 +549,78 @@ class PublicPlatformDownloader:
         filename = f"{safe_title}.{actual_ext}"
         media_type = "audio/mp4" if variant == "audio" else "video/mp4"
         return {"path": filepath, "filename": filename, "media_type": media_type}
+
+    async def download_tiktok_variant(self, url: str, variant: str = "hd") -> Dict[str, str]:
+        """Download a TikTok variant to a temp file when signed CDN URLs reject browsers."""
+        loop = asyncio.get_event_loop()
+        variant = (variant or "hd").lower()
+
+        if variant == "audio":
+            format_selector = "bestaudio[ext=m4a]/bestaudio/best"
+            extension = "m4a"
+            media_type = "audio/mp4"
+        elif variant == "image":
+            format_selector = "best"
+            extension = "jpg"
+            media_type = "image/jpeg"
+        elif variant == "sd":
+            format_selector = "best[height<=480][vcodec!=none][acodec!=none]/best[height<=720]/best"
+            extension = "mp4"
+            media_type = "video/mp4"
+        else:
+            format_selector = "best[height<=1080][vcodec!=none][acodec!=none]/bestvideo*+bestaudio/best"
+            extension = "mp4"
+            media_type = "video/mp4"
+
+        os.makedirs(self.download_path, exist_ok=True)
+        file_id = str(uuid.uuid4())
+        output_template = os.path.join(self.download_path, f"{file_id}.%(ext)s")
+        opts = self.get_ydl_opts(Quality.HIGH, output_template)
+        self._apply_cookiefile_for_url(opts, url)
+        self._apply_proxy_for_url(opts, url)
+        opts.update(
+            {
+                "format": format_selector,
+                "noplaylist": True,
+                "skip_download": False,
+                "quiet": True,
+                "no_warnings": True,
+                "http_headers": self._build_http_headers(url),
+                "merge_output_format": "mp4",
+            }
+        )
+
+        self._log_ydl_context(f"tiktok.download.{variant}", url, opts)
+
+        def run_download():
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                return ydl.extract_info(url, download=True)
+
+        info = await loop.run_in_executor(None, run_download)
+        candidates = [
+            os.path.join(self.download_path, name)
+            for name in os.listdir(self.download_path)
+            if name.startswith(file_id) and os.path.isfile(os.path.join(self.download_path, name))
+        ]
+        if not candidates:
+            raise Exception("TikTok download finished but no output file was created")
+
+        filepath = max(candidates, key=os.path.getmtime)
+        actual_ext = os.path.splitext(filepath)[1].lstrip(".") or extension
+        media_type_by_ext = {
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "png": "image/png",
+            "webp": "image/webp",
+            "m4a": "audio/mp4",
+            "mp3": "audio/mpeg",
+            "mp4": "video/mp4",
+            "webm": "video/webm",
+        }
+        title = info.get("title") if isinstance(info, dict) else "tiktok"
+        safe_title = re.sub(r'[\\/:*?"<>|]+', "_", title or "tiktok").strip() or "tiktok"
+        filename = f"{safe_title}.{actual_ext}"
+        return {"path": filepath, "filename": filename, "media_type": media_type_by_ext.get(actual_ext, media_type)}
     
     async def resolve_media(self, url: str, quality: Quality, extract_audio: bool = False) -> Dict[str, Any]:
         """Resolve a direct media URL without downloading or saving files."""

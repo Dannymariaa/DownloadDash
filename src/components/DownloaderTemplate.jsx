@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, Link as LinkIcon, Loader2, CheckCircle,
-  AlertCircle, Bookmark, Shield, Film, Volume2, Image, Crown, Zap, Target, Lock, Eye, Play,
+  AlertCircle, Bookmark, Shield, Film, Volume2, Image, Crown, Zap, Target, Lock, Eye, Play, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +10,18 @@ import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
 import { useI18n } from '@/lib/i18n';
 import { getPlatformIcon } from '@/components/PlatformIcons';
+import { shouldSuppressAds } from '@/utils/delayed-ads-loader';
 
 const AD_GATE_SECONDS = {
   videoHD: 30,
   videoSD: 5,
+  audio: 5,
   image: 5,
   album: 5,
 };
+
+const LONG_SESSION_AD_MIN_MS = 5 * 60 * 1000;
+const LONG_SESSION_AD_SPREAD_MS = 5 * 60 * 1000;
 
 // Platform URL validation
 const urlPatterns = {
@@ -343,9 +348,49 @@ export default function DownloaderTemplate({
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [adGate, setAdGate] = useState(null);
+  const sessionAdTimerRef = useRef(null);
   const platformIconNode = React.isValidElement(platformIcon)
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
     : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || shouldSuppressAds()) {
+      return undefined;
+    }
+
+    let armed = false;
+    const armSessionAd = () => {
+      if (armed) return;
+      armed = true;
+      const delay = LONG_SESSION_AD_MIN_MS + Math.floor(Math.random() * LONG_SESSION_AD_SPREAD_MS);
+      sessionAdTimerRef.current = window.setTimeout(() => {
+        setAdGate((current) => current || {
+          label: 'Sponsored Break',
+          type: 'session',
+          secondsLeft: 0,
+          totalSeconds: 0,
+          canClaim: true,
+          action: null,
+          isSessionAd: true,
+        });
+      }, delay);
+    };
+
+    window.addEventListener('scroll', armSessionAd, { once: true, passive: true });
+    window.addEventListener('click', armSessionAd, { once: true });
+    window.addEventListener('touchstart', armSessionAd, { once: true, passive: true });
+    window.addEventListener('keydown', armSessionAd, { once: true });
+
+    return () => {
+      window.removeEventListener('scroll', armSessionAd);
+      window.removeEventListener('click', armSessionAd);
+      window.removeEventListener('touchstart', armSessionAd);
+      window.removeEventListener('keydown', armSessionAd);
+      if (sessionAdTimerRef.current) {
+        window.clearTimeout(sessionAdTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleFetch = async () => {
     const validation = validateUrl(url, platform, t);
@@ -414,7 +459,7 @@ export default function DownloaderTemplate({
       const filename = buildFilename(type, downloadUrl, index);
 
       // Use the client's downloadToDevice function which handles CORS and proxy fallback
-      await downloadDash.downloadToDevice(downloadUrl, filename, result?.original_url || url);
+      await downloadDash.downloadToDevice(downloadUrl, filename, result?.original_url || url, type);
 
       // Check if mobile device (limited download support)
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -470,6 +515,7 @@ export default function DownloaderTemplate({
       label,
       type,
       secondsLeft: waitSeconds,
+      totalSeconds: waitSeconds,
       canClaim: false,
       action: () => {
         if (items?.length) {
@@ -589,43 +635,71 @@ export default function DownloaderTemplate({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-md"
           >
             <motion.div
               initial={{ scale: 0.96, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.96, opacity: 0 }}
-              className="w-full max-w-md rounded-2xl border border-purple-500/30 bg-gray-950 p-5 shadow-2xl"
+              className="relative w-full max-w-5xl overflow-hidden rounded-md border border-gray-200 bg-white text-gray-950 shadow-2xl"
             >
-              <div className="mb-4 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-wide text-purple-300">Advertisement</p>
-                  <h2 className="mt-1 text-xl font-bold text-white">{adGate.label}</h2>
-                </div>
+              <div className="absolute left-0 top-0 h-1 bg-yellow-400 transition-all duration-500"
+                style={{
+                  width: `${adGate.totalSeconds ? ((adGate.totalSeconds - adGate.secondsLeft) / adGate.totalSeconds) * 100 : 100}%`,
+                }}
+              />
+
+              {adGate.isSessionAd && (
                 <button
                   type="button"
                   onClick={cancelAdGate}
-                  className="rounded-lg border border-white/10 px-3 py-2 text-sm text-gray-300 hover:border-white/30 hover:text-white"
+                  className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                  aria-label="Close advertisement"
                 >
-                  Cancel
+                  <X className="h-5 w-5" />
                 </button>
-              </div>
+              )}
 
-              <AdBanner position="rewarded" size="large" />
+              <div className="grid gap-6 p-4 pt-8 md:grid-cols-[minmax(220px,0.72fr)_1fr] md:p-8">
+                <div className="min-h-[300px] bg-gray-100 p-6">
+                  <div className="mb-8 flex h-20 w-20 items-center justify-center bg-cyan-50">
+                    <img src="/download-dash-logo.png" alt="DownloadDash" className="h-12 w-12 object-contain" />
+                  </div>
+                  <p className="text-2xl font-bold leading-tight text-gray-950">
+                    {adGate.isSessionAd ? 'Thanks for using DownloadDash' : `${adGate.label} unlock`}
+                  </p>
+                  <p className="mt-5 text-sm font-medium text-gray-400">Advertisement</p>
+                  <p className="mt-8 max-w-xs text-sm leading-5 text-gray-600">
+                    {adGate.isSessionAd
+                      ? 'This sponsored break is optional and can be closed at any time.'
+                      : 'Watch the short sponsor panel, then claim your award to start the download.'}
+                  </p>
+                </div>
 
-              <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-center">
-                <p className="text-sm text-gray-400">
-                  {adGate.canClaim
-                    ? 'Ad complete. Claim your award to start the download.'
-                    : `Claim award unlocks in ${adGate.secondsLeft}s.`}
-                </p>
-                <Button
-                  onClick={claimAdReward}
-                  disabled={!adGate.canClaim}
-                  className="mt-4 w-full rounded-xl bg-green-600 font-bold text-white hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Claim Award
-                </Button>
+                <div className="flex min-h-[300px] flex-col justify-center">
+                  <AdBanner position={adGate.isSessionAd ? 'session' : 'rewarded'} size="full" />
+
+                  <div className="mt-5">
+                    <Button
+                      onClick={adGate.isSessionAd ? cancelAdGate : claimAdReward}
+                      disabled={!adGate.canClaim}
+                      className="h-12 w-full rounded-md bg-cyan-500 text-base font-semibold text-white shadow-md hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-cyan-500/50"
+                    >
+                      {adGate.isSessionAd
+                        ? 'Close'
+                        : adGate.canClaim
+                          ? 'Claim Award'
+                          : `${adGate.label} in ${adGate.secondsLeft}s`}
+                    </Button>
+                    <p className="mt-3 text-center text-sm text-gray-500">
+                      {adGate.isSessionAd
+                        ? 'You can continue browsing after closing this ad.'
+                        : adGate.canClaim
+                          ? 'Ad complete. Claim your award to start the download.'
+                          : 'Your download will unlock after the sponsor timer.'}
+                    </p>
+                  </div>
+                </div>
               </div>
             </motion.div>
           </motion.div>

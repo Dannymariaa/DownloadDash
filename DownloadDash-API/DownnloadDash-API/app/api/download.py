@@ -1,6 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Body
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 import httpx
+import os
 import re
 from urllib.parse import urlparse
 
@@ -64,13 +65,50 @@ def _httpx_client_kwargs(**kwargs):
     return kwargs
 
 
+def _download_headers(url: str, source_url: str | None = None, retry: bool = False) -> dict:
+    source = source_url if isinstance(source_url, str) else ""
+    is_tiktok = "tiktok" in f"{url} {source}".lower() or "muscdn" in url.lower()
+    user_agent = (
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) "
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1"
+        if retry and is_tiktok
+        else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    )
+    headers = {
+        "User-Agent": user_agent,
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Connection": "keep-alive",
+    }
+
+    if source.startswith(("http://", "https://")):
+        parsed_source = urlparse(source)
+        headers["Referer"] = source
+        if parsed_source.scheme and parsed_source.netloc:
+            headers["Origin"] = f"{parsed_source.scheme}://{parsed_source.netloc}"
+    elif is_tiktok:
+        headers["Referer"] = "https://www.tiktok.com/"
+        headers["Origin"] = "https://www.tiktok.com"
+
+    if is_tiktok:
+        headers["Sec-Fetch-Dest"] = "video"
+        headers["Sec-Fetch-Mode"] = "no-cors"
+        headers["Sec-Fetch-Site"] = "cross-site"
+        headers["Range"] = "bytes=0-" if retry else "bytes=0-"
+
+    return headers
+
+
 @router.post("/download/file")
 async def download_file_proxy(
+    background_tasks: BackgroundTasks,
     payload: dict = Body(...),
 ):
     url = payload.get("url")
     filename = payload.get("filename") or "download"
     source_url = payload.get("sourceUrl") or payload.get("source_url") or payload.get("referrer")
+    media_type = payload.get("mediaType") or payload.get("media_type") or ""
 
     if not url or not isinstance(url, str):
         raise HTTPException(status_code=400, detail="url is required")
@@ -79,26 +117,61 @@ async def download_file_proxy(
 
     safe_name = _safe_filename(filename)
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "*/*",
-    }
-    if isinstance(source_url, str) and source_url.startswith(("http://", "https://")):
-        parsed_source = urlparse(source_url)
-        headers["Referer"] = source_url
-        if parsed_source.scheme and parsed_source.netloc:
-            headers["Origin"] = f"{parsed_source.scheme}://{parsed_source.netloc}"
-
     async with httpx.AsyncClient(
         **_httpx_client_kwargs(timeout=60.0, follow_redirects=True)
     ) as client:
         try:
-            upstream = await client.get(url, headers=headers)
+            upstream = await client.get(url, headers=_download_headers(url, source_url))
+            if upstream.status_code in (403, 429):
+                upstream = await client.get(url, headers=_download_headers(url, source_url, retry=True))
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Upstream download failed: {e}")
 
         if upstream.status_code >= 400:
-            raise HTTPException(status_code=upstream.status_code, detail="Upstream download failed")
+            body_preview = upstream.text[:300] if upstream.text else ""
+            blocked_by_varnish = "varnish" in body_preview.lower() or "54113" in body_preview
+            is_tiktok_source = "tiktok.com" in f"{source_url or ''}".lower()
+            if is_tiktok_source:
+                media_type_key = str(media_type).lower()
+                variant = (
+                    "audio"
+                    if "audio" in media_type_key
+                    else "image"
+                    if "image" in media_type_key or "photo" in media_type_key or "album" in media_type_key
+                    else "sd"
+                    if "sd" in media_type_key
+                    else "hd"
+                )
+                try:
+                    fallback = await public_downloader.download_tiktok_variant(source_url, variant)
+                except Exception as exc:
+                    raw_error = re.sub(r"\s+", " ", str(exc)).strip()
+                    detail = (
+                        "TikTok blocked both the signed media URL and the server fallback. "
+                        "Set fresh SMD_YTDLP_COOKIEFILE_TIKTOK cookies and, if needed, SMD_YTDLP_PROXY_TIKTOK on Render, then redeploy. "
+                        f"Fallback error: {raw_error}"
+                    )
+                    raise HTTPException(status_code=502, detail=detail)
+
+                path = fallback["path"]
+                if not os.path.exists(path):
+                    raise HTTPException(status_code=404, detail="Downloaded TikTok file not found")
+
+                background_tasks.add_task(os.remove, path)
+                return FileResponse(
+                    path,
+                    media_type=fallback["media_type"],
+                    filename=safe_name or fallback["filename"],
+                    background=background_tasks,
+                )
+
+            detail = (
+                "TikTok blocked the media request upstream (Varnish/Error 54113). "
+                "Please try again later or configure a TikTok/residential proxy for the API."
+                if blocked_by_varnish
+                else f"Upstream download failed ({upstream.status_code})"
+            )
+            raise HTTPException(status_code=502, detail=detail)
 
         content_type = upstream.headers.get("content-type") or "application/octet-stream"
         content_length = upstream.headers.get("content-length")

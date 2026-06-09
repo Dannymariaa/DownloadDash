@@ -85,7 +85,41 @@ const sanitizeFilename = (name) =>
     .trim()
     .slice(0, 160);
 
-export const downloadToDevice = async (fileUrl, filename, sourceUrl = '') => {
+const triggerBrowserDownload = async (res, filename) => {
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename || 'download';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(objectUrl);
+  return true;
+};
+
+const isTikTokSourceUrl = (sourceUrl = '') =>
+  String(sourceUrl || '').toLowerCase().includes('tiktok.com');
+
+const isTikTokMediaUrl = (fileUrl, sourceUrl = '') => {
+  const value = `${fileUrl || ''} ${sourceUrl || ''}`.toLowerCase();
+  return (
+    isTikTokSourceUrl(sourceUrl) ||
+    value.includes('tiktok.com') ||
+    value.includes('tiktokcdn') ||
+    value.includes('tiktokv.com') ||
+    value.includes('muscdn') ||
+    value.includes('byteoversea') ||
+    value.includes('ibytedtos') ||
+    value.includes('bytecdn') ||
+    value.includes('byteimg') ||
+    value.includes('p16-sign') ||
+    value.includes('p19-sign') ||
+    value.includes('tos-')
+  );
+};
+
+export const downloadToDevice = async (fileUrl, filename, sourceUrl = '', mediaType = '') => {
   const safeName = sanitizeFilename(filename);
   const absoluteFileUrl = absolutizeApiUrl(fileUrl);
   const baseUrl = getApiBaseUrl();
@@ -94,29 +128,7 @@ export const downloadToDevice = async (fileUrl, filename, sourceUrl = '') => {
     (absoluteFileUrl.startsWith(`${baseUrl}/download/file`) ||
       absoluteFileUrl.startsWith(`${baseUrl}/youtube/file`));
 
-  try {
-    const res = await fetch(absoluteFileUrl, { method: 'GET' });
-    if (!res.ok) {
-      const message = await getResponseMessage(res, `Failed to fetch file (${res.status})`);
-      throw new Error(message);
-    }
-    const blob = await res.blob();
-
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = safeName || 'download';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(objectUrl);
-    return true;
-  } catch (error) {
-    if (isApiManagedDownload) {
-      throw error;
-    }
-
-    // Fallback: proxy download through API to avoid CORS blocks
+  const proxyDownload = async () => {
     const proxyRes = await fetch(`${baseUrl}/download/file`, {
       method: 'POST',
       headers: buildHeaders(),
@@ -124,26 +136,34 @@ export const downloadToDevice = async (fileUrl, filename, sourceUrl = '') => {
         url: absoluteFileUrl,
         filename: safeName || 'download',
         sourceUrl,
+        mediaType,
       }),
     });
     if (!proxyRes.ok) {
       const message = await getResponseMessage(proxyRes, `Proxy download failed (${proxyRes.status})`);
-      if (/upstream download failed/i.test(message) && typeof window !== 'undefined') {
-        window.open(absoluteFileUrl, '_blank', 'noopener,noreferrer');
-        return true;
-      }
       throw new Error(message);
     }
-    const blob = await proxyRes.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    link.download = safeName || 'download';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(objectUrl);
-    return true;
+    return triggerBrowserDownload(proxyRes, safeName || 'download');
+  };
+
+  if (isTikTokMediaUrl(absoluteFileUrl, sourceUrl) && !isApiManagedDownload) {
+    return proxyDownload();
+  }
+
+  try {
+    const res = await fetch(absoluteFileUrl, { method: 'GET' });
+    if (!res.ok) {
+      const message = await getResponseMessage(res, `Failed to fetch file (${res.status})`);
+      throw new Error(message);
+    }
+    return triggerBrowserDownload(res, safeName || 'download');
+  } catch (error) {
+    if (isApiManagedDownload) {
+      throw error;
+    }
+
+    // Fallback: proxy download through API to avoid CORS blocks.
+    return proxyDownload();
   }
 };
 
@@ -311,6 +331,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
     },
     raw: data,
     downloadUrl: finalDownloadUrl,
+    original_url: url,
   };
 };
 
