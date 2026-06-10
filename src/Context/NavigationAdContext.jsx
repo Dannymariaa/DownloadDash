@@ -59,7 +59,7 @@ export function NavigationAdProvider({ children }) {
                     <p className="text-white text-lg font-bold">Switching Platform</p>
                     <p className="text-gray-400 text-sm mt-1">Quick ad while we load the page</p>
                     <div className="mt-5 w-64 h-12 bg-gray-800 rounded-xl border border-purple-500/20 flex items-center justify-center">
-                      <span className="text-gray-600 text-xs">Monetag Transition Space</span>
+                      <span className="text-gray-600 text-xs">Advertisement Space</span>
                     </div>
                   </div>
                 )}

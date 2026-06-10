@@ -133,7 +133,7 @@ export default function RecommendedApps() {
             </div>
             <h2 className="text-3xl font-bold text-white mb-3">Why this structure matters</h2>
             <p className="text-slate-300 leading-7">
-              Search visitors, AdSense reviewers, and everyday users should be able to tell the difference between your homepage, your guide hub, your legal pages, and your editorial content. That separation improves trust because each page has a distinct job.
+              Search visitors, ad reviewers, and everyday users should be able to tell the difference between your homepage, your guide hub, your legal pages, and your editorial content. That separation improves trust because each page has a distinct job.
             </p>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
