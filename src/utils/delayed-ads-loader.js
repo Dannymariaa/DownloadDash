@@ -1,6 +1,6 @@
-const AD_PROVIDER_DOMAIN = '3nbf4.com';
-const AD_PROVIDER_ZONE_ID = '11099484';
-const AD_PROVIDER_ZONE_IDS = ['11099484', '11099483', '11099482', '11099481'];
+const AD_PROVIDER_DOMAIN = 'quge5.com';
+const AD_PROVIDER_ZONE_ID = '246643';
+const AD_PROVIDER_ZONE_IDS = ['246643', '246109'];
 const AD_PROVIDER_SCRIPT_SRC =
   import.meta.env.VITE_AD_PROVIDER_SCRIPT_SRC || `https://${AD_PROVIDER_DOMAIN}/88/tag.min.js`;
 
@@ -20,26 +20,38 @@ function loadAdProviderScript() {
     return Promise.resolve(true);
   }
 
-  const existingScript =
-    document.querySelector("script[data-ad-provider-loaded='true']") ||
-    document.querySelector(`script[src="${AD_PROVIDER_SCRIPT_SRC}"][data-zone="${AD_PROVIDER_ZONE_ID}"]`);
+  const hasEveryZone = AD_PROVIDER_ZONE_IDS.every((zoneId) =>
+    document.querySelector(`script[src="${AD_PROVIDER_SCRIPT_SRC}"][data-zone="${zoneId}"]`)
+  );
 
-  if (existingScript) {
+  if (hasEveryZone) {
     return Promise.resolve(true);
   }
 
-  return new Promise((resolve) => {
-    const script = document.createElement('script');
-    script.async = true;
-    script.dataset.adProviderLoaded = 'true';
-    script.dataset.zone = AD_PROVIDER_ZONE_ID;
-    script.dataset.cfasync = 'false';
-    script.src = AD_PROVIDER_SCRIPT_SRC;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
+  return Promise.all(
+    AD_PROVIDER_ZONE_IDS.map((zoneId) => {
+      const existingScript =
+        document.querySelector(`script[data-ad-provider-loaded='true'][data-zone="${zoneId}"]`) ||
+        document.querySelector(`script[src="${AD_PROVIDER_SCRIPT_SRC}"][data-zone="${zoneId}"]`);
 
-    document.head.appendChild(script);
-  });
+      if (existingScript) {
+        return Promise.resolve(true);
+      }
+
+      return new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.async = true;
+        script.dataset.adProviderLoaded = 'true';
+        script.dataset.zone = zoneId;
+        script.dataset.cfasync = 'false';
+        script.src = AD_PROVIDER_SCRIPT_SRC;
+        script.onload = () => resolve(true);
+        script.onerror = () => resolve(false);
+
+        document.head.appendChild(script);
+      });
+    })
+  ).then((results) => results.some(Boolean));
 }
 
 export function loadAdsAfterDelay({ immediate = false } = {}) {
