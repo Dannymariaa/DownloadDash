@@ -163,28 +163,31 @@ class UniversalMediaDownloader:
 
             # Albums (sidecar) - return the best image and include list.
             if getattr(post, "typename", "") == "GraphSidecar":
-                images = []
-                for node in post.get_sidecar_nodes():
+                items = []
+                for index, node in enumerate(post.get_sidecar_nodes() or []):
                     if node.is_video:
                         continue
                     if node.display_url:
-                        images.append({
+                        items.append({
                             "url": node.display_url,
                             "width": node.display_url_width,
                             "height": node.display_url_height,
+                            "extension": "jpg",
+                            "filename": f"{shortcode}-{index + 1}.jpg",
                         })
 
-                primary = images[0]["url"] if images else post.url
+                primary = items[0]["url"] if items else post.url
                 return {
                     "direct_url": primary,
                     "title": post.title or "Instagram Post",
                     "thumbnail": primary,
                     "ext": "jpg",
                     "filesize": None,
-                    "kind": "album" if images else "image",
+                    "kind": "album" if len(items) > 1 else "image",
                     "downloads": {
                         "image": primary,
-                        "images": images,
+                        "images": items,
+                        "items": items,
                     },
                     "author_username": post.owner_username,
                     "author_display_name": post.owner_username,

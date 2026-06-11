@@ -71,7 +71,18 @@ def _gallery_result_to_universal(
     gallery_result: Dict[str, Any],
     extract_audio: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    items = [item for item in gallery_result.get("items") or [] if isinstance(item, dict) and item.get("url")]
+    raw_items = gallery_result.get("items") or []
+    items = []
+    for item in raw_items:
+        if isinstance(item, dict):
+            item_url = item.get("url") or item.get("download_url") or item.get("src")
+            if not item_url:
+                continue
+            enriched = {**item, "url": item_url}
+            items.append(enriched)
+        elif isinstance(item, str):
+            items.append({"url": item})
+
     if not items:
         return None
 

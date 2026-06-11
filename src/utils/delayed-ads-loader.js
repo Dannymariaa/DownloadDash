@@ -1,6 +1,19 @@
 const AD_PROVIDER_DOMAIN = 'quge5.com';
 const AD_PROVIDER_ZONE_ID = '246643';
-const AD_PROVIDER_ZONE_IDS = ['246643', '246109'];
+
+const parseZoneIds = (value) => {
+  if (!value || typeof value !== 'string') return [];
+  return value
+    .split(/[,\s]+/)
+    .map((id) => String(id).trim())
+    .filter(Boolean);
+};
+
+let AD_PROVIDER_ZONE_IDS = parseZoneIds(import.meta.env.VITE_AD_PROVIDER_ZONE_IDS);
+if (!AD_PROVIDER_ZONE_IDS || AD_PROVIDER_ZONE_IDS.length === 0) {
+  AD_PROVIDER_ZONE_IDS = ['246643', '246109'];
+}
+
 const AD_PROVIDER_SCRIPT_SRC =
   import.meta.env.VITE_AD_PROVIDER_SCRIPT_SRC || `https://${AD_PROVIDER_DOMAIN}/88/tag.min.js`;
 
