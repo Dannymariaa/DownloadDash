@@ -110,12 +110,26 @@ export function loadAdsAfterDelay({ immediate = false, placement = 'banner' } = 
 
   const loadPromise = new Promise((resolve) => {
     let started = false;
+    let fallbackTimer = null;
+
+    const cleanup = () => {
+      window.removeEventListener('scroll', loadAdProvider);
+      window.removeEventListener('click', loadAdProvider);
+      window.removeEventListener('touchstart', loadAdProvider);
+      window.removeEventListener('keydown', loadAdProvider);
+      window.removeEventListener('mousemove', loadAdProvider);
+      if (fallbackTimer !== null) {
+        window.clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+    };
 
     const loadAdProvider = () => {
       if (started) return;
       started = true;
+      cleanup();
 
-      loadAdProviderScript(placement).then(resolve);
+      loadAdProviderScript(placement).then((result) => resolve(result));
     };
 
     if (immediate) {
@@ -128,6 +142,8 @@ export function loadAdsAfterDelay({ immediate = false, placement = 'banner' } = 
     window.addEventListener('touchstart', loadAdProvider, { once: true, passive: true });
     window.addEventListener('keydown', loadAdProvider, { once: true });
     window.addEventListener('mousemove', loadAdProvider, { once: true, passive: true });
+
+    fallbackTimer = window.setTimeout(loadAdProvider, 2500);
   });
 
   adProviderLoadPromises.set(placement, loadPromise);

@@ -11,14 +11,16 @@ import { AD_PROVIDER_ZONE_ID, MONETAG_ZONES, loadAdsAfterDelay } from '@/utils/d
  */
 export default function AdBanner({ position = 'top', size = 'medium' }) {
   const { isMobileApp } = useAdPlatform();
+  const adPlacement = position === 'rewarded' || position === 'session' ? 'vignette' : 'banner';
+  const zoneId = position === 'rewarded' || position === 'session' ? MONETAG_ZONES.vignette.id : AD_PROVIDER_ZONE_ID;
+  const containerId = `ad-banner-${position}-${size}`;
 
   useEffect(() => {
     let cancelled = false;
-    const adPlacement = position === 'rewarded' || position === 'session' ? 'vignette' : 'banner';
 
     if (!isMobileApp) {
       loadAdsAfterDelay({
-        immediate: position === 'rewarded' || position === 'session',
+        immediate: true,
         placement: adPlacement,
       }).then(() => {
         if (cancelled) return;
@@ -44,12 +46,16 @@ export default function AdBanner({ position = 'top', size = 'medium' }) {
 
   return (
     <motion.div
+      id={containerId}
       initial={{ opacity: 0, y: position === 'top' ? -10 : 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="w-full relative overflow-hidden rounded-xl border border-purple-500/20 bg-gradient-to-r from-purple-900/20 via-black/40 to-purple-900/20 flex items-center justify-center"
       style={sizeStyles[size]}
       aria-label="Advertisement space"
-      data-ad-zone={position === 'rewarded' || position === 'session' ? MONETAG_ZONES.vignette.id : AD_PROVIDER_ZONE_ID}
+      data-ad-zone={zoneId}
+      data-zone={zoneId}
+      data-monetag-zone={zoneId}
+      data-ad-provider="monetag"
     >
       <p className="text-purple-300/60 text-xs font-medium">Advertisement</p>
     </motion.div>
