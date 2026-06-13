@@ -119,6 +119,152 @@ const isTikTokMediaUrl = (fileUrl, sourceUrl = '') => {
   );
 };
 
+const inferMediaTypeFromUrl = (url = '') => {
+  const cleanUrl = String(url || '').split('?')[0].toLowerCase();
+  if (/\.(mp3|m4a|aac|wav|ogg|opus)$/.test(cleanUrl)) return 'audio';
+  if (/\.(mp4|webm|mov|mkv|m3u8)$/.test(cleanUrl)) return 'video';
+  if (/\.(jpg|jpeg|png|webp|gif|avif)$/.test(cleanUrl)) return 'image';
+  return '';
+};
+
+const firstValue = (entry, keys) => {
+  for (const key of keys) {
+    if (entry?.[key]) return entry[key];
+  }
+  return null;
+};
+
+const asArray = (value) => {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+};
+
+const normalizeMediaItem = (item, index, fallbackType = 'image') => {
+  const entry = item?.node ? item.node : item;
+  if (!entry) return null;
+
+  if (typeof entry === 'string') {
+    return {
+      url: absolutizeApiUrl(entry),
+      type: inferMediaTypeFromUrl(entry) || fallbackType,
+      thumbnail: absolutizeApiUrl(entry),
+      index,
+    };
+  }
+
+  const url = firstValue(entry, [
+    'url',
+    'download_url',
+    'downloadUrl',
+    'media_url',
+    'mediaUrl',
+    'display_url',
+    'displayUrl',
+    'image_url',
+    'imageUrl',
+    'video_url',
+    'videoUrl',
+    'play_url',
+    'playUrl',
+    'src',
+  ]);
+
+  if (!url) return null;
+
+  const inferredType = inferMediaTypeFromUrl(url);
+  const type =
+    entry.type ||
+    entry.media_type ||
+    entry.mediaType ||
+    (entry.is_video || entry.isVideo ? 'video' : '') ||
+    inferredType ||
+    fallbackType;
+
+  const thumbnail = firstValue(entry, [
+    'thumbnail',
+    'thumbnail_url',
+    'thumbnailUrl',
+    'preview_url',
+    'previewUrl',
+    'display_url',
+    'image_url',
+  ]);
+
+  return {
+    url: absolutizeApiUrl(url),
+    type: String(type).toLowerCase(),
+    filename: entry.filename || entry.file_name,
+    extension: entry.extension,
+    width: entry.width,
+    height: entry.height,
+    thumbnail: absolutizeApiUrl(thumbnail || url),
+    index,
+  };
+};
+
+const collectMediaItems = (data, downloads) => {
+  const mediaInfo = data?.media_info || {};
+  const sidecarEdges = mediaInfo?.edge_sidecar_to_children?.edges || data?.edge_sidecar_to_children?.edges;
+  const candidates = [
+    ...asArray(downloads?.items),
+    ...asArray(downloads?.images),
+    ...asArray(downloads?.photos),
+    ...asArray(downloads?.photo),
+    ...asArray(downloads?.carousel),
+    ...asArray(downloads?.media),
+    ...asArray(data?.items),
+    ...asArray(data?.images),
+    ...asArray(data?.photos),
+    ...asArray(data?.photo),
+    ...asArray(data?.carousel),
+    ...asArray(data?.media),
+    ...asArray(mediaInfo?.items),
+    ...asArray(mediaInfo?.images),
+    ...asArray(mediaInfo?.photos),
+    ...asArray(mediaInfo?.photo),
+    ...asArray(mediaInfo?.carousel),
+    ...asArray(mediaInfo?.media),
+    ...asArray(sidecarEdges),
+  ];
+
+  const seen = new Set();
+  return candidates
+    .map((item, index) => normalizeMediaItem(item, index))
+    .filter((item) => {
+      if (!item?.url || seen.has(item.url)) return false;
+      seen.add(item.url);
+      return true;
+    })
+    .map((item, index) => ({ ...item, index }));
+};
+
+const findAudioUrl = (...sources) => {
+  const directKeys = [
+    'audio',
+    'audio_url',
+    'audioUrl',
+    'music_url',
+    'musicUrl',
+    'sound_url',
+    'soundUrl',
+    'mp3',
+    'm4a',
+  ];
+
+  for (const source of sources) {
+    const direct = firstValue(source, directKeys);
+    if (typeof direct === 'string') return direct;
+
+    for (const nestedKey of ['music', 'sound', 'audio_info', 'audioInfo']) {
+      const nested = source?.[nestedKey];
+      const nestedDirect = firstValue(nested, directKeys.concat(['play_url', 'playUrl', 'url']));
+      if (typeof nestedDirect === 'string') return nestedDirect;
+    }
+  }
+
+  return null;
+};
+
 export const downloadToDevice = async (fileUrl, filename, sourceUrl = '', mediaType = '') => {
   const safeName = sanitizeFilename(filename);
   const absoluteFileUrl = absolutizeApiUrl(fileUrl);
@@ -216,12 +362,20 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   if (!downloads.videoHD && downloads.video) downloads.videoHD = downloads.video;
   if (!downloads.videoSD && downloads.video) downloads.videoSD = downloads.video;
   if (!downloads.audio && downloads.audio_url) downloads.audio = downloads.audio_url;
-  if (!downloads.items && Array.isArray(downloads.images)) downloads.items = downloads.images;
+  if (!downloads.audio) {
+    downloads.audio = findAudioUrl(downloads, data, data?.media_info);
+  }
+  const collectedItems = collectMediaItems(data, downloads);
+  if (collectedItems.length) downloads.items = collectedItems;
   downloads.videoHD = absolutizeApiUrl(downloads.videoHD);
   downloads.videoSD = absolutizeApiUrl(downloads.videoSD);
   downloads.video = absolutizeApiUrl(downloads.video);
   downloads.audio = absolutizeApiUrl(downloads.audio);
   downloads.image = absolutizeApiUrl(downloads.image);
+  if (!downloads.image && Array.isArray(downloads.items)) {
+    const firstImage = downloads.items.find((item) => item.type !== 'video' && item.type !== 'audio');
+    downloads.image = firstImage?.url;
+  }
   const mediaType = data?.media_type || data?.media_info?.media_type || null;
   const downloadUrl =
     downloads.videoHD ||
@@ -277,38 +431,25 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
 
   const albumItems = Array.isArray(downloads.items)
     ? downloads.items
-        .map((item, index) => {
-          const entry = typeof item === 'string' ? { url: item } : item;
-          return {
-          url: absolutizeApiUrl(entry.url || entry.download_url),
-          type: entry.type || entry.media_type || 'image',
-          filename: entry.filename,
-          extension: entry.extension,
-          width: entry.width,
-          height: entry.height,
-          thumbnail: absolutizeApiUrl(entry.thumbnail || entry.url || entry.download_url),
-          index,
-        };
-        })
-        .filter((item) => item.url)
-    : Array.isArray(data?.images)
-      ? data.images
-          .map((img, index) => ({
-            url: absolutizeApiUrl(img.url || img.download_url),
-            type: img.type || img.media_type || 'image',
-            filename: img.filename,
-            extension: img.extension,
-            width: img.width,
-            height: img.height,
-            thumbnail: absolutizeApiUrl(img.thumbnail || img.url || img.download_url),
-            index,
-          }))
-          .filter((item) => item.url)
-      : null;
+        .map((item, index) => normalizeMediaItem(item, index))
+        .filter((item) => item?.url)
+    : null;
 
   if (albumItems && albumItems.length) {
     downloads.items = albumItems;
     if (albumItems.length > 1 && !hasVideo) kind = 'album';
+    if (!downloads.image) {
+      downloads.image = albumItems.find((item) => item.type !== 'video' && item.type !== 'audio')?.url;
+    }
+    const albumVideo = albumItems.find((item) => item.type === 'video');
+    if (albumVideo && !downloads.videoHD) {
+      downloads.videoHD = albumVideo.url;
+      downloads.videoSD = downloads.videoSD || albumVideo.url;
+    }
+    const albumAudio = albumItems.find((item) => item.type === 'audio');
+    if (albumAudio && !downloads.audio) {
+      downloads.audio = albumAudio.url;
+    }
   }
 
   return {

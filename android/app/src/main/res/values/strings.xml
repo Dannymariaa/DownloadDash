@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DownloadDash</string>
+    <string name="title_activity_main">DownloadDash</string>
+    <string name="package_name">store.downloaddash.app</string>
+    <string name="custom_url_scheme">store.downloaddash.app</string>
+</resources>

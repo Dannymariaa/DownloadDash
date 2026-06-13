@@ -1,5 +1,30 @@
-const AD_PROVIDER_DOMAIN = 'quge5.com';
-const AD_PROVIDER_ZONE_ID = '246643';
+const AD_PROVIDER_DOMAIN = 'nap5k.com';
+const AD_PROVIDER_ZONE_ID = '11129612';
+
+const MONETAG_ZONES = {
+  inPagePush: {
+    id: import.meta.env.VITE_MONETAG_IN_PAGE_PUSH_ZONE || '11129612',
+    scriptSrc: import.meta.env.VITE_MONETAG_IN_PAGE_PUSH_SRC || 'https://nap5k.com/tag.min.js',
+  },
+  vignette: {
+    id: import.meta.env.VITE_MONETAG_VIGNETTE_ZONE || '11129621',
+    scriptSrc: import.meta.env.VITE_MONETAG_VIGNETTE_SRC || 'https://n6wxm.com/vignette.min.js',
+  },
+  onClick: {
+    id: import.meta.env.VITE_MONETAG_ONCLICK_ZONE || '11133067',
+    scriptSrc: import.meta.env.VITE_MONETAG_ONCLICK_SRC || 'https://al5sm.com/tag.min.js',
+  },
+  directLink: import.meta.env.VITE_MONETAG_DIRECT_LINK || 'https://omg10.com/4/11129628',
+  // Additional zones for enhanced coverage
+  zone1: {
+    id: import.meta.env.VITE_MONETAG_ZONE1_ID || '246643',
+    scriptSrc: import.meta.env.VITE_MONETAG_ZONE1_SRC || 'https://quge5.com/88/tag.min.js',
+  },
+  zone2: {
+    id: import.meta.env.VITE_MONETAG_ZONE2_ID || '246109',
+    scriptSrc: import.meta.env.VITE_MONETAG_ZONE2_SRC || 'https://quge5.com/88/tag.min.js',
+  },
+};
 
 const parseZoneIds = (value) => {
   if (!value || typeof value !== 'string') return [];
@@ -11,13 +36,13 @@ const parseZoneIds = (value) => {
 
 let AD_PROVIDER_ZONE_IDS = parseZoneIds(import.meta.env.VITE_AD_PROVIDER_ZONE_IDS);
 if (!AD_PROVIDER_ZONE_IDS || AD_PROVIDER_ZONE_IDS.length === 0) {
-  AD_PROVIDER_ZONE_IDS = ['246643', '246109'];
+  AD_PROVIDER_ZONE_IDS = [MONETAG_ZONES.inPagePush.id];
 }
 
 const AD_PROVIDER_SCRIPT_SRC =
-  import.meta.env.VITE_AD_PROVIDER_SCRIPT_SRC || `https://${AD_PROVIDER_DOMAIN}/88/tag.min.js`;
+  import.meta.env.VITE_AD_PROVIDER_SCRIPT_SRC || MONETAG_ZONES.inPagePush.scriptSrc;
 
-let adProviderLoadPromise;
+const adProviderLoadPromises = new Map();
 
 export function shouldSuppressAds() {
   if (typeof navigator === 'undefined') {
@@ -28,46 +53,49 @@ export function shouldSuppressAds() {
   return /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|lighthouse|pagespeed|chrome-lighthouse|gtmetrix|pingdom|webpagetest/i.test(ua);
 }
 
-function loadAdProviderScript() {
-  if (!AD_PROVIDER_SCRIPT_SRC || typeof document === 'undefined' || shouldSuppressAds()) {
+const getPlacementZone = (placement = 'banner') => {
+  if (placement === 'rewarded' || placement === 'session' || placement === 'vignette') {
+    return MONETAG_ZONES.vignette;
+  }
+  if (placement === 'onclick' || placement === 'audio' || placement === 'direct') {
+    return MONETAG_ZONES.onClick;
+  }
+  return {
+    id: AD_PROVIDER_ZONE_IDS[0] || MONETAG_ZONES.inPagePush.id,
+    scriptSrc: AD_PROVIDER_SCRIPT_SRC,
+  };
+};
+
+function loadAdProviderScript(placement = 'banner') {
+  const zone = getPlacementZone(placement);
+
+  if (!zone?.scriptSrc || !zone?.id || typeof document === 'undefined' || shouldSuppressAds()) {
     return Promise.resolve(true);
   }
 
-  const hasEveryZone = AD_PROVIDER_ZONE_IDS.every((zoneId) =>
-    document.querySelector(`script[src="${AD_PROVIDER_SCRIPT_SRC}"][data-zone="${zoneId}"]`)
-  );
+  const existingScript =
+    document.querySelector(`script[data-ad-provider-loaded='true'][data-zone="${zone.id}"]`) ||
+    document.querySelector(`script[src="${zone.scriptSrc}"][data-zone="${zone.id}"]`);
 
-  if (hasEveryZone) {
+  if (existingScript) {
     return Promise.resolve(true);
   }
 
-  return Promise.all(
-    AD_PROVIDER_ZONE_IDS.map((zoneId) => {
-      const existingScript =
-        document.querySelector(`script[data-ad-provider-loaded='true'][data-zone="${zoneId}"]`) ||
-        document.querySelector(`script[src="${AD_PROVIDER_SCRIPT_SRC}"][data-zone="${zoneId}"]`);
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.async = true;
+    script.dataset.adProviderLoaded = 'true';
+    script.dataset.zone = zone.id;
+    script.dataset.cfasync = 'false';
+    script.src = zone.scriptSrc;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
 
-      if (existingScript) {
-        return Promise.resolve(true);
-      }
-
-      return new Promise((resolve) => {
-        const script = document.createElement('script');
-        script.async = true;
-        script.dataset.adProviderLoaded = 'true';
-        script.dataset.zone = zoneId;
-        script.dataset.cfasync = 'false';
-        script.src = AD_PROVIDER_SCRIPT_SRC;
-        script.onload = () => resolve(true);
-        script.onerror = () => resolve(false);
-
-        document.head.appendChild(script);
-      });
-    })
-  ).then((results) => results.some(Boolean));
+    document.head.appendChild(script);
+  });
 }
 
-export function loadAdsAfterDelay({ immediate = false } = {}) {
+export function loadAdsAfterDelay({ immediate = false, placement = 'banner' } = {}) {
   if (typeof window === 'undefined') {
     return Promise.resolve(false);
   }
@@ -76,18 +104,18 @@ export function loadAdsAfterDelay({ immediate = false } = {}) {
     return Promise.resolve(false);
   }
 
-  if (adProviderLoadPromise) {
-    return adProviderLoadPromise;
+  if (adProviderLoadPromises.has(placement)) {
+    return adProviderLoadPromises.get(placement);
   }
 
-  adProviderLoadPromise = new Promise((resolve) => {
+  const loadPromise = new Promise((resolve) => {
     let started = false;
 
     const loadAdProvider = () => {
       if (started) return;
       started = true;
 
-      loadAdProviderScript().then(resolve);
+      loadAdProviderScript(placement).then(resolve);
     };
 
     if (immediate) {
@@ -102,7 +130,17 @@ export function loadAdsAfterDelay({ immediate = false } = {}) {
     window.addEventListener('mousemove', loadAdProvider, { once: true, passive: true });
   });
 
-  return adProviderLoadPromise;
+  adProviderLoadPromises.set(placement, loadPromise);
+  return loadPromise;
 }
 
-export { AD_PROVIDER_DOMAIN, AD_PROVIDER_ZONE_ID, AD_PROVIDER_ZONE_IDS };
+export function openDirectAdLink() {
+  if (typeof window === 'undefined' || shouldSuppressAds() || !MONETAG_ZONES.directLink) {
+    return false;
+  }
+
+  const opened = window.open(MONETAG_ZONES.directLink, '_blank', 'noopener,noreferrer');
+  return !!opened;
+}
+
+export { AD_PROVIDER_DOMAIN, AD_PROVIDER_ZONE_ID, AD_PROVIDER_ZONE_IDS, MONETAG_ZONES };

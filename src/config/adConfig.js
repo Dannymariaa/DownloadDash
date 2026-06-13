@@ -4,13 +4,15 @@ import { loadAdsAfterDelay } from '@/utils/delayed-ads-loader';
 
 export const adConfig = {
   provider: 'monetag',
-  format: 'multitag',
-  scriptSrc: 'https://quge5.com/88/tag.min.js',
-  zoneId: '246643',
-  zoneIds: ['246643', '246109'],
+  format: 'placement-zones',
+  scriptSrc: 'https://nap5k.com/tag.min.js',
+  zoneId: '11129612',
+  zoneIds: ['11129612', '11129621', '11133067'],
   zones: {
-    primaryTag: '246643',
-    secondaryTag: '246109',
+    inPagePush: '11129612',
+    vignetteBanner: '11129621',
+    onClickPopunder: '11133067',
+    directLink: 'https://omg10.com/4/11129628',
   },
   dataCfasync: 'false',
 };

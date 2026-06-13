@@ -1,0 +1,21 @@
+# AdSense Pre-Review Checklist
+
+- [ ] Homepage has useful written content
+- [ ] About page exists
+- [ ] Privacy Policy exists
+- [ ] Terms of Service exists
+- [ ] Contact page exists
+- [ ] Responsible Use page exists
+- [ ] DMCA page exists
+- [ ] FAQ exists
+- [ ] Safety Center exists
+- [ ] Guides exist
+- [ ] No empty pages
+- [ ] No under-construction pages
+- [ ] No fake download buttons
+- [ ] No aggressive popups
+- [ ] No auto-redirect tricks
+- [ ] No broken footer links
+- [ ] Site works on phone
+- [ ] Sitemap submitted
+- [ ] Ads are disabled or minimal during review

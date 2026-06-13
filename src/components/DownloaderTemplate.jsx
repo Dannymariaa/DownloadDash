@@ -10,7 +10,7 @@ import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
 import { useI18n } from '@/lib/i18n';
 import { getPlatformIcon } from '@/components/PlatformIcons';
-import { shouldSuppressAds } from '@/utils/delayed-ads-loader';
+import { loadAdsAfterDelay, openDirectAdLink, shouldSuppressAds } from '@/utils/delayed-ads-loader';
 
 const AD_GATE_SECONDS = {
   videoHD: 30,
@@ -579,14 +579,29 @@ export default function DownloaderTemplate({
     ? result.downloads.items.filter((item) => item?.url)
     : [];
   const hasAlbumItems = albumItems.length > 1;
+  
+  // Separate album items by type
   const photoItems = albumItems.filter((item) => {
     const itemType = (item.type || '').toLowerCase();
     return itemType !== 'audio' && itemType !== 'video';
   });
+  const audioItems = albumItems.filter((item) => {
+    const itemType = (item.type || '').toLowerCase();
+    return itemType === 'audio';
+  });
+  const videoItems = albumItems.filter((item) => {
+    const itemType = (item.type || '').toLowerCase();
+    return itemType === 'video';
+  });
+  
+  // Check if album has audio that should be extracted
+  const albumHasAudio = audioItems.length > 0 || (hasAlbumItems && albumItems.some(item => item.type === 'audio'));
+  const effectiveHasAudio = hasAudio || albumHasAudio;
+  
   const hasImage = !!result?.downloads?.image;
   const hasPhotoDownload = (hasAlbumItems && photoItems.length > 0) || hasImage;
   const photoDownloadUrl = hasAlbumItems ? photoItems[0]?.url : result?.downloads?.image;
-  const hasVideoOrAudio = hasVideoHD || hasVideoSD || hasAudio;
+  const hasVideoOrAudio = hasVideoHD || hasVideoSD || effectiveHasAudio;
   const pageContent = platformPageContent[platform] || {
     intro:
       `${platformName} links can return different media options depending on privacy, source availability, and platform changes. Use public links, keep creator context, and save only media you are allowed to keep.`,
@@ -897,7 +912,7 @@ export default function DownloaderTemplate({
                         whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(147, 51, 234, 0.3)' }}
                         whileTap={{ scale: 0.99 }}
                         onClick={() => requestDownload(result.downloads?.videoHD, 'videoHD', 'HD Video')}
-                        className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/40 hover:border-purple-500/70 transition-all group"
+                        className={`${hasVideoHD ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/40 hover:border-purple-500/70 transition-all group`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center flex-shrink-0">
@@ -919,7 +934,7 @@ export default function DownloaderTemplate({
                         whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)' }}
                         whileTap={{ scale: 0.99 }}
                         onClick={() => requestDownload(result.downloads?.videoSD, 'videoSD', 'SD Video')}
-                        className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-purple-500/40 transition-all group"
+                        className={`${hasVideoSD ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-purple-500/40 transition-all group`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-gray-700 flex items-center justify-center flex-shrink-0">
@@ -940,8 +955,13 @@ export default function DownloaderTemplate({
                         variants={downloadOptionVariants}
                         whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(34, 197, 94, 0.3)' }}
                         whileTap={{ scale: 0.99 }}
-                        onClick={() => requestDownload(result.downloads?.audio, 'audio', 'Audio / MP3')}
-                        className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-green-500/40 transition-all group"
+                        onClick={() => requestDownload(
+                           result.downloads?.audio || audioItems[0]?.url,
+                           'audio',
+                           audioItems.length > 1 ? `All Audio (${audioItems.length})` : 'Audio / MP3',
+                           audioItems.length > 0 ? audioItems : null
+                         )}
+                        className={`${effectiveHasAudio ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-green-500/40 transition-all group`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-green-900/60 flex items-center justify-center flex-shrink-0">

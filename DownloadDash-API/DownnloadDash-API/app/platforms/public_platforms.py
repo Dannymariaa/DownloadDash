@@ -255,6 +255,23 @@ class PublicPlatformDownloader:
             "audio": build_url("audio"),
         }
 
+    def _api_file_download_url(self, url: str, variant: str, filename: str | None = None) -> str:
+        params = {
+            "sourceUrl": url,
+            "mediaType": variant,
+        }
+        if filename:
+            params["filename"] = filename
+        return f"/download/file?{urlencode(params)}"
+
+    def _tiktok_api_downloads(self, url: str, title: str | None = None) -> Dict[str, str]:
+        safe_title = re.sub(r'[\\/:*?"<>|]+', "_", title or "tiktok").strip() or "tiktok"
+        return {
+            "videoHD": self._api_file_download_url(url, "hd", f"{safe_title}.mp4"),
+            "videoSD": self._api_file_download_url(url, "sd", f"{safe_title}.mp4"),
+            "audio": self._api_file_download_url(url, "audio", f"{safe_title}.m4a"),
+        }
+
     def _youtube_extractor_args(self, player_clients: list[str]) -> Dict[str, Any]:
         youtube_args: Dict[str, Any] = {"player_client": player_clients}
         return {"youtube": youtube_args}
@@ -556,19 +573,27 @@ class PublicPlatformDownloader:
         variant = (variant or "hd").lower()
 
         if variant == "audio":
-            format_selector = "bestaudio[ext=m4a]/bestaudio/best"
+            format_selectors = ["bestaudio[ext=m4a]/bestaudio/best", "bestaudio/best", "best"]
             extension = "m4a"
             media_type = "audio/mp4"
         elif variant == "image":
-            format_selector = "best"
+            format_selectors = ["best"]
             extension = "jpg"
             media_type = "image/jpeg"
         elif variant == "sd":
-            format_selector = "best[height<=480][vcodec!=none][acodec!=none]/best[height<=720]/best"
+            format_selectors = [
+                "best[height<=480][vcodec!=none][acodec!=none]/best[height<=720]/best",
+                "best[ext=mp4]/best",
+                "best",
+            ]
             extension = "mp4"
             media_type = "video/mp4"
         else:
-            format_selector = "best[height<=1080][vcodec!=none][acodec!=none]/bestvideo*+bestaudio/best"
+            format_selectors = [
+                "best[height<=1080][vcodec!=none][acodec!=none]/bestvideo*+bestaudio/best",
+                "best[ext=mp4]/best",
+                "best",
+            ]
             extension = "mp4"
             media_type = "video/mp4"
 
@@ -580,23 +605,42 @@ class PublicPlatformDownloader:
         self._apply_proxy_for_url(opts, url)
         opts.update(
             {
-                "format": format_selector,
                 "noplaylist": True,
                 "skip_download": False,
                 "quiet": True,
                 "no_warnings": True,
                 "http_headers": self._build_http_headers(url),
                 "merge_output_format": "mp4",
+                "extractor_args": {
+                    "tiktok": {
+                        "api_hostname": ["api22-normal-c-useast1a.tiktokv.com"],
+                    }
+                },
             }
         )
 
-        self._log_ydl_context(f"tiktok.download.{variant}", url, opts)
-
-        def run_download():
-            with yt_dlp.YoutubeDL(opts) as ydl:
+        def run_download(download_opts: Dict[str, Any]):
+            with yt_dlp.YoutubeDL(download_opts) as ydl:
                 return ydl.extract_info(url, download=True)
 
-        info = await loop.run_in_executor(None, run_download)
+        info = None
+        last_error: Exception | None = None
+        for index, format_selector in enumerate(format_selectors):
+            attempt_opts = dict(opts)
+            attempt_opts["format"] = format_selector
+            if index > 0:
+                attempt_opts["ignore_no_formats_error"] = True
+            self._log_ydl_context(f"tiktok.download.{variant}.{format_selector}", url, attempt_opts)
+            try:
+                info = await loop.run_in_executor(None, lambda attempt_opts=attempt_opts: run_download(attempt_opts))
+                break
+            except Exception as e:
+                last_error = e
+                print(f"Warning: yt-dlp tiktok.download.{variant} failed with {format_selector}: {e}")
+
+        if info is None:
+            raise last_error or Exception("TikTok download failed")
+
         candidates = [
             os.path.join(self.download_path, name)
             for name in os.listdir(self.download_path)
@@ -936,6 +980,11 @@ class PublicPlatformDownloader:
         # Ensure image downloads are available when the primary is an image.
         if kind == "image" and not downloads.get("image"):
             downloads["image"] = direct_url
+
+        if "tiktok.com" in url.lower() and kind in {"video", "audio"}:
+            api_downloads = self._tiktok_api_downloads(url, title)
+            downloads.update(api_downloads)
+            direct_url = downloads["audio"] if kind == "audio" else downloads["videoHD"]
 
         return {
             "direct_url": direct_url,

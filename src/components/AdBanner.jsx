@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAdPlatform } from './Ads/useAdPlatform';
-import { AD_PROVIDER_ZONE_ID, loadAdsAfterDelay } from '@/utils/delayed-ads-loader';
+import { AD_PROVIDER_ZONE_ID, MONETAG_ZONES, loadAdsAfterDelay } from '@/utils/delayed-ads-loader';
 
 /**
  * Smart Ad Banner - initializes the web ad provider and leaves stable space in native shells.
@@ -14,9 +14,13 @@ export default function AdBanner({ position = 'top', size = 'medium' }) {
 
   useEffect(() => {
     let cancelled = false;
+    const adPlacement = position === 'rewarded' || position === 'session' ? 'vignette' : 'banner';
 
     if (!isMobileApp) {
-      loadAdsAfterDelay({ immediate: position === 'rewarded' || position === 'session' }).then(() => {
+      loadAdsAfterDelay({
+        immediate: position === 'rewarded' || position === 'session',
+        placement: adPlacement,
+      }).then(() => {
         if (cancelled) return;
       });
     }
@@ -45,7 +49,7 @@ export default function AdBanner({ position = 'top', size = 'medium' }) {
       className="w-full relative overflow-hidden rounded-xl border border-purple-500/20 bg-gradient-to-r from-purple-900/20 via-black/40 to-purple-900/20 flex items-center justify-center"
       style={sizeStyles[size]}
       aria-label="Advertisement space"
-      data-ad-zone={AD_PROVIDER_ZONE_ID}
+      data-ad-zone={position === 'rewarded' || position === 'session' ? MONETAG_ZONES.vignette.id : AD_PROVIDER_ZONE_ID}
     >
       <p className="text-purple-300/60 text-xs font-medium">Advertisement</p>
     </motion.div>

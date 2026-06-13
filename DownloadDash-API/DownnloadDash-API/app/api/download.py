@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Body
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Body, Query
 from fastapi.responses import FileResponse, Response
 import httpx
 import os
@@ -100,22 +100,62 @@ def _download_headers(url: str, source_url: str | None = None, retry: bool = Fal
     return headers
 
 
-@router.post("/download/file")
-async def download_file_proxy(
-    background_tasks: BackgroundTasks,
-    payload: dict = Body(...),
-):
-    url = payload.get("url")
-    filename = payload.get("filename") or "download"
-    source_url = payload.get("sourceUrl") or payload.get("source_url") or payload.get("referrer")
-    media_type = payload.get("mediaType") or payload.get("media_type") or ""
+def _tiktok_variant_for_media_type(media_type: str | None) -> str:
+    media_type_key = str(media_type or "").lower()
+    if "audio" in media_type_key:
+        return "audio"
+    if "image" in media_type_key or "photo" in media_type_key or "album" in media_type_key:
+        return "image"
+    if "sd" in media_type_key:
+        return "sd"
+    return "hd"
 
-    if not url or not isinstance(url, str):
-        raise HTTPException(status_code=400, detail="url is required")
+
+async def _serve_download_file(
+    background_tasks: BackgroundTasks,
+    url: str | None,
+    filename: str | None,
+    source_url: str | None,
+    media_type: str | None,
+):
+    source_url = source_url if isinstance(source_url, str) else ""
+    url = url if isinstance(url, str) else ""
+
+    if not url and "tiktok.com" in source_url.lower():
+        variant = _tiktok_variant_for_media_type(media_type)
+        try:
+            fallback = await public_downloader.download_tiktok_variant(source_url, variant)
+        except Exception as exc:
+            raw_error = re.sub(r"\s+", " ", str(exc)).strip()
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "TikTok server-side download failed. The original signed CDN URL was not reused; "
+                    "the API tried to fetch a fresh file from the source URL instead. "
+                    "If this persists, refresh SMD_YTDLP_COOKIE_DATA_TIKTOK or configure SMD_YTDLP_PROXY_TIKTOK on Render. "
+                    f"Fallback error: {raw_error}"
+                ),
+            )
+
+        path = fallback["path"]
+        if not os.path.exists(path):
+            raise HTTPException(status_code=404, detail="Downloaded TikTok file not found")
+
+        safe_name = _safe_filename(filename or fallback["filename"])
+        background_tasks.add_task(os.remove, path)
+        return FileResponse(
+            path,
+            media_type=fallback["media_type"],
+            filename=safe_name or fallback["filename"],
+            background=background_tasks,
+        )
+
+    if not url:
+        raise HTTPException(status_code=400, detail="url or sourceUrl is required")
     if not url.startswith("http://") and not url.startswith("https://"):
         raise HTTPException(status_code=400, detail="url must be http(s)")
 
-    safe_name = _safe_filename(filename)
+    safe_name = _safe_filename(filename or "download")
 
     async with httpx.AsyncClient(
         **_httpx_client_kwargs(timeout=60.0, follow_redirects=True)
@@ -132,16 +172,7 @@ async def download_file_proxy(
             blocked_by_varnish = "varnish" in body_preview.lower() or "54113" in body_preview
             is_tiktok_source = "tiktok.com" in f"{source_url or ''}".lower()
             if is_tiktok_source:
-                media_type_key = str(media_type).lower()
-                variant = (
-                    "audio"
-                    if "audio" in media_type_key
-                    else "image"
-                    if "image" in media_type_key or "photo" in media_type_key or "album" in media_type_key
-                    else "sd"
-                    if "sd" in media_type_key
-                    else "hd"
-                )
+                variant = _tiktok_variant_for_media_type(media_type)
                 try:
                     fallback = await public_downloader.download_tiktok_variant(source_url, variant)
                 except Exception as exc:
@@ -181,3 +212,36 @@ async def download_file_proxy(
         if content_length:
             response.headers["Content-Length"] = content_length
         return response
+
+
+@router.post("/download/file")
+async def download_file_proxy(
+    background_tasks: BackgroundTasks,
+    payload: dict = Body(...),
+):
+    return await _serve_download_file(
+        background_tasks=background_tasks,
+        url=payload.get("url"),
+        filename=payload.get("filename") or "download",
+        source_url=payload.get("sourceUrl") or payload.get("source_url") or payload.get("referrer"),
+        media_type=payload.get("mediaType") or payload.get("media_type") or "",
+    )
+
+
+@router.get("/download/file")
+async def download_file_proxy_get(
+    background_tasks: BackgroundTasks,
+    url: str | None = Query(default=None),
+    filename: str | None = Query(default="download"),
+    sourceUrl: str | None = Query(default=None),
+    source_url: str | None = Query(default=None),
+    mediaType: str | None = Query(default=""),
+    media_type: str | None = Query(default=""),
+):
+    return await _serve_download_file(
+        background_tasks=background_tasks,
+        url=url,
+        filename=filename,
+        source_url=sourceUrl or source_url,
+        media_type=mediaType or media_type or "",
+    )
