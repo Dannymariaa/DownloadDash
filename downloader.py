@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from cache import get_stale_cache, get_validators, set_validators
 from config import Config
 from metrics import metrics
 from proxy import session
@@ -100,7 +101,25 @@ def _has_enough_metadata(fragment, metadata):
     return bool(metadata.get("title") and (metadata.get("description") or metadata.get("media_url")))
 
 
-def _request(method, url, platform):
+def _conditional_headers(validators):
+    headers = {}
+    etag = validators.get("etag") if validators else None
+    last_modified = validators.get("last_modified") if validators else None
+    if etag:
+        headers["If-None-Match"] = etag
+    if last_modified:
+        headers["If-Modified-Since"] = last_modified
+    return headers
+
+
+def _response_validators(response):
+    return {
+        "etag": response.headers.get("ETag", ""),
+        "last_modified": response.headers.get("Last-Modified", ""),
+    }
+
+
+def _request(method, url, platform, validators=None):
     start = time.monotonic()
     response = None
     bytes_read = 0
@@ -112,6 +131,7 @@ def _request(method, url, platform):
         response = session.request(
             method,
             url,
+            headers=_conditional_headers(validators),
             timeout=Config.REQUEST_TIMEOUT,
             stream=True,
             allow_redirects=False,
@@ -149,7 +169,7 @@ def _close_and_log(response, start, platform, method, url, bytes_read):
     if response is not None:
         response.close()
 
-    metrics.record_upstream(platform, bytes_read)
+    metrics.record_upstream(platform, bytes_read, elapsed)
     logger.info(
         "upstream platform=%s method=%s url=%s status=%s content_length=%s bytes=%s time_ms=%.2f proxy=%s retries=%s",
         platform,
@@ -164,9 +184,16 @@ def _close_and_log(response, start, platform, method, url, bytes_read):
     )
 
 
-def _head_probe(url, platform):
-    response, start, _, _, _, _ = _request("HEAD", url, platform)
+def _head_probe(url, platform, validators=None):
+    response, start, _, _, _, _ = _request("HEAD", url, platform, validators)
     try:
+        if response.status_code == 304:
+            return {
+                "status_code": 304,
+                "not_modified": True,
+                **_response_validators(response),
+            }, True
+
         if response.status_code >= 400:
             return {"status_code": response.status_code}, False
 
@@ -178,6 +205,7 @@ def _head_probe(url, platform):
             "content_type": content_type,
             "content_length": content_length,
             "final_url": url,
+            **_response_validators(response),
         }
 
         if 300 <= response.status_code < 400:
@@ -193,12 +221,19 @@ def _head_probe(url, platform):
         _close_and_log(response, start, platform, "HEAD", url, 0)
 
 
-def _get_partial_metadata(url, platform):
-    response, start, _, _, _, _ = _request("GET", url, platform)
+def _get_partial_metadata(url, platform, validators=None):
+    response, start, _, _, _, _ = _request("GET", url, platform, validators)
     bytes_read = 0
     chunks = []
 
     try:
+        if response.status_code == 304:
+            return {
+                "status_code": 304,
+                "not_modified": True,
+                "body_bytes_read": 0,
+                **_response_validators(response),
+            }
         if response.status_code >= 400:
             raise ValueError(f"Upstream returned HTTP {response.status_code}.")
         if 300 <= response.status_code < 400:
@@ -216,6 +251,7 @@ def _get_partial_metadata(url, platform):
             "status_code": response.status_code,
             "content_type": content_type,
             "content_length": int(response.headers.get("Content-Length") or 0),
+            **_response_validators(response),
         }
 
         for chunk in response.iter_content(chunk_size=Config.READ_CHUNK_SIZE, decode_unicode=False):
@@ -243,21 +279,37 @@ def _get_partial_metadata(url, platform):
 def extract_metadata(url):
     validate_url(url)
     platform = detect_platform(url)
+    validators = get_validators(url)
+    stale = get_stale_cache(url) if validators else None
+    if validators and not stale:
+        validators = {}
 
-    head_metadata, head_is_enough = _head_probe(url, platform)
+    head_metadata, head_is_enough = _head_probe(url, platform, validators)
+    if head_metadata.get("not_modified") and stale:
+        stale["network_strategy"] = "conditional_head_304_stale_cache"
+        return stale
+
     if head_is_enough:
-        return {
+        result = {
             "platform": platform,
             "url": url,
             "metadata": head_metadata,
             "network_strategy": "head_only",
         }
+        set_validators(url, head_metadata)
+        return result
 
-    get_metadata = _get_partial_metadata(url, platform)
+    get_metadata = _get_partial_metadata(url, platform, validators)
+    if get_metadata.get("not_modified") and stale:
+        stale["network_strategy"] = "conditional_get_304_stale_cache"
+        return stale
+
     merged = {**head_metadata, **get_metadata}
-    return {
+    result = {
         "platform": platform,
         "url": url,
         "metadata": merged,
         "network_strategy": "head_then_partial_get",
     }
+    set_validators(url, merged)
+    return result

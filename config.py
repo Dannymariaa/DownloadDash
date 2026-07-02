@@ -22,11 +22,16 @@ class Config:
     REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
 
     CACHE_TTL = int(os.getenv("CACHE_TTL", "86400"))
+    STALE_CACHE_TTL = int(os.getenv("STALE_CACHE_TTL", "604800"))
+    VALIDATOR_CACHE_TTL = int(os.getenv("VALIDATOR_CACHE_TTL", "604800"))
     MEMORY_CACHE_SIZE = int(os.getenv("MEMORY_CACHE_SIZE", "512"))
     MEMORY_CACHE_TTL = int(os.getenv("MEMORY_CACHE_TTL", "900"))
 
-    REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "15"))
-    CONNECTION_POOL_SIZE = int(os.getenv("CONNECTION_POOL_SIZE", "4"))
+    CONNECT_TIMEOUT = float(os.getenv("CONNECT_TIMEOUT", "5"))
+    READ_TIMEOUT = float(os.getenv("READ_TIMEOUT", "15"))
+    REQUEST_TIMEOUT = (CONNECT_TIMEOUT, READ_TIMEOUT)
+    CONNECTION_POOL_CONNECTIONS = int(os.getenv("CONNECTION_POOL_CONNECTIONS", "10"))
+    CONNECTION_POOL_MAXSIZE = int(os.getenv("CONNECTION_POOL_MAXSIZE", "20"))
     RETRY_TOTAL = int(os.getenv("RETRY_TOTAL", "2"))
     RETRY_BACKOFF = float(os.getenv("RETRY_BACKOFF", "0.25"))
 

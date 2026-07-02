@@ -13,17 +13,23 @@ class Metrics:
         self.memory_misses = 0
         self.platform_bytes = {}
         self.platform_upstream_requests = {}
+        self.total_latency_ms = 0
+        self.platform_latency_ms = {}
         self.cache_saved_bytes = 0
 
     def record_api_request(self):
         with self._lock:
             self.api_requests += 1
 
-    def record_upstream(self, platform, bytes_transferred):
+    def record_upstream(self, platform, bytes_transferred, latency_ms=0):
         with self._lock:
             self.upstream_requests += 1
             self.total_bytes += bytes_transferred
+            self.total_latency_ms += latency_ms
             self.platform_bytes[platform] = self.platform_bytes.get(platform, 0) + bytes_transferred
+            self.platform_latency_ms[platform] = (
+                self.platform_latency_ms.get(platform, 0) + latency_ms
+            )
             self.platform_upstream_requests[platform] = (
                 self.platform_upstream_requests.get(platform, 0) + 1
             )
@@ -59,6 +65,11 @@ class Metrics:
                 )
                 if self.upstream_requests
                 else 0,
+                "average_latency_ms_per_upstream_request": round(
+                    self.total_latency_ms / self.upstream_requests, 2
+                )
+                if self.upstream_requests
+                else 0,
                 "redis_hit_rate": round(self.redis_hits / redis_total, 4)
                 if redis_total
                 else 0,
@@ -77,11 +88,24 @@ class Metrics:
                     )
                     for platform in platforms
                 },
+                "average_latency_ms_per_platform": {
+                    platform: round(
+                        self.platform_latency_ms.get(platform, 0)
+                        / self.platform_upstream_requests.get(platform, 1),
+                        2,
+                    )
+                    for platform in platforms
+                },
                 "platforms": {
                     platform: {
                         "bytes": self.platform_bytes.get(platform, 0),
                         "upstream_requests": self.platform_upstream_requests.get(
                             platform, 0
+                        ),
+                        "average_latency_ms": round(
+                            self.platform_latency_ms.get(platform, 0)
+                            / self.platform_upstream_requests.get(platform, 1),
+                            2,
                         ),
                     }
                     for platform in platforms

@@ -37,16 +37,17 @@ def _create_session():
     )
     adapter = HTTPAdapter(
         max_retries=retry,
-        pool_connections=Config.CONNECTION_POOL_SIZE,
-        pool_maxsize=Config.CONNECTION_POOL_SIZE,
+        pool_connections=Config.CONNECTION_POOL_CONNECTIONS,
+        pool_maxsize=Config.CONNECTION_POOL_MAXSIZE,
         pool_block=True,
     )
     session.mount("http://", adapter)
     session.mount("https://", adapter)
 
     logger.info(
-        "global requests session ready pool=%s proxy=%s",
-        Config.CONNECTION_POOL_SIZE,
+        "global requests session ready pool_connections=%s pool_maxsize=%s proxy=%s",
+        Config.CONNECTION_POOL_CONNECTIONS,
+        Config.CONNECTION_POOL_MAXSIZE,
         bool(Config.PROXY_URL),
     )
     return session
