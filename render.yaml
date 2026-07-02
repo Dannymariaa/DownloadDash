@@ -11,6 +11,6 @@ services:
   - type: web
     name: downloaddash-api
     runtime: python
-    rootDir: DownloadDash-API/DownnloadDash-API
+    rootDir: .
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 30
