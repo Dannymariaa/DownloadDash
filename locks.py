@@ -13,16 +13,21 @@ class LockManager:
     def lock_for(self, url):
         key = generate_cache_key(url)
         with self._guard:
-            lock = self._locks.get(key)
-            if lock is None:
-                lock = threading.Lock()
-                self._locks[key] = lock
+            entry = self._locks.get(key)
+            if entry is None:
+                entry = {"lock": threading.Lock(), "users": 0}
+                self._locks[key] = entry
+            entry["users"] += 1
 
-        lock.acquire()
+        entry["lock"].acquire()
         try:
             yield
         finally:
-            lock.release()
+            entry["lock"].release()
+            with self._guard:
+                entry["users"] -= 1
+                if entry["users"] == 0:
+                    self._locks.pop(key, None)
 
 
 request_locks = LockManager()

@@ -4,11 +4,13 @@ import time
 from urllib.parse import urlparse
 
 import requests
+from flask import has_request_context, g
 
 from cache import get_stale_cache, get_validators, set_validators
 from config import Config
 from metrics import metrics
 from proxy import session
+from security import validate_public_url
 from utils.logger import logger
 
 META_RE = re.compile(
@@ -23,7 +25,7 @@ TITLE_RE = re.compile(r"<title[^>]*>(?P<title>.{1,300}?)</title>", re.IGNORECASE
 
 
 class UpstreamBlocked(Exception):
-    pass
+    """Raised when an upstream response is not metadata content."""
 
 
 def detect_platform(url):
@@ -46,10 +48,13 @@ def detect_platform(url):
 
 
 def validate_url(url):
-    parsed = urlparse(url)
-    if parsed.scheme not in Config.ALLOWED_SCHEMES or not parsed.netloc:
-        raise ValueError("Only absolute http and https URLs are supported.")
-    return url
+    return validate_public_url(url)
+
+
+def _request_id():
+    if has_request_context():
+        return getattr(g, "request_id", "-")
+    return "-"
 
 
 def _is_allowed_content_type(content_type):
@@ -142,7 +147,8 @@ def _request(method, url, platform, validators=None):
     except requests.RequestException as exc:
         elapsed = (time.monotonic() - start) * 1000
         logger.info(
-            "upstream platform=%s method=%s url=%s status=%s content_length=%s bytes=%s time_ms=%.2f proxy=%s error=%s",
+            "request_id=%s event=upstream_error platform=%s method=%s url=%s status=%s content_length=%s bytes=%s time_ms=%.2f proxy=%s error=%s",
+            _request_id(),
             platform,
             method,
             url,
@@ -171,7 +177,8 @@ def _close_and_log(response, start, platform, method, url, bytes_read):
 
     metrics.record_upstream(platform, bytes_read, elapsed)
     logger.info(
-        "upstream platform=%s method=%s url=%s status=%s content_length=%s bytes=%s time_ms=%.2f proxy=%s retries=%s",
+        "request_id=%s event=upstream platform=%s method=%s url=%s status=%s content_length=%s bytes=%s time_ms=%.2f proxy=%s retries=%s",
+        _request_id(),
         platform,
         method,
         url,

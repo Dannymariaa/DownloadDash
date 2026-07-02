@@ -17,6 +17,7 @@ MINIMAL_HEADERS = {
 def _create_session():
     session = requests.Session()
     session.trust_env = False
+    session.verify = Config.VERIFY_TLS
     session.headers.clear()
     session.headers.update(MINIMAL_HEADERS)
     session.max_redirects = 1

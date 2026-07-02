@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class BaseExtractor(ABC):
     """Base class for all media extractors."""
 
@@ -11,4 +12,4 @@ class BaseExtractor(ABC):
         - platform (str)
         - media_metadata (dict)
         """
-        pass
+        raise NotImplementedError

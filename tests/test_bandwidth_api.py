@@ -1,13 +1,25 @@
 import json
+import threading
+import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import app as api
+import cache
+import proxy
+from config import Config
 from downloader import _is_allowed_content_type, _parse_metadata
+from locks import LockManager
+from rate_limit import reset_rate_limits
 from scripts.benchmark_platform_bandwidth import run_benchmark
+from security import SecurityValidationError, validate_public_url
 
 
 class BandwidthApiTests(unittest.TestCase):
+    def setUp(self):
+        reset_rate_limits()
+        api.app.config["TESTING"] = True
+
     def test_blocks_non_metadata_content_types(self):
         self.assertFalse(_is_allowed_content_type("video/mp4"))
         self.assertFalse(_is_allowed_content_type("image/png"))
@@ -30,6 +42,26 @@ class BandwidthApiTests(unittest.TestCase):
         self.assertEqual(metadata["description"], "Short public description")
         self.assertEqual(metadata["media_url"], "https://cdn.example/video.mp4")
 
+    def test_security_rejects_internal_urls(self):
+        blocked = [
+            "ftp://example.com",
+            "http://localhost/test",
+            "http://127.0.0.1/test",
+            "http://169.254.169.254/latest/meta-data",
+            "https://user:pass@example.com/path",
+            "https://example.com/\nHeader: injected",
+        ]
+        for url in blocked:
+            with self.subTest(url=url):
+                with self.assertRaises(SecurityValidationError):
+                    validate_public_url(url)
+
+    def test_security_rejects_dns_rebinding_targets(self):
+        with patch("security.socket.getaddrinfo") as getaddrinfo:
+            getaddrinfo.return_value = [(None, None, None, None, ("10.0.0.1", 0))]
+            with self.assertRaises(SecurityValidationError):
+                validate_public_url("https://public.example/path")
+
     def test_extract_uses_cache_before_network(self):
         cached = {
             "platform": "generic",
@@ -42,9 +74,9 @@ class BandwidthApiTests(unittest.TestCase):
             called["network"] = True
             return {}
 
-        with patch.object(api, "get_cache", return_value=(cached, "memory")), patch.object(
-            api, "extract_metadata", side_effect=fake_extract_metadata
-        ):
+        with patch.object(api, "validate_public_url", return_value="https://example.test/post"), patch.object(
+            api, "get_cache", return_value=(cached, "memory")
+        ), patch.object(api, "extract_metadata", side_effect=fake_extract_metadata):
             client = api.app.test_client()
             response = client.get("/extract?url=https://example.test/post")
 
@@ -53,6 +85,88 @@ class BandwidthApiTests(unittest.TestCase):
         self.assertTrue(payload["cached"])
         self.assertEqual(payload["result"]["metadata"]["title"], "Cached")
         self.assertFalse(called["network"])
+        self.assertIn("X-Request-ID", response.headers)
+
+    def test_extract_rejects_platform_mismatch(self):
+        with patch.object(api, "validate_public_url", return_value="https://youtu.be/example"):
+            client = api.app.test_client()
+            response = client.get("/extract?url=https://youtu.be/example&platform=tiktok")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["code"], "platform_mismatch")
+
+    def test_error_handlers_return_json(self):
+        client = api.app.test_client()
+        response = client.get("/missing")
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(response.get_json()["success"])
+
+    def test_health_liveness_and_readiness(self):
+        client = api.app.test_client()
+        self.assertEqual(client.get("/health").status_code, 200)
+        self.assertEqual(client.get("/liveness").status_code, 200)
+        with patch.object(api, "redis_health", return_value={"ok": True, "configured": True, "latency_ms": 1}):
+            response = client.get("/readiness")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.get_json()["success"])
+
+    def test_metrics_prometheus_and_json(self):
+        client = api.app.test_client()
+        text_response = client.get("/metrics")
+        self.assertEqual(text_response.status_code, 200)
+        self.assertIn("downloaddash_api_requests_total", text_response.get_data(as_text=True))
+
+        json_response = client.get("/metrics", headers={"Accept": "application/json"})
+        self.assertEqual(json_response.status_code, 200)
+        self.assertIn("api_requests", json_response.get_json())
+
+    def test_rate_limit_returns_structured_json(self):
+        client = api.app.test_client()
+        with patch.object(Config, "RATE_LIMIT_PER_IP", 1), patch.object(
+            api, "validate_public_url", return_value="https://example.com/post"
+        ), patch.object(api, "get_cache", return_value=({"platform": "generic", "metadata": {}}, "memory")):
+            self.assertEqual(client.get("/extract?url=https://example.com/post").status_code, 200)
+            response = client.get("/extract?url=https://example.com/post")
+
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.get_json()["code"], "rate_limit_exceeded")
+
+    def test_cache_pack_unpack_and_memory_lru(self):
+        payload = {"platform": "generic", "metadata": {"title": "A"}}
+        packed = cache._pack(payload)
+        self.assertIsInstance(packed, bytes)
+        self.assertEqual(cache._unpack(packed), payload)
+
+        lru = cache.MemoryLRU(maxsize=1, ttl=60)
+        lru.set("one", "1")
+        lru.set("two", "2")
+        self.assertIsNone(lru.get("one"))
+        self.assertEqual(lru.get("two"), "2")
+
+    def test_lock_manager_serializes_same_url(self):
+        manager = LockManager()
+        order = []
+
+        def worker(name):
+            with manager.lock_for("https://example.com/same"):
+                order.append(f"start-{name}")
+                time.sleep(0.01)
+                order.append(f"end-{name}")
+
+        threads = [threading.Thread(target=worker, args=(index,)) for index in (1, 2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertIn(order, (["start-1", "end-1", "start-2", "end-2"], ["start-2", "end-2", "start-1", "end-1"]))
+
+    def test_proxy_session_configuration(self):
+        adapter = proxy.session.get_adapter("https://example.com")
+        self.assertTrue(proxy.session.verify)
+        self.assertEqual(adapter._pool_connections, Config.CONNECTION_POOL_CONNECTIONS)
+        self.assertEqual(adapter._pool_maxsize, Config.CONNECTION_POOL_MAXSIZE)
+        self.assertEqual(proxy.session.headers["Connection"], "keep-alive")
 
     def test_benchmark_reports_platform_bytes_and_requests(self):
         sample_result = {
@@ -79,6 +193,28 @@ class BandwidthApiTests(unittest.TestCase):
         self.assertEqual(results[0]["kb_downloaded"], 4.0)
         self.assertTrue(results[0]["cacheable"])
         self.assertTrue(results[0]["success"])
+
+    def test_concurrent_cached_requests_do_not_hit_network(self):
+        client = api.app.test_client()
+        cached = {"platform": "generic", "metadata": {"title": "Hot"}}
+        network = Mock()
+
+        with patch.object(api, "validate_public_url", return_value="https://example.com/hot"), patch.object(
+            api, "get_cache", return_value=(cached, "memory")
+        ), patch.object(api, "extract_metadata", side_effect=network):
+            responses = []
+
+            def call():
+                responses.append(client.get("/extract?url=https://example.com/hot").status_code)
+
+            threads = [threading.Thread(target=call) for _ in range(5)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+        self.assertEqual(responses, [200, 200, 200, 200, 200])
+        network.assert_not_called()
 
 
 if __name__ == "__main__":

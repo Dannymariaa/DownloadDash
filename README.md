@@ -2,6 +2,49 @@
 
 A modern, fast, and easy-to-use downloader for YouTube videos and audio in HD/SD quality.
 
+## Flask Metadata API
+
+This repository also includes a production-hardened Flask metadata API at the repository root. The API is designed for extreme proxy bandwidth efficiency:
+
+- Metadata-only responses.
+- No media downloads.
+- No media streaming.
+- No media proxying.
+- Redis plus in-memory LRU caching.
+- HEAD before capped partial GET.
+- SSRF protection for internal and localhost targets.
+- Prometheus-compatible `/metrics`.
+- `/health`, `/liveness`, and `/readiness` endpoints.
+
+Run locally:
+
+```bash
+pip install -r requirements.txt
+python app.py
+```
+
+Example:
+
+```bash
+curl "http://localhost:5000/extract?url=https://example.com/post"
+curl "http://localhost:5000/readiness"
+curl -H "Accept: application/json" "http://localhost:5000/metrics"
+```
+
+Benchmark the cache path without upstream traffic:
+
+```bash
+python scripts/benchmark_api_local.py --iterations 250
+```
+
+Benchmark platform samples with your own public URLs:
+
+```bash
+python scripts/benchmark_platform_bandwidth.py sample_urls.csv
+```
+
+See `docs/flask-api-production-hardening.md` for environment variables, deployment notes, API examples, performance notes, and troubleshooting. See `docs/future-platform-integrations-roadmap.md` for the non-implemented future platform integration roadmap.
+
 ## 🚀 Features
 
 - **YouTube focused**: Download videos and audio from YouTube in HD/SD quality

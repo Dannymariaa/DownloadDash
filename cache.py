@@ -8,6 +8,7 @@ from collections import OrderedDict
 import redis
 
 from config import Config
+from metrics import metrics
 from utils.logger import logger
 
 
@@ -53,9 +54,20 @@ def _pack(data):
 
 
 def _unpack(payload):
-    if isinstance(payload, str):
-        return json.loads(payload)
-    return json.loads(gzip.decompress(payload).decode("utf-8"))
+    try:
+        if isinstance(payload, str):
+            return json.loads(payload)
+        return json.loads(gzip.decompress(payload).decode("utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("Cached payload is invalid.") from exc
+
+
+def _recorded_redis_call(operation):
+    started = time.monotonic()
+    try:
+        return operation()
+    finally:
+        metrics.record_redis_latency((time.monotonic() - started) * 1000)
 
 
 def _redis_client():
@@ -68,8 +80,8 @@ def _redis_client():
                 port=Config.REDIS_PORT,
                 db=Config.REDIS_DB,
                 password=Config.REDIS_PASSWORD,
-                socket_connect_timeout=1,
-                socket_timeout=1,
+                socket_connect_timeout=Config.REDIS_SOCKET_CONNECT_TIMEOUT,
+                socket_timeout=Config.REDIS_SOCKET_TIMEOUT,
                 decode_responses=False,
             )
         client.ping()
@@ -94,8 +106,8 @@ def get_cache(url):
         return None, "miss"
 
     try:
-        cached = redis_client.get(key)
-    except redis.RedisError as exc:
+        cached = _recorded_redis_call(lambda: redis_client.get(key))
+    except (redis.RedisError, ValueError) as exc:
         logger.warning("redis get failed: %s", exc)
         return None, "miss"
 
@@ -103,7 +115,11 @@ def get_cache(url):
         return None, "miss"
 
     memory_cache.set(key, cached)
-    return _unpack(cached), "redis"
+    try:
+        return _unpack(cached), "redis"
+    except ValueError as exc:
+        logger.warning("redis cached payload rejected: %s", exc)
+        return None, "miss"
 
 
 def set_cache(url, data):
@@ -116,8 +132,10 @@ def set_cache(url, data):
 
     try:
         compressed = _pack(data)
-        redis_client.setex(key, Config.CACHE_TTL, compressed)
-        redis_client.setex(_redis_key("stale", url), Config.STALE_CACHE_TTL, compressed)
+        _recorded_redis_call(lambda: redis_client.setex(key, Config.CACHE_TTL, compressed))
+        _recorded_redis_call(
+            lambda: redis_client.setex(_redis_key("stale", url), Config.STALE_CACHE_TTL, compressed)
+        )
     except redis.RedisError as exc:
         logger.warning("redis set failed: %s", exc)
 
@@ -131,27 +149,35 @@ def get_stale_cache(url):
         return None
 
     try:
-        cached = redis_client.get(_redis_key("stale", url))
+        cached = _recorded_redis_call(lambda: redis_client.get(_redis_key("stale", url)))
     except redis.RedisError as exc:
         logger.warning("redis stale get failed: %s", exc)
         return None
 
     if cached is None:
         return None
-    return _unpack(cached)
+    try:
+        return _unpack(cached)
+    except ValueError as exc:
+        logger.warning("redis stale payload rejected: %s", exc)
+        return None
 
 
 def get_validators(url):
     if redis_client is None:
         return {}
     try:
-        cached = redis_client.get(_redis_key("validator", url))
+        cached = _recorded_redis_call(lambda: redis_client.get(_redis_key("validator", url)))
     except redis.RedisError as exc:
         logger.warning("redis validator get failed: %s", exc)
         return {}
     if cached is None:
         return {}
-    return _unpack(cached)
+    try:
+        return _unpack(cached)
+    except ValueError as exc:
+        logger.warning("redis validator payload rejected: %s", exc)
+        return {}
 
 
 def set_validators(url, validators):
@@ -159,10 +185,25 @@ def set_validators(url, validators):
     if not validators or redis_client is None:
         return
     try:
-        redis_client.setex(
-            _redis_key("validator", url),
-            Config.VALIDATOR_CACHE_TTL,
-            _pack(validators),
+        _recorded_redis_call(
+            lambda: redis_client.setex(
+                _redis_key("validator", url),
+                Config.VALIDATOR_CACHE_TTL,
+                _pack(validators),
+            )
         )
     except redis.RedisError as exc:
         logger.warning("redis validator set failed: %s", exc)
+
+
+def redis_health():
+    if redis_client is None:
+        return {"ok": False, "configured": False, "latency_ms": None}
+    started = time.monotonic()
+    try:
+        redis_client.ping()
+    except redis.RedisError as exc:
+        return {"ok": False, "configured": True, "latency_ms": None, "error": str(exc)}
+    latency = (time.monotonic() - started) * 1000
+    metrics.record_redis_latency(latency)
+    return {"ok": True, "configured": True, "latency_ms": round(latency, 2)}

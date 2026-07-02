@@ -5,6 +5,7 @@ from threading import Lock
 from flask import jsonify, request
 
 from config import Config
+from metrics import metrics
 
 _buckets = {}
 _lock = Lock()
@@ -28,11 +29,13 @@ def rate_limit(func):
             hits = [ts for ts in _buckets.get(ip, []) if ts > window_start]
             if len(hits) >= Config.RATE_LIMIT_PER_IP:
                 _buckets[ip] = hits
+                metrics.record_error()
                 return (
                     jsonify(
                         {
                             "success": False,
                             "error": "Rate limit exceeded. Try again later.",
+                            "code": "rate_limit_exceeded",
                         }
                     ),
                     429,
@@ -43,3 +46,8 @@ def rate_limit(func):
         return func(*args, **kwargs)
 
     return wrapper
+
+
+def reset_rate_limits():
+    with _lock:
+        _buckets.clear()

@@ -11,11 +11,14 @@ class Metrics:
         self.redis_misses = 0
         self.memory_hits = 0
         self.memory_misses = 0
+        self.errors = 0
         self.platform_bytes = {}
         self.platform_upstream_requests = {}
         self.total_latency_ms = 0
         self.platform_latency_ms = {}
         self.cache_saved_bytes = 0
+        self.redis_operations = 0
+        self.redis_latency_ms = 0
 
     def record_api_request(self):
         with self._lock:
@@ -47,6 +50,15 @@ class Metrics:
             self.memory_misses += 1
             self.redis_misses += 1
 
+    def record_error(self):
+        with self._lock:
+            self.errors += 1
+
+    def record_redis_latency(self, latency_ms):
+        with self._lock:
+            self.redis_operations += 1
+            self.redis_latency_ms += latency_ms
+
     def get_report(self):
         with self._lock:
             platforms = sorted(
@@ -59,6 +71,7 @@ class Metrics:
                 "total_kb": round(self.total_bytes / 1024, 3),
                 "total_mb": round(self.total_bytes / (1024 * 1024), 6),
                 "api_requests": self.api_requests,
+                "errors": self.errors,
                 "upstream_requests": self.upstream_requests,
                 "average_bytes_per_upstream_request": round(
                     self.total_bytes / self.upstream_requests, 2
@@ -76,6 +89,12 @@ class Metrics:
                 "memory_cache_hit_rate": round(self.memory_hits / memory_total, 4)
                 if memory_total
                 else 0,
+                "average_redis_latency_ms": round(
+                    self.redis_latency_ms / self.redis_operations, 2
+                )
+                if self.redis_operations
+                else 0,
+                "redis_operations": self.redis_operations,
                 "proxy_bandwidth_saved_bytes_due_to_caching": self.cache_saved_bytes,
                 "proxy_bandwidth_saved_kb_due_to_caching": round(
                     self.cache_saved_bytes / 1024, 3
