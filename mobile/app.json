@@ -36,11 +36,35 @@
       "apiBaseUrl": "https://api.downloaddash.store",
       "requireApiKey": false,
       "ads": {
-        "provider": "monetag",
-        "format": "vignette",
-        "scriptSrc": "https://n6wxm.com/vignette.min.js",
-        "zoneId": "11129621",
-        "dataCfasync": "false"
+        "provider": "adsterra",
+        "units": {
+          "nativeBanner": {
+            "id": "30079457",
+            "format": "native",
+            "key": "c1a1efe79c0f2963e83460ce138fae10"
+          },
+          "banner320x50": {
+            "id": "30079458",
+            "format": "iframe",
+            "key": "25fdf0e506fec8285d21a27d4bc83eb2",
+            "width": 320,
+            "height": 50
+          },
+          "banner728x90": {
+            "id": "30079459",
+            "format": "iframe",
+            "key": "630c6c9a5f2b0f771022aff6e8e18ca7",
+            "width": 728,
+            "height": 90
+          },
+          "banner300x250": {
+            "id": "30079460",
+            "format": "iframe",
+            "key": "25fdf0e506fec8285d21a27d4bc83eb2",
+            "width": 300,
+            "height": 250
+          }
+        }
       }
     }
   }

@@ -1,53 +1,143 @@
 # Ads Configuration
 
-DownloadDash uses a single Monetag Vignette Banner for the website, PWA, and mobile web app:
+DownloadDash now uses **Adsterra responsive banner ads** with responsive sizing and native ad support for HD video unlock feature.
 
-```html
-<script>
-(function(s){
-    s.dataset.zone='11129621';
-    s.src='https://n6wxm.com/vignette.min.js';
-})([document.documentElement,document.body]
-.filter(Boolean)
-.pop()
-.appendChild(document.createElement('script')));
-</script>
-```
+## Ad Units Configuration
 
-## Ad Zone Configuration
+The application uses four Adsterra ad units with responsive design:
 
-The application now uses a single, clean ad configuration:
+### Primary Units (Active)
 
-### Primary Zone (Active)
-- **Vignette Banner (11129621)**: `https://n6wxm.com/vignette.min.js` - Clean banner ad placement
+1. **Native Banner (30079457)** - HD Video Unlock Popup
+   - Format: Native
+   - Usage: Shows in modal when user tries to download HD video
+   - Component: [src/components/HDVideoAdModal.jsx](src/components/HDVideoAdModal.jsx)
+   - Script: `https://pl30179956.effectivecpmnetwork.com/deb9ee3e2f39503eb7a9d1619e78739f/invoke.js`
+
+2. **Banner 320x50 (30079458)** - Mobile
+   - Format: Responsive iframe
+   - Breakpoint: Mobile devices (<768px)
+   - Dimensions: 320x50 pixels
+   - Component: [src/components/AdBanner.jsx](src/components/AdBanner.jsx)
+   - Script: `https://www.highperformanceformat.com/25fdf0e506fec8285d21a27d4bc83eb2/invoke.js`
+
+3. **Banner 728x90 (30079459)** - Desktop/Tablet
+   - Format: Responsive iframe
+   - Breakpoint: Desktop/Tablet (≥768px)
+   - Dimensions: 728x90 pixels
+   - Component: [src/components/AdBanner.jsx](src/components/AdBanner.jsx)
+   - Script: `https://www.highperformanceformat.com/630c6c9a5f2b0f771022aff6e8e18ca7/invoke.js`
+
+4. **Banner 300x250 (30079460)** - Optional Bottom Placement
+   - Format: Responsive iframe
+   - Dimensions: 300x250 pixels (medium rectangle)
+   - Component: [src/components/AdBanner.jsx](src/components/AdBanner.jsx)
+   - Script: `https://www.highperformanceformat.com/25fdf0e506fec8285d21a27d4bc83eb2/invoke.js`
 
 ## Runtime Files
 
-- [src/Layout.jsx](src/Layout.jsx) - Loads Vignette script once on app initialization
+- [src/config/adsterraConfig.js](src/config/adsterraConfig.js) - Central Adsterra configuration and helpers
+- [src/Layout.jsx](src/Layout.jsx) - Root layout (no global ad loading, ads loaded per-component)
+- [src/components/AdBanner.jsx](src/components/AdBanner.jsx) - Responsive banner wrapper
+- [src/components/HDVideoAdModal.jsx](src/components/HDVideoAdModal.jsx) - HD video unlock modal with native ad
 - [mobile/app.json](mobile/app.json) - Mobile app ad configuration
 - [mobile/utils/adsManager.js](mobile/utils/adsManager.js) - Mobile ad manager
 
 ## Current Configuration
 
-- Provider: `monetag`
-- Format: `vignette`
-- Zone ID: 11129621
-- Script: `https://n6wxm.com/vignette.min.js`
-- Loading: Once from root Layout component only
+- Provider: `adsterra`
+- Format: Responsive iframe + Native
+- Units: 4 (320x50, 728x90, 300x250, Native)
+- Loading: Per-component, on-demand
+- Duplicate Prevention: Container-based script marker checking
+
+## Ad Placements
+
+### Web Application
+
+1. **Between Input and Results** - AdBanner (middle, medium)
+   - Location: [DownloaderTemplate.jsx](src/components/DownloaderTemplate.jsx#L628)
+   - Size: 728x90 (desktop) or 320x50 (mobile)
+
+2. **Between Results and Features** - AdBanner (middle, large)
+   - Location: [DownloaderTemplate.jsx](src/components/DownloaderTemplate.jsx#L854)
+   - Size: 728x90 (desktop) or 320x50 (mobile)
+
+3. **Bottom Section - Large** - AdBanner (bottom, large)
+   - Location: [DownloaderTemplate.jsx](src/components/DownloaderTemplate.jsx#L1009)
+   - Size: 728x90 (desktop) or 320x50 (mobile)
+
+4. **Bottom Section - Medium** - AdBanner (bottom, medium)
+   - Location: [DownloaderTemplate.jsx](src/components/DownloaderTemplate.jsx#L1012)
+   - Size: 728x90 (desktop) or 320x50 (mobile)
+
+### HD Video Unlock Modal
+
+- **Native Banner** - HDVideoAdModal
+- Location: Triggered on HD video download request
+- Format: Native advertisement with 8-second countdown
+- Component: [src/components/HDVideoAdModal.jsx](src/components/HDVideoAdModal.jsx)
 
 ## Environment Variables
 
-Configure ad zone via environment variable (optional):
+Configure ad units via environment variables (optional):
 
 ```bash
-# Vignette Banner Zone
-VITE_MONETAG_VIGNETTE_ZONE=11129621
-VITE_MONETAG_VIGNETTE_SRC=https://n6wxm.com/vignette.min.js
+# Adsterra Native Banner
+VITE_ADSTERRA_NATIVE_BANNER_ID=30079457
+VITE_ADSTERRA_NATIVE_BANNER_KEY=c1a1efe79c0f2963e83460ce138fae10
+
+# Adsterra Responsive Banners
+VITE_ADSTERRA_BANNER_320x50_ID=30079458
+VITE_ADSTERRA_BANNER_320x50_KEY=25fdf0e506fec8285d21a27d4bc83eb2
+
+VITE_ADSTERRA_BANNER_728x90_ID=30079459
+VITE_ADSTERRA_BANNER_728x90_KEY=630c6c9a5f2b0f771022aff6e8e18ca7
+
+VITE_ADSTERRA_BANNER_300x250_ID=30079460
+VITE_ADSTERRA_BANNER_300x250_KEY=25fdf0e506fec8285d21a27d4bc83eb2
 ```
 
 ## Design Notes
 
-- Single script loaded once prevents duplicates and race conditions
+- **Responsive Design**: Automatically selects 320x50 (mobile) or 728x90 (desktop) based on viewport width
+- **Duplicate Prevention**: Each container uses a unique marker to prevent duplicate script loads on React rerenders
+- **Native App Support**: Returns placeholder divs in native mobile app mode (localStorage NATIVE_APP flag)
+- **On-Demand Loading**: Scripts load only when AdBanner component renders
+- **HD Video Gate**: Native banner shown in modal before HD download is granted
+- **Performance**: No blocking scripts, all ads load asynchronously
+
+## Mobile Configuration
+
+Mobile app configuration is in [mobile/app.json](mobile/app.json#L29):
+
+```json
+"ads": {
+  "provider": "adsterra",
+  "units": {
+    "nativeBanner": { "id": "30079457", ... },
+    "banner320x50": { "id": "30079458", ... },
+    "banner728x90": { "id": "30079459", ... },
+    "banner300x250": { "id": "30079460", ... }
+  }
+}
+```
+
+## Debugging
+
+Check if ads are loading correctly:
+
+1. Open DevTools Console
+2. Look for Adsterra script tags with data-container attribute
+3. Check for errors in Network tab (ads.highperformanceformat.com)
+4. Verify container IDs match in HTML
+
+## Migration Notes
+
+- Removed: Monetag Vignette (zone 11129621)
+- Added: Adsterra responsive banners
+- Updated: Component structure for on-demand ad loading
+- Added: HD video unlock modal with native banner support
 - No popup timers, onclick redirects, or frequency logic
 - No push notifications, direct links, or interstitials
 - Clean banner display only
