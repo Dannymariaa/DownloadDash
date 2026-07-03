@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import { I18nProvider } from '@/lib/i18n';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import DownloadDashLoader from '@/components/DownloadDashLoader';
+import SEOManager from '@/components/SEOManager';
 import '@/styles/downloaddash-loader.css';
 import { getAllRoutesForPage } from '@/utils';
 
@@ -77,6 +78,7 @@ function App() {
         <QueryClientProvider client={queryClientInstance}>
           <Router>
             <NavigationTracker />
+            <SEOManager />
             <AuthenticatedApp />
           </Router>
           <Toaster />

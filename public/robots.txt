@@ -1,4 +1,75 @@
+# Robots.txt for DownloadDash
+# Allows search engines to crawl public pages and content
+
 User-agent: *
 Allow: /
+Allow: /youtube-downloader
+Allow: /instagram-downloader
+Allow: /tiktok-downloader
+Allow: /facebook-downloader
+Allow: /pinterest-downloader
+Allow: /reddit-downloader
+Allow: /x-downloader
+Allow: /blog
+Allow: /faq
+Allow: /about
+Allow: /help-center
+Allow: /contact
+Allow: /privacy-policy
+Allow: /terms-of-service
+Allow: /responsible-use
 
+# Disallow private and authentication pages
+Disallow: /dashboard
+Disallow: /account
+Disallow: /settings
+Disallow: /notifications
+Disallow: /login
+Disallow: /auth
+
+# Disallow API endpoints and internal paths
+Disallow: /api/
+Disallow: /*.json$
+Disallow: /*?*sort=
+Disallow: /*?*filter=
+
+# Allow crawling of assets
+Allow: /*.js
+Allow: /*.css
+Allow: /*.svg
+Allow: /*.png
+Allow: /*.jpg
+Allow: /*.jpeg
+Allow: /*.gif
+Allow: /*.webp
+Allow: /manifest.json
+Allow: /sitemap.xml
+
+# Specify sitemap
 Sitemap: https://www.downloaddash.store/sitemap.xml
+
+# Crawl delay (polite crawling)
+Crawl-delay: 1
+
+# Search engine specific rules
+User-agent: Googlebot
+Allow: /
+Crawl-delay: 0.5
+
+User-agent: Bingbot
+Allow: /
+Crawl-delay: 1
+
+User-agent: Slurp
+Allow: /
+Crawl-delay: 1
+
+# Block bad bots
+User-agent: MJ12bot
+Disallow: /
+
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /

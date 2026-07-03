@@ -4,12 +4,14 @@ import {
   Download, Link as LinkIcon, Loader2, CheckCircle,
   AlertCircle, Bookmark, Shield, Film, Volume2, Image, Crown, Zap, Target, Lock, Eye, Play,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
 import { useI18n } from '@/lib/i18n';
 import { getPlatformIcon } from '@/components/PlatformIcons';
+import { createPageUrl } from '@/utils';
 
 // Platform URL validation
 const urlPatterns = {
@@ -39,6 +41,16 @@ const validateUrl = (url, platform, t) => {
   if (pattern && !pattern.test(sanitized)) return { valid: false, error: t('errors.platformUrl', { platform }) };
   return { valid: true, url: sanitized };
 };
+
+const downloaderInternalLinks = [
+  { platform: 'tiktok', page: 'TikTokDownloader', label: 'TikTok Downloader', keyword: 'TikTok downloader without watermark HD' },
+  { platform: 'instagram', page: 'InstagramDownloader', label: 'Instagram Downloader', keyword: 'Instagram downloader without watermark HD' },
+  { platform: 'facebook', page: 'FacebookDownloader', label: 'Facebook Downloader', keyword: 'Facebook video downloader HD' },
+  { platform: 'youtube', page: 'YouTubeDownloader', label: 'YouTube Downloader', keyword: 'YouTube downloader HD' },
+  { platform: 'twitter', page: 'TwitterDownloader', label: 'X Downloader', keyword: 'X video downloader HD' },
+  { platform: 'reddit', page: 'RedditDownloader', label: 'Reddit Downloader', keyword: 'Reddit video downloader HD' },
+  { platform: 'pinterest', page: 'PinterestDownloader', label: 'Pinterest Downloader', keyword: 'Pinterest image and video downloader' },
+];
 
 const platformPageContent = {
   youtube: {
@@ -512,6 +524,7 @@ export default function DownloaderTemplate({
     bestFor: ['Public links', 'Personal reference', 'Creator backups', 'Project notes'],
     tips: ['Confirm the source is public.', 'Keep the original URL.', 'Respect creator rights.', 'Retry later if the source platform is temporarily blocking requests.'],
   };
+  const relatedDownloaderLinks = downloaderInternalLinks.filter((item) => item.platform !== platform);
 
   const downloadOptionsVariants = {
     hidden: { opacity: 0 },
@@ -972,6 +985,31 @@ export default function DownloaderTemplate({
             ))}
           </div>
         </motion.section>
+
+        {/* Related Downloader Pages */}
+        <section className="mt-10 rounded-3xl border border-purple-500/15 bg-gray-950/70 p-6 md:p-8">
+          <div className="max-w-3xl">
+            <p className="text-sm uppercase tracking-[0.22em] text-purple-300 mb-3">More DownloadDash tools</p>
+            <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
+              Explore other HD downloader pages
+            </h2>
+            <p className="text-gray-400 leading-7">
+              DownloadDash includes dedicated downloader pages for major public-link platforms. Use the page that matches your source link for the clearest workflow and best context.
+            </p>
+          </div>
+          <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {relatedDownloaderLinks.map((item) => (
+              <Link
+                key={item.page}
+                to={createPageUrl(item.page)}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 transition-colors hover:border-purple-400/50 hover:bg-purple-500/10"
+              >
+                <h3 className="font-bold text-white">{item.label}</h3>
+                <p className="mt-2 text-sm text-gray-400">{item.keyword}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
 
         {/* Feature pills */}
         <div className="mt-8 grid md:grid-cols-3 gap-4">
