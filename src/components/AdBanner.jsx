@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAdPlatform } from './Ads/useAdPlatform';
-import { AD_PROVIDER_ZONE_ID, MONETAG_ZONES, loadAdsAfterDelay } from '@/utils/delayed-ads-loader';
+import { AD_PROVIDER_ZONE_ID, loadAdsAfterDelay } from '@/utils/delayed-ads-loader';
 
 /**
  * Smart Ad Banner - initializes the web ad provider and leaves stable space in native shells.
@@ -11,8 +11,8 @@ import { AD_PROVIDER_ZONE_ID, MONETAG_ZONES, loadAdsAfterDelay } from '@/utils/d
  */
 export default function AdBanner({ position = 'top', size = 'medium' }) {
   const { isMobileApp } = useAdPlatform();
-  const adPlacement = position === 'rewarded' || position === 'session' ? 'vignette' : 'banner';
-  const zoneId = position === 'rewarded' || position === 'session' ? MONETAG_ZONES.vignette.id : AD_PROVIDER_ZONE_ID;
+  const adPlacement = 'banner';
+  const zoneId = AD_PROVIDER_ZONE_ID;
   const containerId = `ad-banner-${position}-${size}`;
 
   useEffect(() => {

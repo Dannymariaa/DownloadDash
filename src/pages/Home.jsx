@@ -274,7 +274,7 @@ export default function Home() {
 
       <section className="px-4 pb-8">
         <div className="max-w-6xl mx-auto">
-          <AdBanner position="rewarded" size="medium" />
+          <AdBanner position="home-after-downloader" size="medium" />
         </div>
       </section>
 
@@ -327,7 +327,7 @@ export default function Home() {
 
       <section className="px-4 py-8">
         <div className="max-w-6xl mx-auto">
-          <AdBanner position="session" size="medium" />
+          <AdBanner position="home-after-features" size="medium" />
         </div>
       </section>
 

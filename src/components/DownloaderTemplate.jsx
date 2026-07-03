@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, Link as LinkIcon, Loader2, CheckCircle,
-  AlertCircle, Bookmark, Shield, Film, Volume2, Image, Crown, Zap, Target, Lock, Eye, Play, X,
+  AlertCircle, Bookmark, Shield, Film, Volume2, Image, Crown, Zap, Target, Lock, Eye, Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,18 +10,6 @@ import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
 import { useI18n } from '@/lib/i18n';
 import { getPlatformIcon } from '@/components/PlatformIcons';
-import { loadAdsAfterDelay, openDirectAdLink, shouldSuppressAds } from '@/utils/delayed-ads-loader';
-
-const AD_GATE_SECONDS = {
-  videoHD: 30,
-  videoSD: 5,
-  audio: 5,
-  image: 5,
-  album: 5,
-};
-
-const LONG_SESSION_AD_MIN_MS = 5 * 60 * 1000;
-const LONG_SESSION_AD_SPREAD_MS = 5 * 60 * 1000;
 
 // Platform URL validation
 const urlPatterns = {
@@ -347,50 +335,9 @@ export default function DownloaderTemplate({
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [adGate, setAdGate] = useState(null);
-  const sessionAdTimerRef = useRef(null);
   const platformIconNode = React.isValidElement(platformIcon)
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
     : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || shouldSuppressAds()) {
-      return undefined;
-    }
-
-    let armed = false;
-    const armSessionAd = () => {
-      if (armed) return;
-      armed = true;
-      const delay = LONG_SESSION_AD_MIN_MS + Math.floor(Math.random() * LONG_SESSION_AD_SPREAD_MS);
-      sessionAdTimerRef.current = window.setTimeout(() => {
-        setAdGate((current) => current || {
-          label: 'Sponsored Break',
-          type: 'session',
-          secondsLeft: 0,
-          totalSeconds: 0,
-          canClaim: true,
-          action: null,
-          isSessionAd: true,
-        });
-      }, delay);
-    };
-
-    window.addEventListener('scroll', armSessionAd, { once: true, passive: true });
-    window.addEventListener('click', armSessionAd, { once: true });
-    window.addEventListener('touchstart', armSessionAd, { once: true, passive: true });
-    window.addEventListener('keydown', armSessionAd, { once: true });
-
-    return () => {
-      window.removeEventListener('scroll', armSessionAd);
-      window.removeEventListener('click', armSessionAd);
-      window.removeEventListener('touchstart', armSessionAd);
-      window.removeEventListener('keydown', armSessionAd);
-      if (sessionAdTimerRef.current) {
-        window.clearTimeout(sessionAdTimerRef.current);
-      }
-    };
-  }, []);
 
   const handleFetch = async () => {
     const validation = validateUrl(url, platform, t);
@@ -501,63 +448,15 @@ export default function DownloaderTemplate({
       return;
     }
 
-    const waitSeconds = AD_GATE_SECONDS[type] || 0;
-    if (!waitSeconds) {
-      if (items?.length) {
-        startAlbumDownload(items);
-      } else {
-        startDownload(downloadUrl, type);
-      }
-      return;
+    if (items?.length) {
+      startAlbumDownload(items);
+    } else {
+      startDownload(downloadUrl, type);
     }
-
-    setAdGate({
-      label,
-      type,
-      secondsLeft: waitSeconds,
-      totalSeconds: waitSeconds,
-      canClaim: false,
-      action: () => {
-        if (items?.length) {
-          startAlbumDownload(items);
-        } else {
-          startDownload(downloadUrl, type);
-        }
-      },
-    });
-
-    let remaining = waitSeconds;
-    const intervalId = window.setInterval(() => {
-      remaining -= 1;
-      setAdGate((current) => {
-        if (!current) {
-          window.clearInterval(intervalId);
-          return current;
-        }
-        return {
-          ...current,
-          secondsLeft: Math.max(remaining, 0),
-          canClaim: remaining <= 0,
-        };
-      });
-      if (remaining <= 0) {
-        window.clearInterval(intervalId);
-      }
-    }, 1000);
   };
 
   const requestDownload = (downloadUrl, type, label, items = null) => {
     beginDownloadAfterGate(downloadUrl, type, label, items);
-  };
-
-  const claimAdReward = () => {
-    const action = adGate?.action;
-    setAdGate(null);
-    if (action) action();
-  };
-
-  const cancelAdGate = () => {
-    setAdGate(null);
   };
 
   const handleSave = async () => {
@@ -643,83 +542,6 @@ export default function DownloaderTemplate({
           <span className="font-medium">{t('downloader.downloading')}</span>
         </motion.div>
       )}
-
-      <AnimatePresence>
-        {adGate && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-md"
-          >
-            <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              className="relative w-full max-w-5xl overflow-hidden rounded-md border border-gray-200 bg-white text-gray-950 shadow-2xl"
-            >
-              <div className="absolute left-0 top-0 h-1 bg-yellow-400 transition-all duration-500"
-                style={{
-                  width: `${adGate.totalSeconds ? ((adGate.totalSeconds - adGate.secondsLeft) / adGate.totalSeconds) * 100 : 100}%`,
-                }}
-              />
-
-              {adGate.isSessionAd && (
-                <button
-                  type="button"
-                  onClick={cancelAdGate}
-                  className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                  aria-label="Close advertisement"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
-
-              <div className="grid gap-6 p-4 pt-8 md:grid-cols-[minmax(220px,0.72fr)_1fr] md:p-8">
-                <div className="min-h-[300px] bg-gray-100 p-6">
-                  <div className="mb-8 flex h-20 w-20 items-center justify-center bg-cyan-50">
-                    <img src="/download-dash-logo.png" alt="DownloadDash" className="h-12 w-12 object-contain" />
-                  </div>
-                  <p className="text-2xl font-bold leading-tight text-gray-950">
-                    {adGate.isSessionAd ? 'Thanks for using DownloadDash' : `${adGate.label} unlock`}
-                  </p>
-                  <p className="mt-5 text-sm font-medium text-gray-400">Advertisement</p>
-                  <p className="mt-8 max-w-xs text-sm leading-5 text-gray-600">
-                    {adGate.isSessionAd
-                      ? 'This sponsored break is optional and can be closed at any time.'
-                      : 'Watch the short sponsor panel, then claim your award to start the download.'}
-                  </p>
-                </div>
-
-                <div className="flex min-h-[300px] flex-col justify-center">
-                  <AdBanner position={adGate.isSessionAd ? 'session' : 'rewarded'} size="full" />
-
-                  <div className="mt-5">
-                    <Button
-                      onClick={adGate.isSessionAd ? cancelAdGate : claimAdReward}
-                      disabled={!adGate.canClaim}
-                      className="h-12 w-full rounded-md bg-cyan-500 text-base font-semibold text-white shadow-md hover:bg-cyan-400 disabled:cursor-not-allowed disabled:bg-cyan-500/50"
-                    >
-                      {adGate.isSessionAd
-                        ? 'Close'
-                        : adGate.canClaim
-                          ? 'Claim Award'
-                          : `${adGate.label} in ${adGate.secondsLeft}s`}
-                    </Button>
-                    <p className="mt-3 text-center text-sm text-gray-500">
-                      {adGate.isSessionAd
-                        ? 'You can continue browsing after closing this ad.'
-                        : adGate.canClaim
-                          ? 'Ad complete. Claim your award to start the download.'
-                          : 'Your download will unlock after the sponsor timer.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
         <AdBanner position="top" size="medium" />
@@ -906,7 +728,7 @@ export default function DownloaderTemplate({
                 >
                   {hasVideoOrAudio && (
                     <>
-                      {/* HD Video — full rewarded ad */}
+                      {/* HD Video */}
                       <motion.button
                         variants={downloadOptionVariants}
                         whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(147, 51, 234, 0.3)' }}
@@ -950,7 +772,7 @@ export default function DownloaderTemplate({
                         </div>
                       </motion.button>
 
-                      {/* Audio — very short 3s ad */}
+                      {/* Audio */}
                       <motion.button
                         variants={downloadOptionVariants}
                         whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(34, 197, 94, 0.3)' }}

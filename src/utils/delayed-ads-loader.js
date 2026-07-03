@@ -10,11 +10,6 @@ const MONETAG_ZONES = {
     id: import.meta.env.VITE_MONETAG_VIGNETTE_ZONE || '11129621',
     scriptSrc: import.meta.env.VITE_MONETAG_VIGNETTE_SRC || 'https://n6wxm.com/vignette.min.js',
   },
-  onClick: {
-    id: import.meta.env.VITE_MONETAG_ONCLICK_ZONE || '11133067',
-    scriptSrc: import.meta.env.VITE_MONETAG_ONCLICK_SRC || 'https://al5sm.com/tag.min.js',
-  },
-  directLink: import.meta.env.VITE_MONETAG_DIRECT_LINK || 'https://omg10.com/4/11129628',
   // Additional zones for enhanced coverage
   zone1: {
     id: import.meta.env.VITE_MONETAG_ZONE1_ID || '246643',
@@ -54,11 +49,8 @@ export function shouldSuppressAds() {
 }
 
 const getPlacementZone = (placement = 'banner') => {
-  if (placement === 'rewarded' || placement === 'session' || placement === 'vignette') {
+  if (placement === 'vignette') {
     return MONETAG_ZONES.vignette;
-  }
-  if (placement === 'onclick' || placement === 'audio' || placement === 'direct') {
-    return MONETAG_ZONES.onClick;
   }
   return {
     id: AD_PROVIDER_ZONE_IDS[0] || MONETAG_ZONES.inPagePush.id,
@@ -148,15 +140,6 @@ export function loadAdsAfterDelay({ immediate = false, placement = 'banner' } = 
 
   adProviderLoadPromises.set(placement, loadPromise);
   return loadPromise;
-}
-
-export function openDirectAdLink() {
-  if (typeof window === 'undefined' || shouldSuppressAds() || !MONETAG_ZONES.directLink) {
-    return false;
-  }
-
-  const opened = window.open(MONETAG_ZONES.directLink, '_blank', 'noopener,noreferrer');
-  return !!opened;
 }
 
 export { AD_PROVIDER_DOMAIN, AD_PROVIDER_ZONE_ID, AD_PROVIDER_ZONE_IDS, MONETAG_ZONES };
