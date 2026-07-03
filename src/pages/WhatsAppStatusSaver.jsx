@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { downloadDash } from '@/api/downloadDashClient';
 import AdBanner from '@/components/AdBanner';
 import VideoAdOverlay from '@/components/VideoAdOverlay';
+import { canShowTimedAd, markTimedAdShown } from '@/utils/ad-frequency';
 
 const BRIDGE_BASE_URL = (import.meta.env.VITE_WA_BRIDGE_URL || '').replace(/\/+$/, '');
 
@@ -97,9 +98,11 @@ export default function WhatsAppStatusSaver() {
   const handleSaveSelected = async () => {
     if (selectedItems.length === 0) return;
 
-    // Show ad every 2-3 saves
-    setSaveCount(prev => prev + 1);
-    if (saveCount > 0 && saveCount % 2 === 0) {
+    const nextSaveCount = saveCount + 1;
+    setSaveCount(nextSaveCount);
+
+    if (nextSaveCount % 2 === 0 && canShowTimedAd()) {
+      markTimedAdShown();
       setShowVideoAd(true);
     }
 
