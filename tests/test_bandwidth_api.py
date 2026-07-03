@@ -205,6 +205,22 @@ class BandwidthApiTests(unittest.TestCase):
         self.assertEqual(adapter._pool_maxsize, Config.CONNECTION_POOL_MAXSIZE)
         self.assertEqual(proxy.session.headers["Connection"], "keep-alive")
 
+    def test_config_validation_rejects_invalid_pool_sizes(self):
+        original = Config.CONNECTION_POOL_MAXSIZE
+        try:
+            Config.CONNECTION_POOL_MAXSIZE = 0
+            with self.assertRaises(ValueError):
+                Config.validate()
+        finally:
+            Config.CONNECTION_POOL_MAXSIZE = original
+            Config.validate()
+
+    def test_dockerfile_uses_non_root_user(self):
+        with open("Dockerfile", encoding="utf-8") as handle:
+            dockerfile = handle.read()
+        self.assertIn("USER appuser", dockerfile)
+        self.assertIn("HEALTHCHECK", dockerfile)
+
     def test_benchmark_reports_platform_bytes_and_requests(self):
         sample_result = {
             "platform": "youtube",

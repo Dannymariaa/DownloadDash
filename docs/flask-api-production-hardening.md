@@ -74,6 +74,9 @@ curl "https://your-api.example/extract?platform=generic&url=https://example.com/
 curl -H "Accept: application/json" "https://your-api.example/metrics"
 curl "https://your-api.example/readiness"
 curl "https://your-api.example/openapi.json"
+curl "https://your-api.example/docs"
+curl "https://your-api.example/api/v1/health"
+curl "https://your-api.example/api/v1/liveness"
 ```
 
 All errors are structured JSON:
@@ -128,6 +131,14 @@ youtube,https://youtu.be/example
 tiktok,https://www.tiktok.com/@user/video/example
 ```
 
+Load testing:
+
+```bash
+k6 run load-tests/k6-metadata-api.js
+```
+
+See `docs/load-testing.md` for warm-cache, cold-cache, concurrent-user, and sustained-load examples. Cold-cache tests can create real upstream requests when pointed at real URLs, so use them sparingly with expensive residential proxies.
+
 ## Troubleshooting
 
 - `/readiness` returns `503`: Redis is unavailable or `REQUIRE_PROXY=1` without `PROXY`.
@@ -148,6 +159,27 @@ tiktok,https://www.tiktok.com/@user/video/example
 - High upstream failures: verify proxy health, target platform availability, and DNS/security rejection logs.
 - Readiness failing: verify `REDIS_URL`, Redis network access, and `REQUIRE_PROXY`/`PROXY`.
 - Rate-limit spikes: tune `RATE_LIMIT_PER_IP` and `RATE_LIMIT_WINDOW_SECONDS`.
+
+## Upgrade Guide
+
+1. Update pinned versions in `requirements.txt`.
+2. Run `python -m pip install -r requirements.txt -r requirements-dev.txt`.
+3. Run unit tests, coverage, Ruff, Bandit, mypy, and pip-audit.
+4. Run `python scripts/benchmark_api_local.py --iterations 250`.
+5. Deploy to staging with `REQUIRE_PROXY=1` and managed Redis.
+6. Verify `/api/v1/readiness`, `/api/v1/metrics`, and representative `/api/v1/extract` requests.
+
+## Release Guide
+
+1. Confirm `git status` contains only intended changes.
+2. Commit with a descriptive message.
+3. Push to GitHub and wait for `.github/workflows/api-quality.yml`.
+4. Deploy Render API and Vercel frontend.
+5. Watch cache hit ratio, upstream bytes, upstream failures, and readiness for at least one traffic window.
+
+## CI/CD
+
+The API quality workflow runs unit tests, Ruff, Bandit, mypy, coverage with a 95% threshold, `pip-audit`, and a Docker build on push and pull request.
 
 ## Security Model
 

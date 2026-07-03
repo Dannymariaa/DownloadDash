@@ -79,3 +79,38 @@ class Config:
             "text/plain",
         ],
     )
+
+    @classmethod
+    def validate(cls):
+        checks = {
+            "REDIS_PORT": cls.REDIS_PORT > 0,
+            "REDIS_DB": cls.REDIS_DB >= 0,
+            "REDIS_SOCKET_TIMEOUT": cls.REDIS_SOCKET_TIMEOUT > 0,
+            "REDIS_SOCKET_CONNECT_TIMEOUT": cls.REDIS_SOCKET_CONNECT_TIMEOUT > 0,
+            "CACHE_TTL": cls.CACHE_TTL > 0,
+            "STALE_CACHE_TTL": cls.STALE_CACHE_TTL >= cls.CACHE_TTL,
+            "VALIDATOR_CACHE_TTL": cls.VALIDATOR_CACHE_TTL > 0,
+            "MEMORY_CACHE_SIZE": cls.MEMORY_CACHE_SIZE > 0,
+            "MEMORY_CACHE_TTL": cls.MEMORY_CACHE_TTL > 0,
+            "MAX_CACHE_PAYLOAD_BYTES": cls.MAX_CACHE_PAYLOAD_BYTES > 0,
+            "CONNECT_TIMEOUT": cls.CONNECT_TIMEOUT > 0,
+            "READ_TIMEOUT": cls.READ_TIMEOUT > 0,
+            "CONNECTION_POOL_CONNECTIONS": cls.CONNECTION_POOL_CONNECTIONS > 0,
+            "CONNECTION_POOL_MAXSIZE": cls.CONNECTION_POOL_MAXSIZE
+            >= cls.CONNECTION_POOL_CONNECTIONS,
+            "RETRY_TOTAL": cls.RETRY_TOTAL >= 0,
+            "RETRY_BACKOFF": cls.RETRY_BACKOFF >= 0,
+            "MAX_HTML_BYTES": cls.MAX_HTML_BYTES > 0,
+            "READ_CHUNK_SIZE": 0 < cls.READ_CHUNK_SIZE <= cls.MAX_HTML_BYTES,
+            "MAX_URL_LENGTH": cls.MAX_URL_LENGTH > 0,
+            "RATE_LIMIT_PER_IP": cls.RATE_LIMIT_PER_IP > 0,
+            "RATE_LIMIT_WINDOW_SECONDS": cls.RATE_LIMIT_WINDOW_SECONDS > 0,
+            "LOG_LEVEL": cls.LOG_LEVEL
+            in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"},
+        }
+        invalid = [name for name, ok in checks.items() if not ok]
+        if invalid:
+            raise ValueError(f"Invalid configuration: {', '.join(sorted(invalid))}")
+
+
+Config.validate()
