@@ -14,23 +14,30 @@ git status
 git add .
 
 # Commit with detailed message
-git commit -m "Fix: Add audio ads and improve ad placement for all download types
+git commit -m "Clean Monetag integration and remove duplicate ad formats
 
-- Change audio/MP3 download from 0s to 5s ad gate
-- Unify audio download flow with other types (remove special handling)
-- Improve photo album and carousel detection
-- Add support for audio extraction from photo albums
-- Add 6 new Monetag ad zones (246643, 246109) for better coverage
-- Update ADS_CONFIG.md with complete zone documentation
-- Verified build with zero errors
+- Removed all Monetag ad formats except Vignette Banner (11129621)
+- Removed 9 ad zones (11099484, 11099483, 11099482, 11099481, 11133067, 11129628, 11129612, 246643, 246109)
+- Removed onclick redirects, push notifications, direct links
+- Removed popup timers and frequency logic
+- Removed interstitial and rewarded ad managers
+- Simplified mobile configuration
+- Updated all documentation
+- Verified single-load mechanism prevents duplicates
 
 Changes:
-- src/components/DownloaderTemplate.jsx: AD_GATE_SECONDS.audio 0→5
-- src/utils/delayed-ads-loader.js: Added zone1 and zone2 configs
-- ADS_CONFIG.md: Updated with all zones and environment variables
-- DEPLOYMENT_GUIDE.md: New comprehensive deployment guide
-- QUICK_DEPLOY.md: New quick-start deployment guide
-- FIXES_SUMMARY.md: Complete summary of all fixes
+- index.html: Removed quge5.com scripts
+- mobile/app.json: Simplified to vignette only
+- mobile/utils/adsManager.js: Removed unnecessary managers
+- public/sw.js: Cleaned service worker
+- ADS_CONFIG.md: Rewritten for vignette-only
+- README.md: Updated examples
+- FIXES_SUMMARY.md: Documented cleanup
+- FIX_REPORT.md: Documented cleanup
+- DEPLOYMENT_GUIDE.md: Updated
+- QUICK_DEPLOY.md: Updated
+- GITHUB_UPDATE.sh: Updated
+- github-update.bat: Updated
 
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 
@@ -57,23 +64,30 @@ git status
 ```
 On branch main
 Changes not staged for commit:
-  modified:   src/components/DownloaderTemplate.jsx
-  modified:   src/utils/delayed-ads-loader.js
+  modified:   index.html
+  modified:   mobile/app.json
+  modified:   mobile/utils/adsManager.js
+  modified:   public/sw.js
   modified:   ADS_CONFIG.md
-
-Untracked files:
-  new file:   DEPLOYMENT_GUIDE.md
-  new file:   QUICK_DEPLOY.md
-  new file:   FIXES_SUMMARY.md
+  modified:   README.md
+  modified:   FIXES_SUMMARY.md
+  modified:   FIX_REPORT.md
+  modified:   DEPLOYMENT_GUIDE.md
+  modified:   QUICK_DEPLOY.md
+  modified:   GITHUB_UPDATE.sh
+  modified:   github-update.bat
+  modified:   DEPLOYMENT_READY.txt
+  modified:   QUICK_REFERENCE.md
+  modified:   README_FIXES.md
 ```
 
 ### Step 3: Review Changes (Optional)
 ```bash
-# View changes to DownloaderTemplate
-git diff src/components/DownloaderTemplate.jsx
+# View changes to index.html
+git diff index.html
 
-# View changes to delayed-ads-loader
-git diff src/utils/delayed-ads-loader.js
+# View changes to mobile/app.json
+git diff mobile/app.json
 
 # View changes to ADS_CONFIG
 git diff ADS_CONFIG.md
@@ -86,7 +100,7 @@ git add .
 
 ### Step 5: Commit Changes
 ```bash
-git commit -m "Fix: Add audio ads and improve ad placement for all download types"
+git commit -m "Clean Monetag integration and remove duplicate ad formats"
 ```
 
 ### Step 6: Push to GitHub

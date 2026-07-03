@@ -151,10 +151,9 @@ VITE_SMD_API_BASE_URL=/api
 # Optional (only if the API requires a key):
 # VITE_SMD_API_KEY=your_api_key_here
 
-# Optional Monetag/ad provider settings
-# Use your Monetag script URL and zone IDs for in-page banners and reward gates.
-# Example: VITE_AD_PROVIDER_SCRIPT_SRC=https://nap5k.com/tag.min.js
-# Example: VITE_AD_PROVIDER_ZONE_IDS=11129612,11129621,11133067
+# Optional Monetag Vignette Banner configuration
+VITE_MONETAG_VIGNETTE_ZONE=11129621
+VITE_MONETAG_VIGNETTE_SRC=https://n6wxm.com/vignette.min.js
 
 ## Testing Checklist
 

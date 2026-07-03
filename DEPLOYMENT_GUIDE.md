@@ -1,49 +1,54 @@
 # DownloadDash Deployment Guide
 
-## Recent Changes (Ads & Download Types Fix)
+## Recent Changes (Monetag Cleanup)
 
-### What Was Fixed
+### What Was Done
 
-1. **Ad Placement for All Download Types**
-   - HD Download: 30s rewarded ad (before "Claim Award")
-   - SD Download: 5s quick ad
-   - **Audio/MP3: 5s quick ad (FIXED - was 0s)**
-   - Photo/Image: 5s quick ad
-   - Album/Carousel: 5s quick ad
+1. **Simplified Ad Integration**
+   - Removed 9 ad zones and kept only Vignette Banner (11129621)
+   - Removed all onclick, popup, and direct-link ad formats
+   - No more push notifications or interstitial ads
+   - Clean single-banner display only
 
-2. **Audio Download Flow**
-   - Removed special handling that opened external ad link
-   - Unified with other download types to show ad gate
-   - Audio now respects the same 5s timer as other quick downloads
+2. **Cleaned Mobile Configuration**
+   - Updated mobile/app.json to single vignette zone
+   - Removed InterstitialAdManager, RewardedAdManager, RewardedInterstitialAdManager
+   - Kept BannerAdManager for vignette support
 
-3. **Photo/Album Handling**
-   - Better support for carousel/album detection
-   - Audio extraction from photo albums
-   - Improved multi-photo download support
+3. **Fixed Ad Loading**
+   - Verified single script load from root Layout component
+   - No duplicate injection on React rerenders
+   - Marker check prevents multiple script appends
+   - Service worker cleaned
 
-4. **Ad Zone Configuration**
-   - Added support for 6 additional Monetag zones
-   - Improved ad coverage and fallback options
-   - Environment variable support for all zones
+4. **Updated Documentation**
+   - ADS_CONFIG.md rewritten for vignette-only
+   - All deployment docs updated
+   - Removed references to removed zones
 
 ## Files Changed
 
 ```
-src/components/DownloaderTemplate.jsx
-- Updated AD_GATE_SECONDS.audio from 0 to 5
-- Removed audio-specific handling in beginDownloadAfterGate()
-- Improved photo/album item handling
-- Better audio extraction from albums
+index.html
+- Removed quge5.com scripts (zones 246643, 246109)
 
-src/utils/delayed-ads-loader.js
-- Added zone1 and zone2 configurations
-- Added environment variable support for new zones
-- Monetag zone structure now supports all 6 zones
+mobile/app.json
+- Simplified to single vignette zone (11129621)
+
+mobile/utils/adsManager.js
+- Removed Interstitial, Rewarded, RewardedInterstitial managers
+- Kept only BannerAdManager
+
+public/sw.js
+- Removed quge5.com service worker import
+- Cleaned to zone 11129621 only
 
 ADS_CONFIG.md
-- Updated with new zone information
-- Added environment variable documentation
-- Updated redeploy checklist
+- Rewrote for vignette-only configuration
+- Updated environment variable docs
+
+src/Layout.jsx
+- Already correct (loads vignette once only)
 ```
 
 ## Prerequisites for Deployment
@@ -66,9 +71,14 @@ cd /path/to/DownloadDash
 git status
 
 # The following files should show as modified:
-# - src/components/DownloaderTemplate.jsx
-# - src/utils/delayed-ads-loader.js
+# - index.html
+# - mobile/app.json
+# - mobile/utils/adsManager.js
+# - public/sw.js
 # - ADS_CONFIG.md
+# - README.md
+# - FIXES_SUMMARY.md
+# - FIX_REPORT.md
 ```
 
 ## Step 2: Test Build Locally
@@ -97,7 +107,7 @@ npm run build
 git add -A
 
 # Commit with descriptive message
-git commit -m "Fix: Add audio ads and improve download type ad placement
+git commit -m "Clean Monetag integration and remove duplicate ad formats
 
 - Change audio/MP3 download from 0s to 5s ad gate
 - Unify audio download flow with other types (remove special handling)

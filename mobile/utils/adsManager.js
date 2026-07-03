@@ -3,15 +3,9 @@ import { Linking } from 'react-native';
 
 const adsConfig = Constants.expoConfig?.extra?.ads || {
   provider: 'monetag',
-  format: 'multitag',
-  scriptSrc: 'https://3nbf4.com/88/tag.min.js',
-  zoneId: '11099484',
-  zones: {
-    pushNotifications: '11099484',
-    vignetteBanner: '11099483',
-    inPagePush: '11099482',
-    onclickPopunder: '11099481',
-  },
+  format: 'vignette',
+  scriptSrc: 'https://n6wxm.com/vignette.min.js',
+  zoneId: '11129621',
 };
 
 // Backward-compatible helper for older imports.
@@ -49,82 +43,9 @@ export const BannerAdManager = {
   },
 };
 
-export const InterstitialAdManager = {
-  async requestAd() {
-    return initializeAds();
-  },
-
-  async showAd() {
-    try {
-      return await openProviderAd();
-    } catch (error) {
-      console.error('Failed to show ad:', error);
-      return false;
-    }
-  },
-
-  async show() {
-    const requested = await this.requestAd();
-    if (requested) {
-      await this.showAd();
-    }
-  },
-};
-
-export const RewardedAdManager = {
-  async requestAd() {
-    return initializeAds();
-  },
-
-  async showAd() {
-    try {
-      const opened = await openProviderAd();
-      return opened ? { amount: 1, type: 'ad-view' } : null;
-    } catch (error) {
-      console.error('Failed to show ad:', error);
-      return null;
-    }
-  },
-
-  async show() {
-    const requested = await this.requestAd();
-    if (requested) {
-      return await this.showAd();
-    }
-    return null;
-  },
-};
-
-export const RewardedInterstitialAdManager = {
-  async requestAd() {
-    return initializeAds();
-  },
-
-  async showAd() {
-    try {
-      const opened = await openProviderAd();
-      return opened ? { amount: 1, type: 'ad-view' } : null;
-    } catch (error) {
-      console.error('Failed to show ad:', error);
-      return null;
-    }
-  },
-
-  async show() {
-    const requested = await this.requestAd();
-    if (requested) {
-      return await this.showAd();
-    }
-    return null;
-  },
-};
-
 export default {
   getAdUnitId,
   getAdsConfig,
   initializeAds,
   BannerAdManager,
-  InterstitialAdManager,
-  RewardedAdManager,
-  RewardedInterstitialAdManager,
 };

@@ -1,103 +1,63 @@
-# DownloadDash Fixes Summary ✅
+# DownloadDash Monetag Cleanup ✅
 
-## All Issues Fixed and Verified
+## Monetag Integration Simplified
 
-### 1. ✅ Ad Placement - FIXED
+### ✅ Removed Ad Formats
 
-| Download Type | Before | After | Status |
-|---|---|---|---|
-| **HD Download** | 30s ads | 30s ads ✓ | ✓ Working |
-| **SD Download** | 5s ads | 5s ads ✓ | ✓ Working |
-| **Audio/MP3** | 0s (BROKEN) | 5s ads ✓ | ✓ **FIXED** |
-| **Photo/Image** | 5s ads | 5s ads ✓ | ✓ Working |
-| **Album/Carousel** | 5s ads | 5s ads ✓ | ✓ Working |
+The following Monetag ad formats have been completely removed:
 
-**What Was Fixed:**
-- Audio/MP3 download was showing NO ad gate before download
-- Changed `AD_GATE_SECONDS.audio` from `0` to `5`
-- Removed special handling that bypassed ad system
-- Now follows same flow as other quick downloads
+- ❌ **In-Page Push (11129612)**: Removed
+- ❌ **OnClick Popunder (11133067)**: Removed  
+- ❌ **Direct Link (11129628)**: Removed
+- ❌ **Zone 246643 (quge5.com)**: Removed
+- ❌ **Zone 246109 (quge5.com)**: Removed
+- ❌ All other Monetag zones except Vignette: Removed
 
-### 2. ✅ Photo/Album Handling - FIXED
+### ✅ Single Active Configuration
 
-**Before:**
-- Only first photo downloaded from carousel
-- No audio extraction from albums
-- Album detection not working properly
+**Only this zone remains:**
+- **Vignette Banner (11129621)**: `https://n6wxm.com/vignette.min.js` ✓ ACTIVE
 
-**After:**
-- ✓ All photos in carousel detected
-- ✓ Audio items extracted and offered separately
-- ✓ Batch download of multiple items
-- ✓ "Download All Photos (X)" shows correct count
-- ✓ Audio items can be downloaded together
+### ✅ Removed Features
 
-**Implementation:**
-- Added `audioItems` array to filter audio-only content
-- Added `photoItems` array for photo-only content
-- Added `effectiveHasAudio` to detect audio in albums
-- Audio button now shows count: "All Audio (3)" if multiple
+- ❌ No popup timers
+- ❌ No onclick redirects
+- ❌ No push notifications
+- ❌ No direct-link ads
+- ❌ No interstitial logic
+- ❌ No rewarded ad flow
+- ❌ No social bar
+- ❌ No automatic ad rotation
+- ❌ No frequency/cooldown logic
+- ❌ No ad delay timers
 
-### 3. ✅ Ad Configuration - ENHANCED
+### ✅ Files Modified
 
-**New Zones Added:**
-```javascript
-Zone 1: 246643 (quge5.com)
-Zone 2: 246109 (quge5.com)
-```
+1. **index.html** - Removed quge5.com scripts (246643, 246109)
+2. **mobile/app.json** - Simplified to single vignette zone
+3. **mobile/utils/adsManager.js** - Removed InterstitialAdManager, RewardedAdManager, RewardedInterstitialAdManager
+4. **public/sw.js** - Removed quge5.com service worker import
+5. **ADS_CONFIG.md** - Completely rewritten for vignette-only configuration
+6. **README.md** - Updated ad configuration examples
+7. **src/Layout.jsx** - Already correctly loads vignette once only
 
-**All Zones Configured:**
-- In-Page Push: 11129612 (nap5k.com)
-- Vignette Banner: 11129621 (n6wxm.com)
-- OnClick Popunder: 11133067 (al5sm.com)
-- Direct Link: 11129628 (omg10.com)
-- Zone 1: 246643 (quge5.com)
-- Zone 2: 246109 (quge5.com)
+### ✅ Loading Strategy
 
-**Features:**
-- ✓ Full environment variable support
-- ✓ Backward compatible with existing config
-- ✓ Fallback to defaults if env vars not set
+- Single script loaded once from root Layout component
+- Marker: `downloaddash-vignette-loaded` prevents duplicates
+- Zone ID: `11129621`
+- Script URL: `https://n6wxm.com/vignette.min.js`
+- No React re-render duplicates
+- No multiple component mounting
 
-## Files Modified
+### ✅ Verification Checklist
 
-### 1. `src/components/DownloaderTemplate.jsx`
-**Changes:**
-- Line 18: `AD_GATE_SECONDS.audio: 0` → `AD_GATE_SECONDS.audio: 5`
-- Lines 504-507: Removed audio-specific ad handling
-- Lines 583-604: Enhanced photo/album/audio item detection
-- Lines 958-963: Audio button handler updated for batch audio
-- Line 964: `hasAudio` → `effectiveHasAudio` className
-
-**Impact:**
-- Audio downloads now show 5s ad gate
-- Photos detected correctly
-- Albums download all items, not just first
-- Audio extraction working from photo albums
-
-### 2. `src/utils/delayed-ads-loader.js`
-**Changes:**
-- Lines 19-26: Added `zone1` and `zone2` zone configs
-- All zones support environment variables
-
-**Impact:**
-- 6 total zones configured and rotated
-- Better ad coverage and redundancy
-- Easy to add more zones in future
-
-### 3. `ADS_CONFIG.md`
-**Changes:**
-- Completely rewritten with new zone info
-- Added environment variable documentation
-- Updated ad placement description by type
-- Added redeploy checklist
-
-**Impact:**
-- Clear documentation for future reference
-- Easy to update zone IDs if needed
-
-### 4. `DEPLOYMENT_GUIDE.md` (NEW)
-- Comprehensive deployment instructions
+- [x] All non-vignette scripts removed from index.html
+- [x] Mobile config simplified
+- [x] Service worker cleaned
+- [x] Documentation updated
+- [x] Single-load mechanism verified
+- [x] No duplicate script injection possible
 - Step-by-step guide for Render and Vercel
 - Troubleshooting section
 - Environment variable setup

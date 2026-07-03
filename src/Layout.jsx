@@ -15,7 +15,10 @@ import { Button } from '@/components/ui/button';
 import downloadDash from '@/api/downloadDashClient';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useI18n } from '@/lib/i18n';
-import { MONETAG_ZONES, shouldSuppressAds } from '@/utils/delayed-ads-loader';
+
+const VIGNETTE_ZONE_ID = '11129621';
+const VIGNETTE_SCRIPT_SRC = 'https://n6wxm.com/vignette.min.js';
+const VIGNETTE_SCRIPT_MARKER = 'downloaddash-vignette-loaded';
 
 const platformNavItems = [
   { page: 'YouTubeDownloader', label: 'YouTube', Icon: YouTubeIcon, hover: 'hover:text-red-400', mobileHover: 'hover:bg-red-500/20' },
@@ -313,20 +316,22 @@ export default function Layout({ children, currentPageName }) {
   }, []);
 
   useEffect(() => {
-    if (typeof document === 'undefined' || shouldSuppressAds()) {
+    if (typeof document === 'undefined') {
       return undefined;
     }
 
-    const { id, scriptSrc } = MONETAG_ZONES.vignette;
-    const existingScript = document.querySelector(`script[src="${scriptSrc}"][data-zone="${id}"]`);
+    const existingScript =
+      document.querySelector(`script[data-loader="${VIGNETTE_SCRIPT_MARKER}"]`) ||
+      document.querySelector(`script[src="${VIGNETTE_SCRIPT_SRC}"][data-zone="${VIGNETTE_ZONE_ID}"]`);
 
     if (existingScript) {
       return undefined;
     }
 
     const script = document.createElement('script');
-    script.dataset.zone = id;
-    script.src = scriptSrc;
+    script.dataset.loader = VIGNETTE_SCRIPT_MARKER;
+    script.dataset.zone = VIGNETTE_ZONE_ID;
+    script.src = VIGNETTE_SCRIPT_SRC;
 
     const target = [document.documentElement, document.body].filter(Boolean).pop();
     target?.appendChild(script);

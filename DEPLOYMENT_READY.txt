@@ -16,7 +16,7 @@ FIXES:
 - Audio/MP3 downloads: 0s → 5s ad gate (shows ads now)
 - Photo albums: Now detect and download ALL items (not just first)
 - Audio extraction: Automatically extracts audio from photo/album links
-- Ad zones: Added 6 new Monetag zones for better coverage
+- Ad zone: Cleaned to single Monetag Vignette Banner (11129621)
 
 FILES CHANGED:
 - src/components/DownloaderTemplate.jsx: AD_GATE_SECONDS.audio 0→5

@@ -8,8 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { downloadDash } from '@/api/downloadDashClient';
 import AdBanner from '@/components/AdBanner';
-import VideoAdOverlay from '@/components/VideoAdOverlay';
-import { canShowTimedAd, markTimedAdShown } from '@/utils/ad-frequency';
 
 const BRIDGE_BASE_URL = (import.meta.env.VITE_WA_BRIDGE_URL || '').replace(/\/+$/, '');
 
@@ -17,8 +15,6 @@ export default function WhatsAppStatusSaver() {
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('images');
   const [selectedItems, setSelectedItems] = useState([]);
-  const [showVideoAd, setShowVideoAd] = useState(false);
-  const [saveCount, setSaveCount] = useState(0);
 
   const [statusItems, setStatusItems] = useState({ images: [], videos: [] });
   const [isStatusLoading, setIsStatusLoading] = useState(false);
@@ -98,14 +94,6 @@ export default function WhatsAppStatusSaver() {
   const handleSaveSelected = async () => {
     if (selectedItems.length === 0) return;
 
-    const nextSaveCount = saveCount + 1;
-    setSaveCount(nextSaveCount);
-
-    if (nextSaveCount % 2 === 0 && canShowTimedAd()) {
-      markTimedAdShown();
-      setShowVideoAd(true);
-    }
-
     // Save to history if logged in
     if (user?.email) {
       try {
@@ -147,12 +135,6 @@ export default function WhatsAppStatusSaver() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <VideoAdOverlay 
-        isOpen={showVideoAd} 
-        onClose={() => setShowVideoAd(false)}
-        onComplete={() => setShowVideoAd(false)}
-      />
-
       <div className="max-w-4xl mx-auto px-4 py-8">
         <AdBanner position="top" size="medium" />
 

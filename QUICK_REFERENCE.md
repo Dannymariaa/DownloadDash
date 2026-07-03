@@ -30,7 +30,7 @@ NEW: Zone 2 (246109)
 |------|--------|--------|
 | `DownloaderTemplate.jsx` | audio: 0 → 5 | Audio ads now show ✓ |
 | `DownloaderTemplate.jsx` | Enhanced album detection | Photos downloaded ✓ |
-| `delayed-ads-loader.js` | Added 2 new zones | Better ad coverage ✓ |
+| `Layout.jsx` | Single vignette load | Clean ad display ✓ |
 | `ADS_CONFIG.md` | Updated zones list | Documentation ✓ |
 
 ---

@@ -34,20 +34,29 @@ if errorlevel 1 (
 echo ✓ All changes staged
 
 REM Create commit with detailed message
-git commit -m "Fix: Complete audio ads and photo carousel handling
+git commit -m "Clean Monetag integration and remove duplicate ad formats
 
-FIXES:
-- Audio/MP3 downloads: 0s to 5s ad gate (shows ads now)
-- Photo albums: Now detect and download ALL items (not just first)
-- Audio extraction: Automatically extracts audio from photo/album links
-- Ad zones: Added 6 new Monetag zones for better coverage
+CLEANUP:
+- Removed all Monetag ad formats except Vignette Banner
+- Removed 9 ad zones (11099484, 11099483, 11099482, 11099481, 11133067, 11129628, 11129612, 246643, 246109)
+- Kept only: Zone 11129621 (n6wxm.com vignette banner)
+- Removed onclick redirects, push notifications, direct links
+- Removed popup timers and frequency logic
+- Removed interstitial and rewarded ad managers
 
 FILES CHANGED:
-- src/components/DownloaderTemplate.jsx: AD_GATE_SECONDS.audio 0 to 5
-- src/utils/delayed-ads-loader.js: Added zones 246643, 246109
-- ADS_CONFIG.md: Updated documentation
+- index.html: Removed quge5.com scripts (246643, 246109)
+- mobile/app.json: Simplified to vignette only
+- mobile/utils/adsManager.js: Removed unnecessary ad managers
+- public/sw.js: Removed quge5.com service worker
+- ADS_CONFIG.md: Rewrote for vignette-only config
+- README.md: Updated ad examples
+- FIXES_SUMMARY.md: Documented cleanup
+- FIX_REPORT.md: Documented cleanup
+- src/Layout.jsx: Already correct (single load)
 
 BUILD STATUS:
+Clean integration. Single script load verified. No duplicate injection. Production ready."
 ✓ Zero errors
 ✓ Zero warnings
 ✓ 2165 modules transformed

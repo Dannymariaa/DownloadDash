@@ -18,7 +18,7 @@ I've completely fixed all the issues you reported in DownloadDash:
    - Fixed in: `src/components/DownloaderTemplate.jsx`
 
 3. **Ad Configuration**
-   - ✅ Added 6 new Monetag ad zones (246643, 246109)
+   - ✅ Cleaned Monetag to single Vignette Banner (11129621)
    - ✅ All zones have environment variable support
    - ✅ Backward compatible with existing setup
    - Updated in: `src/utils/delayed-ads-loader.js` & `ADS_CONFIG.md`
@@ -83,7 +83,7 @@ git commit -m "Fix: Add audio ads and improve photo handling
 - Audio/MP3 download: 0s → 5s ads
 - Photo albums: Now download all items (not just first)
 - Audio extraction from albums working
-- Added 6 new Monetag ad zones
+- Simplified Monetag to single vignette zone
 - Build verified with zero errors
 
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"

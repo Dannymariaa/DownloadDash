@@ -37,15 +37,9 @@
       "requireApiKey": false,
       "ads": {
         "provider": "monetag",
-        "format": "multitag",
-        "scriptSrc": "https://3nbf4.com/88/tag.min.js",
-        "zoneId": "11099484",
-        "zones": {
-          "pushNotifications": "11099484",
-          "vignetteBanner": "11099483",
-          "inPagePush": "11099482",
-          "onclickPopunder": "11099481"
-        },
+        "format": "vignette",
+        "scriptSrc": "https://n6wxm.com/vignette.min.js",
+        "zoneId": "11129621",
         "dataCfasync": "false"
       }
     }
