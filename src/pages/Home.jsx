@@ -3,6 +3,7 @@ import { Download, Zap, Shield, Globe, Star, ArrowDown, Smartphone, FileText, Ma
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import AdBanner from '@/components/AdBanner';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -241,6 +242,42 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Tool Section */}
+      <section className="py-16 px-4">
+        <div className="max-w-6xl mx-auto text-center">
+          <div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Use The Download Tools
+            </h2>
+            <p className="text-gray-400 max-w-xl mx-auto mb-8">
+              Once you have read the guides and confirmed you are working with a supported public link, you can continue to the downloader and choose the format returned by the backend.
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {platformTools.map(({ page, label, description, badge, Icon, border, shadow, badgeClass }) => (
+                <Link key={page} to={createPageUrl(page)} className="block">
+                  <div
+                    className={`h-full flex items-center gap-4 bg-gradient-to-br from-gray-900 to-black border ${border} rounded-2xl p-5 shadow-xl ${shadow} transition-all duration-300 cursor-pointer text-left`}
+                  >
+                    <Icon size={52} className="shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xl font-bold text-white">{label}</p>
+                      <p className="text-gray-400 text-sm mt-1">{description}</p>
+                      <span className={`inline-block mt-3 text-xs border px-3 py-1 rounded-full ${badgeClass}`}>{badge}</span>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-4 pb-8">
+        <div className="max-w-6xl mx-auto">
+          <AdBanner position="rewarded" size="medium" />
+        </div>
+      </section>
+
       {/* Features Section */}
       <section className="py-16 px-4 bg-gradient-to-b from-black via-purple-900/10 to-black">
         <div className="max-w-6xl mx-auto">
@@ -285,6 +322,12 @@ export default function Home() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <AdBanner position="session" size="medium" />
         </div>
       </section>
 
@@ -559,37 +602,6 @@ export default function Home() {
                 <p className="text-gray-400 leading-7">{item.body}</p>
               </article>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Tool Section */}
-      <section className="py-16 px-4">
-        <div className="max-w-6xl mx-auto text-center">
-          <div
-          >
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-              Use The Download Tools
-            </h2>
-            <p className="text-gray-400 max-w-xl mx-auto mb-8">
-              Once you have read the guides and confirmed you are working with a supported public link, you can continue to the downloader and choose the format returned by the backend.
-            </p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {platformTools.map(({ page, label, description, badge, Icon, border, shadow, badgeClass }) => (
-                <Link key={page} to={createPageUrl(page)} className="block">
-                  <div
-                    className={`h-full flex items-center gap-4 bg-gradient-to-br from-gray-900 to-black border ${border} rounded-2xl p-5 shadow-xl ${shadow} transition-all duration-300 cursor-pointer text-left`}
-                  >
-                    <Icon size={52} className="shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xl font-bold text-white">{label}</p>
-                      <p className="text-gray-400 text-sm mt-1">{description}</p>
-                      <span className={`inline-block mt-3 text-xs border px-3 py-1 rounded-full ${badgeClass}`}>{badge}</span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
           </div>
         </div>
       </section>
