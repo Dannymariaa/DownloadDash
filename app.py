@@ -33,7 +33,9 @@ def _validate_platform(value):
 @app.before_request
 def attach_request_context():
     request_id = request.headers.get("X-Request-ID", "").strip()
+    correlation_id = request.headers.get("X-Correlation-ID", "").strip()
     g.request_id = request_id[:128] if request_id else str(uuid.uuid4())
+    g.correlation_id = correlation_id[:128] if correlation_id else g.request_id
     g.started_at = time.monotonic()
 
 
@@ -41,9 +43,11 @@ def attach_request_context():
 def log_request(response):
     elapsed_ms = (time.monotonic() - g.get("started_at", time.monotonic())) * 1000
     response.headers["X-Request-ID"] = g.get("request_id", "-")
+    response.headers["X-Correlation-ID"] = g.get("correlation_id", "-")
     logger.info(
-        "request_id=%s event=http method=%s path=%s status=%s time_ms=%.2f remote_addr=%s",
+        "request_id=%s correlation_id=%s event=http method=%s path=%s status=%s time_ms=%.2f remote_addr=%s",
         g.get("request_id", "-"),
+        g.get("correlation_id", "-"),
         request.method,
         request.path,
         response.status_code,
@@ -65,16 +69,19 @@ def home():
 
 
 @app.route("/health", methods=["GET"])
+@app.route("/api/v1/health", methods=["GET"])
 def health():
     return jsonify({"success": True, "status": "healthy"})
 
 
 @app.route("/liveness", methods=["GET"])
+@app.route("/api/v1/liveness", methods=["GET"])
 def liveness():
     return jsonify({"success": True, "status": "alive"})
 
 
 @app.route("/readiness", methods=["GET"])
+@app.route("/api/v1/readiness", methods=["GET"])
 def readiness():
     redis_status = redis_health()
     proxy_configured = bool(Config.PROXY_URL)
@@ -96,7 +103,77 @@ def readiness():
     )
 
 
+def _openapi_spec():
+    return {
+        "openapi": "3.0.3",
+        "info": {
+            "title": "DownloadDash Metadata API",
+            "version": "1.0.0",
+            "description": "Bandwidth-first metadata-only API. It never downloads, streams, or proxies media files.",
+        },
+        "paths": {
+            "/api/v1/extract": {
+                "get": {
+                    "summary": "Extract public metadata from a URL",
+                    "parameters": [
+                        {
+                            "name": "url",
+                            "in": "query",
+                            "required": True,
+                            "schema": {"type": "string", "format": "uri"},
+                        },
+                        {
+                            "name": "platform",
+                            "in": "query",
+                            "required": False,
+                            "schema": {
+                                "type": "string",
+                                "enum": sorted(Config.SUPPORTED_PLATFORMS),
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {"description": "Metadata response"},
+                        "400": {"description": "Invalid input"},
+                        "415": {"description": "Blocked non-metadata content type"},
+                        "429": {"description": "Rate limited"},
+                        "500": {"description": "Internal error"},
+                    },
+                }
+            },
+            "/api/v1/readiness": {"get": {"summary": "Readiness probe", "responses": {"200": {"description": "Ready"}, "503": {"description": "Not ready"}}}},
+            "/api/v1/liveness": {"get": {"summary": "Liveness probe", "responses": {"200": {"description": "Alive"}}}},
+            "/metrics": {"get": {"summary": "Prometheus metrics", "responses": {"200": {"description": "Metrics"}}}},
+        },
+    }
+
+
+@app.route("/openapi.json", methods=["GET"])
+@app.route("/api/v1/openapi.json", methods=["GET"])
+def openapi():
+    return jsonify(_openapi_spec())
+
+
+@app.route("/docs", methods=["GET"])
+@app.route("/api/v1/docs", methods=["GET"])
+def swagger_docs():
+    html = """<!doctype html>
+<html>
+<head>
+  <title>DownloadDash Metadata API</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>SwaggerUIBundle({url: '/openapi.json', dom_id: '#swagger-ui'});</script>
+</body>
+</html>"""
+    return Response(html, mimetype="text/html")
+
+
 @app.route("/extract", methods=["GET"])
+@app.route("/api/v1/extract", methods=["GET"])
 @rate_limit
 def extract_media():
     metrics.record_api_request()
@@ -111,8 +188,9 @@ def extract_media():
         requested_platform = _validate_platform(raw_platform)
     except (SecurityValidationError, ValueError) as exc:
         logger.warning(
-            "request_id=%s event=input_rejected url=%s platform=%s error=%s",
+            "request_id=%s correlation_id=%s event=input_rejected url=%s platform=%s error=%s",
             g.get("request_id", "-"),
+            g.get("correlation_id", "-"),
             raw_url,
             raw_platform,
             exc,
@@ -134,8 +212,9 @@ def extract_media():
             cached_data.get("metadata", {}).get("body_bytes_read", 0),
         )
         logger.info(
-            "request_id=%s event=cache_hit type=%s platform=%s url=%s",
+            "request_id=%s correlation_id=%s event=cache_hit type=%s platform=%s url=%s",
             g.get("request_id", "-"),
+            g.get("correlation_id", "-"),
             cache_type,
             cached_data.get("platform", detected_platform),
             url,
@@ -144,8 +223,9 @@ def extract_media():
 
     metrics.record_cache_miss()
     logger.info(
-        "request_id=%s event=cache_miss platform=%s url=%s",
+        "request_id=%s correlation_id=%s event=cache_miss platform=%s url=%s",
         g.get("request_id", "-"),
+        g.get("correlation_id", "-"),
         detected_platform,
         url,
     )
@@ -158,8 +238,9 @@ def extract_media():
                 cached_data.get("metadata", {}).get("body_bytes_read", 0),
             )
             logger.info(
-                "request_id=%s event=cache_hit_after_wait type=%s platform=%s url=%s",
+                "request_id=%s correlation_id=%s event=cache_hit_after_wait type=%s platform=%s url=%s",
                 g.get("request_id", "-"),
+                g.get("correlation_id", "-"),
                 cache_type,
                 cached_data.get("platform", detected_platform),
                 url,
@@ -198,9 +279,15 @@ def _prometheus_metrics(report):
         "# HELP downloaddash_errors_total Total structured errors.",
         "# TYPE downloaddash_errors_total counter",
         f"downloaddash_errors_total {report['errors']}",
+        "# HELP downloaddash_rate_limited_total Total rate-limited requests.",
+        "# TYPE downloaddash_rate_limited_total counter",
+        f"downloaddash_rate_limited_total {report['rate_limited']}",
         "# HELP downloaddash_upstream_requests_total Total upstream metadata requests.",
         "# TYPE downloaddash_upstream_requests_total counter",
         f"downloaddash_upstream_requests_total {report['upstream_requests']}",
+        "# HELP downloaddash_upstream_failures_total Total upstream request failures.",
+        "# TYPE downloaddash_upstream_failures_total counter",
+        f"downloaddash_upstream_failures_total {report['upstream_failures']}",
         "# HELP downloaddash_upstream_bytes_total Total upstream body bytes read.",
         "# TYPE downloaddash_upstream_bytes_total counter",
         f"downloaddash_upstream_bytes_total {report['total_bytes']}",
@@ -214,6 +301,13 @@ def _prometheus_metrics(report):
         "# HELP downloaddash_redis_latency_ms Average Redis latency.",
         "# TYPE downloaddash_redis_latency_ms gauge",
         f"downloaddash_redis_latency_ms {report['average_redis_latency_ms']}",
+        "# HELP downloaddash_process_uptime_seconds Process uptime in seconds.",
+        "# TYPE downloaddash_process_uptime_seconds gauge",
+        f"downloaddash_process_uptime_seconds {report['uptime_seconds']}",
+        "# HELP downloaddash_process_memory_bytes Python traced memory usage.",
+        "# TYPE downloaddash_process_memory_bytes gauge",
+        f"downloaddash_process_memory_bytes {report['process_memory_bytes']}",
+        f"downloaddash_process_memory_peak_bytes {report['process_memory_peak_bytes']}",
         "# HELP downloaddash_bandwidth_saved_bytes Bytes estimated saved by cache hits.",
         "# TYPE downloaddash_bandwidth_saved_bytes counter",
         f"downloaddash_bandwidth_saved_bytes {report['proxy_bandwidth_saved_bytes_due_to_caching']}",
@@ -229,6 +323,7 @@ def _prometheus_metrics(report):
 
 
 @app.route("/metrics", methods=["GET"])
+@app.route("/api/v1/metrics", methods=["GET"])
 def get_metrics():
     if not Config.METRICS_ENABLED:
         return _json_error("Metrics are disabled.", 404, "metrics_disabled")

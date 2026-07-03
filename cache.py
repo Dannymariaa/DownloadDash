@@ -1,5 +1,6 @@
 import hashlib
 import gzip
+import io
 import json
 import threading
 import time
@@ -56,8 +57,15 @@ def _pack(data):
 def _unpack(payload):
     try:
         if isinstance(payload, str):
-            return json.loads(payload)
-        return json.loads(gzip.decompress(payload).decode("utf-8"))
+            raw = payload.encode("utf-8")
+        else:
+            with gzip.GzipFile(fileobj=io.BytesIO(payload)) as handle:
+                raw = handle.read(Config.MAX_CACHE_PAYLOAD_BYTES + 1)
+            if len(raw) > Config.MAX_CACHE_PAYLOAD_BYTES:
+                raise ValueError("Cached payload exceeds maximum size.")
+        if len(raw) > Config.MAX_CACHE_PAYLOAD_BYTES:
+            raise ValueError("Cached payload exceeds maximum size.")
+        return json.loads(raw.decode("utf-8"))
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ValueError("Cached payload is invalid.") from exc
 

@@ -13,6 +13,26 @@ The root Flask API is a metadata-only service. It never downloads media files, n
 7. If required, issue a capped streaming `GET` for HTML/JSON metadata only.
 8. Cache the result and return structured JSON.
 
+```text
+client
+  |
+  v
+Flask /api/v1/extract
+  |
+  +--> URL/platform validation and SSRF guard
+  |
+  +--> memory LRU cache
+  |
+  +--> Redis cache
+  |
+  +--> per-URL lock
+  |
+  +--> global requests.Session via proxy
+          |
+          +--> HEAD
+          +--> capped partial GET only for HTML/JSON metadata
+```
+
 ## Environment Variables
 
 | Variable | Default | Purpose |
@@ -29,6 +49,7 @@ The root Flask API is a metadata-only service. It never downloads media files, n
 | `VALIDATOR_CACHE_TTL` | `604800` | ETag/Last-Modified validator TTL. |
 | `MEMORY_CACHE_SIZE` | `512` | In-memory LRU size. |
 | `MEMORY_CACHE_TTL` | `900` | In-memory LRU TTL in seconds. |
+| `MAX_CACHE_PAYLOAD_BYTES` | `262144` | Maximum decompressed Redis cache payload size. |
 | `CONNECT_TIMEOUT` | `5` | Upstream connect timeout. |
 | `READ_TIMEOUT` | `15` | Upstream read timeout. |
 | `CONNECTION_POOL_CONNECTIONS` | `10` | Requests adapter pool count. |
@@ -48,9 +69,11 @@ The root Flask API is a metadata-only service. It never downloads media files, n
 
 ```bash
 curl "https://your-api.example/extract?url=https://example.com/post"
+curl "https://your-api.example/api/v1/extract?url=https://example.com/post"
 curl "https://your-api.example/extract?platform=generic&url=https://example.com/post"
 curl -H "Accept: application/json" "https://your-api.example/metrics"
 curl "https://your-api.example/readiness"
+curl "https://your-api.example/openapi.json"
 ```
 
 All errors are structured JSON:
@@ -64,7 +87,14 @@ All errors are structured JSON:
 Render uses the root Flask service:
 
 ```bash
-gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 30
+gunicorn app:app --bind 0.0.0.0:$PORT --workers ${GUNICORN_WORKERS:-2} --threads ${GUNICORN_THREADS:-4} --timeout ${GUNICORN_TIMEOUT:-30} --graceful-timeout ${GUNICORN_GRACEFUL_TIMEOUT:-30}
+```
+
+Docker is optional:
+
+```bash
+docker build -t downloaddash-api .
+docker run -p 5000:5000 --env-file .env downloaddash-api
 ```
 
 Recommended production settings:
@@ -81,6 +111,8 @@ No-upstream cache-path benchmark:
 ```bash
 python scripts/benchmark_api_local.py --iterations 250
 ```
+
+The local benchmark reports both cold-cache and warm-cache API paths while mocking upstream extraction to avoid proxy spend.
 
 Per-platform upstream benchmark using your own public sample URLs:
 
@@ -102,6 +134,24 @@ tiktok,https://www.tiktok.com/@user/video/example
 - `/extract` returns `400 invalid_input`: URL is malformed, unsupported, internal, too long, or contains credentials/control characters.
 - `/extract` returns `415 blocked_content_type`: upstream response is image/video/audio/font/CSS and body fetch was intentionally blocked.
 - `/metrics` returns `404`: `METRICS_ENABLED=0`.
+
+## Monitoring Guide
+
+- Scrape `/metrics` for Prometheus text metrics.
+- Use `/api/v1/liveness` for process liveness.
+- Use `/api/v1/readiness` for Redis/proxy readiness.
+- Track `downloaddash_upstream_bytes_total`, `downloaddash_cache_hit_ratio`, `downloaddash_upstream_failures_total`, and `downloaddash_rate_limited_total`.
+
+## Operational Runbook
+
+- High upstream bytes: inspect cache hit ratios and lower `MAX_HTML_BYTES` only after platform benchmarks confirm metadata is still found.
+- High upstream failures: verify proxy health, target platform availability, and DNS/security rejection logs.
+- Readiness failing: verify `REDIS_URL`, Redis network access, and `REQUIRE_PROXY`/`PROXY`.
+- Rate-limit spikes: tune `RATE_LIMIT_PER_IP` and `RATE_LIMIT_WINDOW_SECONDS`.
+
+## Security Model
+
+The API rejects unsafe outbound URLs before any upstream request. It blocks unsupported schemes, credentials, control characters, localhost, internal IPs, and hostnames resolving to internal addresses. It also refuses non-metadata response bodies and caps HTML/JSON reads.
 
 ## Production Constraints
 

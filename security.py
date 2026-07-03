@@ -59,6 +59,11 @@ def validate_public_url(url):
         raise SecurityValidationError("URL port is invalid.") from exc
 
     hostname = parsed.hostname.rstrip(".").lower()
+    try:
+        hostname.encode("idna").decode("ascii")
+    except UnicodeError as exc:
+        raise SecurityValidationError("URL hostname contains invalid Unicode.") from exc
+
     if hostname in Config.BLOCKED_HOSTNAMES or hostname.endswith(".localhost"):
         raise SecurityValidationError("Local hostnames are not allowed.")
 

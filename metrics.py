@@ -1,11 +1,17 @@
 import threading
+import time
+import tracemalloc
+
+tracemalloc.start()
 
 
 class Metrics:
     def __init__(self):
         self._lock = threading.Lock()
+        self.started_at = time.time()
         self.total_bytes = 0
         self.upstream_requests = 0
+        self.upstream_failures = 0
         self.api_requests = 0
         self.redis_hits = 0
         self.redis_misses = 0
@@ -19,6 +25,7 @@ class Metrics:
         self.cache_saved_bytes = 0
         self.redis_operations = 0
         self.redis_latency_ms = 0
+        self.rate_limited = 0
 
     def record_api_request(self):
         with self._lock:
@@ -37,6 +44,10 @@ class Metrics:
                 self.platform_upstream_requests.get(platform, 0) + 1
             )
 
+    def record_upstream_failure(self):
+        with self._lock:
+            self.upstream_failures += 1
+
     def record_cache_hit(self, cache_type, estimated_saved_bytes=0):
         with self._lock:
             if cache_type == "memory":
@@ -54,6 +65,10 @@ class Metrics:
         with self._lock:
             self.errors += 1
 
+    def record_rate_limited(self):
+        with self._lock:
+            self.rate_limited += 1
+
     def record_redis_latency(self, latency_ms):
         with self._lock:
             self.redis_operations += 1
@@ -66,13 +81,17 @@ class Metrics:
             )
             redis_total = self.redis_hits + self.redis_misses
             memory_total = self.memory_hits + self.memory_misses
+            current_memory, peak_memory = tracemalloc.get_traced_memory()
             return {
+                "uptime_seconds": round(time.time() - self.started_at, 3),
                 "total_bytes": self.total_bytes,
                 "total_kb": round(self.total_bytes / 1024, 3),
                 "total_mb": round(self.total_bytes / (1024 * 1024), 6),
                 "api_requests": self.api_requests,
                 "errors": self.errors,
+                "rate_limited": self.rate_limited,
                 "upstream_requests": self.upstream_requests,
+                "upstream_failures": self.upstream_failures,
                 "average_bytes_per_upstream_request": round(
                     self.total_bytes / self.upstream_requests, 2
                 )
@@ -95,6 +114,8 @@ class Metrics:
                 if self.redis_operations
                 else 0,
                 "redis_operations": self.redis_operations,
+                "process_memory_bytes": current_memory,
+                "process_memory_peak_bytes": peak_memory,
                 "proxy_bandwidth_saved_bytes_due_to_caching": self.cache_saved_bytes,
                 "proxy_bandwidth_saved_kb_due_to_caching": round(
                     self.cache_saved_bytes / 1024, 3

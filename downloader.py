@@ -146,6 +146,7 @@ def _request(method, url, platform, validators=None):
         return response, start, bytes_read, status_code, content_length, proxy_used
     except requests.RequestException as exc:
         elapsed = (time.monotonic() - start) * 1000
+        metrics.record_upstream_failure()
         logger.info(
             "request_id=%s event=upstream_error platform=%s method=%s url=%s status=%s content_length=%s bytes=%s time_ms=%.2f proxy=%s error=%s",
             _request_id(),

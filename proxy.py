@@ -1,3 +1,5 @@
+import atexit
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -55,3 +57,10 @@ def _create_session():
 
 
 session = _create_session()
+
+
+def close_session():
+    session.close()
+
+
+atexit.register(close_session)

@@ -29,6 +29,7 @@ class Config:
     VALIDATOR_CACHE_TTL = int(os.getenv("VALIDATOR_CACHE_TTL", "604800"))
     MEMORY_CACHE_SIZE = int(os.getenv("MEMORY_CACHE_SIZE", "512"))
     MEMORY_CACHE_TTL = int(os.getenv("MEMORY_CACHE_TTL", "900"))
+    MAX_CACHE_PAYLOAD_BYTES = int(os.getenv("MAX_CACHE_PAYLOAD_BYTES", "262144"))
 
     CONNECT_TIMEOUT = float(os.getenv("CONNECT_TIMEOUT", "5"))
     READ_TIMEOUT = float(os.getenv("READ_TIMEOUT", "15"))

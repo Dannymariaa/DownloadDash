@@ -1,0 +1,14 @@
+.git
+.vscode
+node_modules
+dist
+release
+android
+mobile
+mobile-export-check
+DownloadDash-API
+__pycache__
+*.pyc
+.env
+.env.local
+build-error.log

@@ -30,6 +30,7 @@ def rate_limit(func):
             if len(hits) >= Config.RATE_LIMIT_PER_IP:
                 _buckets[ip] = hits
                 metrics.record_error()
+                metrics.record_rate_limited()
                 return (
                     jsonify(
                         {

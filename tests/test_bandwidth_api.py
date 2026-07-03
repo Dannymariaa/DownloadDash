@@ -1,4 +1,5 @@
 import json
+import requests
 import threading
 import time
 import unittest
@@ -6,11 +7,13 @@ from unittest.mock import Mock, patch
 
 import app as api
 import cache
+import downloader
 import proxy
 from config import Config
 from downloader import _is_allowed_content_type, _parse_metadata
 from locks import LockManager
 from rate_limit import reset_rate_limits
+from scripts.benchmark_api_local import run as run_api_benchmark
 from scripts.benchmark_platform_bandwidth import run_benchmark
 from security import SecurityValidationError, validate_public_url
 
@@ -87,6 +90,20 @@ class BandwidthApiTests(unittest.TestCase):
         self.assertFalse(called["network"])
         self.assertIn("X-Request-ID", response.headers)
 
+    def test_v1_extract_and_correlation_id(self):
+        cached = {"platform": "generic", "metadata": {"title": "Cached"}}
+        with patch.object(api, "validate_public_url", return_value="https://example.test/post"), patch.object(
+            api, "get_cache", return_value=(cached, "memory")
+        ):
+            client = api.app.test_client()
+            response = client.get(
+                "/api/v1/extract?url=https://example.test/post",
+                headers={"X-Correlation-ID": "corr-123"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["X-Correlation-ID"], "corr-123")
+
     def test_extract_rejects_platform_mismatch(self):
         with patch.object(api, "validate_public_url", return_value="https://youtu.be/example"):
             client = api.app.test_client()
@@ -114,11 +131,24 @@ class BandwidthApiTests(unittest.TestCase):
         client = api.app.test_client()
         text_response = client.get("/metrics")
         self.assertEqual(text_response.status_code, 200)
-        self.assertIn("downloaddash_api_requests_total", text_response.get_data(as_text=True))
+        metrics_text = text_response.get_data(as_text=True)
+        self.assertIn("downloaddash_api_requests_total", metrics_text)
+        self.assertIn("downloaddash_upstream_failures_total", metrics_text)
+        self.assertIn("downloaddash_process_uptime_seconds", metrics_text)
 
         json_response = client.get("/metrics", headers={"Accept": "application/json"})
         self.assertEqual(json_response.status_code, 200)
         self.assertIn("api_requests", json_response.get_json())
+
+    def test_openapi_and_docs(self):
+        client = api.app.test_client()
+        spec = client.get("/api/v1/openapi.json")
+        self.assertEqual(spec.status_code, 200)
+        self.assertIn("/api/v1/extract", spec.get_json()["paths"])
+
+        docs = client.get("/api/v1/docs")
+        self.assertEqual(docs.status_code, 200)
+        self.assertIn("SwaggerUIBundle", docs.get_data(as_text=True))
 
     def test_rate_limit_returns_structured_json(self):
         client = api.app.test_client()
@@ -142,6 +172,13 @@ class BandwidthApiTests(unittest.TestCase):
         lru.set("two", "2")
         self.assertIsNone(lru.get("one"))
         self.assertEqual(lru.get("two"), "2")
+
+    def test_cache_rejects_oversized_compressed_payload(self):
+        payload = {"data": "x" * 128}
+        packed = cache._pack(payload)
+        with patch.object(Config, "MAX_CACHE_PAYLOAD_BYTES", 16):
+            with self.assertRaises(ValueError):
+                cache._unpack(packed)
 
     def test_lock_manager_serializes_same_url(self):
         manager = LockManager()
@@ -194,6 +231,13 @@ class BandwidthApiTests(unittest.TestCase):
         self.assertTrue(results[0]["cacheable"])
         self.assertTrue(results[0]["success"])
 
+    def test_api_benchmark_reports_cold_and_warm(self):
+        results = run_api_benchmark(2)
+        self.assertIn("cold_cache", results)
+        self.assertIn("warm_cache", results)
+        self.assertEqual(results["cold_cache"]["cache_hit_ratio"], 0)
+        self.assertEqual(results["warm_cache"]["cache_hit_ratio"], 1)
+
     def test_concurrent_cached_requests_do_not_hit_network(self):
         client = api.app.test_client()
         cached = {"platform": "generic", "metadata": {"title": "Hot"}}
@@ -215,6 +259,33 @@ class BandwidthApiTests(unittest.TestCase):
 
         self.assertEqual(responses, [200, 200, 200, 200, 200])
         network.assert_not_called()
+
+    def test_upstream_timeout_records_failure(self):
+        before = api.metrics.get_report()["upstream_failures"]
+        with patch.object(downloader.session, "request", side_effect=requests.Timeout("timeout")):
+            with self.assertRaises(requests.Timeout):
+                downloader._request("HEAD", "https://example.com", "generic")
+        after = api.metrics.get_report()["upstream_failures"]
+        self.assertEqual(after, before + 1)
+
+    def test_large_html_response_is_capped(self):
+        class FakeResponse:
+            status_code = 200
+            headers = {"Content-Type": "text/html", "Content-Length": "999999"}
+
+            def iter_content(self, chunk_size, decode_unicode=False):
+                yield b"<html><head>" + (b"x" * 1024)
+
+            def close(self):
+                self.closed = True
+
+        fake = FakeResponse()
+        with patch.object(Config, "MAX_HTML_BYTES", 32), patch.object(
+            downloader, "_request", return_value=(fake, time.monotonic(), 0, 200, 0, False)
+        ):
+            metadata = downloader._get_partial_metadata("https://example.com", "generic")
+
+        self.assertEqual(metadata["body_bytes_read"], 32)
 
 
 if __name__ == "__main__":
