@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { loadAdsterraScript, ADSTERRA_UNITS } from '@/config/adsterraConfig';
+import { AdsterraBanner } from '@/components/Ads/AdsterraAds';
+import adManager from '@/lib/adManager';
 
 /**
  * HD Video Unlock Ad Modal
@@ -17,21 +18,13 @@ export default function HDVideoAdModal({
   rewardLabel = 'Claim Award',
 }) {
   const [countdown, setCountdown] = useState(countdownSeconds);
-  const containerId = 'adsterra-native-banner-hd-unlock';
 
-  // Load native banner ad on mount
   useEffect(() => {
     if (!isOpen) return;
+    adManager.beginBlockingAd('rewarded');
     setCountdown(countdownSeconds);
 
-    const timer = setTimeout(() => {
-      loadAdsterraScript(
-        containerId,
-        ADSTERRA_UNITS.nativeBanner.scriptSrc
-      );
-    }, 100);
-
-    return () => clearTimeout(timer);
+    return () => adManager.endBlockingAd('rewarded');
   }, [isOpen, countdownSeconds]);
 
   // Countdown timer
@@ -46,7 +39,13 @@ export default function HDVideoAdModal({
   }, [isOpen, countdown]);
 
   const handleComplete = () => {
+    adManager.endBlockingAd('rewarded');
     onComplete?.();
+    onClose?.();
+  };
+
+  const handleClose = () => {
+    adManager.endBlockingAd('rewarded');
     onClose?.();
   };
 
@@ -75,7 +74,7 @@ export default function HDVideoAdModal({
             <p className="text-sm text-gray-400 mt-1">Watch the short sponsor panel, then claim your award to start the download</p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-gray-400 hover:text-gray-200 transition-colors"
             aria-label="Close modal"
           >
@@ -86,11 +85,8 @@ export default function HDVideoAdModal({
         {/* Content */}
         <div className="p-6">
           {/* Native Ad Container */}
-          <div
-            id={containerId}
-            className="mb-6 flex items-center justify-center rounded-lg border border-purple-500/20 bg-gradient-to-r from-purple-900/10 via-purple-900/5 to-purple-900/10 p-4 min-h-[200px]"
-          >
-            {/* Adsterra native banner script will inject content here */}
+          <div className="mb-6 flex min-h-[250px] items-center justify-center rounded-lg border border-purple-500/20 bg-gradient-to-r from-purple-900/10 via-purple-900/5 to-purple-900/10 p-4">
+            <AdsterraBanner unitKey="banner300x250" placement="rewarded-download-gate" />
           </div>
 
           {/* Info Section */}

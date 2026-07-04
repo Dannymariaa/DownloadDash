@@ -11,6 +11,8 @@ import { I18nProvider } from '@/lib/i18n';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import DownloadDashLoader from '@/components/DownloadDashLoader';
 import SEOManager from '@/components/SEOManager';
+import MonetagInitializer from '@/components/Ads/MonetagInitializer';
+import { MobileStickyAdsterra } from '@/components/Ads/AdsterraAds';
 import '@/styles/downloaddash-loader.css';
 import { getAllRoutesForPage } from '@/utils';
 
@@ -79,7 +81,9 @@ function App() {
           <Router>
             <NavigationTracker />
             <SEOManager />
+            <MonetagInitializer />
             <AuthenticatedApp />
+            <MobileStickyAdsterra />
           </Router>
           <Toaster />
         </QueryClientProvider>

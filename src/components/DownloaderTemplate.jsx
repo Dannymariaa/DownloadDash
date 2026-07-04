@@ -13,6 +13,7 @@ import HDVideoAdModal from './HDVideoAdModal';
 import { useI18n } from '@/lib/i18n';
 import { getPlatformIcon } from '@/components/PlatformIcons';
 import { createPageUrl } from '@/utils';
+import { buildStoredZip } from '@/utils/zip';
 
 // Platform URL validation
 const urlPatterns = {
@@ -403,6 +404,15 @@ export default function DownloaderTemplate({
     return 'mp4';
   };
 
+  const filenameFromItem = (item, type, index) => {
+    if (item?.filename) {
+      const extension = String(item.filename).split('.').pop();
+      if (extension && extension.length <= 5) return item.filename;
+    }
+    const extension = item?.extension || getDownloadExtension(type, item?.url);
+    return `DownloadDash-${platform}-${String(index + 1).padStart(2, '0')}.${extension}`;
+  };
+
   const buildFilename = (type, urlValue = '', index = null) => {
     const randomDigits = Math.floor(Math.random() * 9000000000) + 1000000000;
     const suffix = index === null ? '' : `-${String(index + 1).padStart(2, '0')}`;
@@ -456,8 +466,50 @@ export default function DownloaderTemplate({
     }
   };
 
+  const startZipDownload = async (items) => {
+    if (!items?.length) return;
+
+    try {
+      setIsLoading(true);
+      setIsDownloading(true);
+
+      const files = [];
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const blob = await downloadDash.fetchMediaBlob(item.url, result?.original_url || url, 'image');
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        files.push({
+          name: filenameFromItem(item, 'image', index),
+          bytes,
+        });
+      }
+
+      const blob = buildStoredZip(files);
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `DownloadDash-${platform}-images.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+      alert(t('alerts.downloadStarted', { filename: link.download }));
+    } catch (error) {
+      console.error('ZIP download failed:', error);
+      alert(t('errors.downloadFailed', { message: error.message || 'Unknown error' }));
+    } finally {
+      setIsLoading(false);
+      setIsDownloading(false);
+    }
+  };
+
   const beginDownloadAfterGate = (downloadUrl, type, label, items = null) => {
-    if (!downloadUrl) {
+    if (type === 'zip') {
+      startZipDownload(items);
+      return;
+    }
+
+    if (!downloadUrl && !items?.length) {
       setError(t('errors.processFailed'));
       return;
     }
@@ -470,11 +522,6 @@ export default function DownloaderTemplate({
   };
 
   const requestDownload = (downloadUrl, type, label, items = null) => {
-    if (type === 'audio') {
-      beginDownloadAfterGate(downloadUrl, type, label, items);
-      return;
-    }
-
     const countdownSeconds = type === 'videoHD' ? 30 : 5;
     setAdGate({ downloadUrl, type, label, items, countdownSeconds });
   };
@@ -527,6 +574,7 @@ export default function DownloaderTemplate({
   const hasImage = !!result?.downloads?.image;
   const hasPhotoDownload = (hasAlbumItems && photoItems.length > 0) || hasImage;
   const photoDownloadUrl = hasAlbumItems ? photoItems[0]?.url : result?.downloads?.image;
+  const hasMultiplePhotos = photoItems.length > 1;
   const hasVideoOrAudio = hasVideoHD || hasVideoSD || effectiveHasAudio;
   const pageContent = platformPageContent[platform] || {
     intro:
@@ -830,7 +878,8 @@ export default function DownloaderTemplate({
                   )}
 
                   {hasPhotoDownload && (
-                    /* Image — skippable after 5s */
+                    <>
+                    {/* Image download gate */}
                     <motion.button
                       variants={downloadOptionVariants}
                       whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)' }}
@@ -839,7 +888,7 @@ export default function DownloaderTemplate({
                         requestDownload(
                           photoDownloadUrl,
                           hasAlbumItems ? 'album' : 'image',
-                          hasAlbumItems ? `All Photos (${photoItems.length})` : 'HD Photo',
+                          hasAlbumItems ? `Download All Images (${photoItems.length})` : 'HD Photo',
                           hasAlbumItems ? photoItems : null
                         )
                       }
@@ -851,7 +900,7 @@ export default function DownloaderTemplate({
                         </div>
                         <div className="text-left">
                           <p className="font-bold text-white">
-                            {hasAlbumItems ? `Download All Photos (${photoItems.length})` : t('downloader.photoDownload')}
+                            {hasAlbumItems ? `Download All Images (${photoItems.length})` : t('downloader.photoDownload')}
                           </p>
                           <p className="text-xs text-gray-400">{t('downloader.fullResolutionImage')}</p>
                         </div>
@@ -860,6 +909,50 @@ export default function DownloaderTemplate({
                         <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">{t('downloader.fullResolution')}</span>
                       </div>
                     </motion.button>
+
+                    {hasMultiplePhotos && (
+                      <motion.button
+                        variants={downloadOptionVariants}
+                        whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(14, 165, 233, 0.3)' }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={() => requestDownload(photoDownloadUrl, 'zip', `Download ZIP (${photoItems.length} Images)`, photoItems)}
+                        className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-sky-500/40 hover:border-sky-500/70 transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-sky-900/60 flex items-center justify-center flex-shrink-0">
+                            <Download className="h-5 w-5 text-sky-300" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-semibold text-white">Download All Images as ZIP</p>
+                            <p className="text-xs text-gray-400">Creates one archive with every returned image</p>
+                          </div>
+                        </div>
+                        <span className="text-xs bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2 py-1 rounded-full">ZIP</span>
+                      </motion.button>
+                    )}
+
+                    {hasMultiplePhotos && photoItems.map((item, index) => (
+                      <motion.button
+                        key={`${item.url}-${index}`}
+                        variants={downloadOptionVariants}
+                        whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(59, 130, 246, 0.24)' }}
+                        whileTap={{ scale: 0.99 }}
+                        onClick={() => requestDownload(item.url, 'image', `Download Image ${index + 1}`)}
+                        className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-blue-500/50 transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-blue-900/60 flex items-center justify-center flex-shrink-0">
+                            <Image className="h-5 w-5 text-blue-300" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-semibold text-white">Download Image {index + 1}</p>
+                            <p className="text-xs text-gray-400">{item.width && item.height ? `${item.width}x${item.height}` : 'Individual gallery image'}</p>
+                          </div>
+                        </div>
+                        <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-1 rounded-full">{getDownloadExtension('image', item.url).toUpperCase()}</span>
+                      </motion.button>
+                    ))}
+                    </>
                   )}
 
                   {/* Save to Collection */}

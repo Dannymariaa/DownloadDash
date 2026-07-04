@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import AdBanner from '@/components/AdBanner';
+import { AdsterraNativeBanner } from '@/components/Ads/AdsterraAds';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -239,6 +240,18 @@ export default function Home() {
           className="absolute bottom-8 left-1/2 -translate-x-1/2"
         >
           <ArrowDown className="h-6 w-6 text-purple-400" />
+        </div>
+      </section>
+
+      <section className="px-4 pb-8">
+        <div className="max-w-6xl mx-auto">
+          <AdsterraNativeBanner placement="home-top-native" />
+        </div>
+      </section>
+
+      <section className="hidden px-4 pb-10 md:block">
+        <div className="max-w-6xl mx-auto">
+          <AdBanner position="home-below-hero-desktop" size="large" />
         </div>
       </section>
 

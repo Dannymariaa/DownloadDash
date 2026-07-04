@@ -139,6 +139,45 @@ const asArray = (value) => {
   return Array.isArray(value) ? value : [value];
 };
 
+const collectNestedMediaCollections = (source, depth = 0) => {
+  if (!source || depth > 4 || typeof source !== 'object') return [];
+  const collections = [];
+  const keys = [
+    'items',
+    'images',
+    'photos',
+    'photo',
+    'carousel',
+    'media',
+    'medias',
+    'resources',
+    'variants',
+    'children',
+    'edges',
+  ];
+
+  for (const key of keys) {
+    const value = source[key];
+    if (Array.isArray(value)) collections.push(...value);
+  }
+
+  for (const nestedKey of [
+    'media_info',
+    'mediaInfo',
+    'shortcode_media',
+    'graphql',
+    'data',
+    'post',
+    'legacy',
+    'extended_entities',
+    'edge_sidecar_to_children',
+  ]) {
+    collections.push(...collectNestedMediaCollections(source[nestedKey], depth + 1));
+  }
+
+  return collections;
+};
+
 const normalizeMediaItem = (item, index, fallbackType = 'image') => {
   const entry = item?.node ? item.node : item;
   if (!entry) return null;
@@ -204,7 +243,11 @@ const normalizeMediaItem = (item, index, fallbackType = 'image') => {
 
 const collectMediaItems = (data, downloads) => {
   const mediaInfo = data?.media_info || {};
-  const sidecarEdges = mediaInfo?.edge_sidecar_to_children?.edges || data?.edge_sidecar_to_children?.edges;
+  const shortcodeMedia = mediaInfo?.shortcode_media || data?.shortcode_media || data?.graphql?.shortcode_media;
+  const sidecarEdges =
+    mediaInfo?.edge_sidecar_to_children?.edges ||
+    shortcodeMedia?.edge_sidecar_to_children?.edges ||
+    data?.edge_sidecar_to_children?.edges;
   const candidates = [
     ...asArray(downloads?.items),
     ...asArray(downloads?.images),
@@ -225,6 +268,8 @@ const collectMediaItems = (data, downloads) => {
     ...asArray(mediaInfo?.carousel),
     ...asArray(mediaInfo?.media),
     ...asArray(sidecarEdges),
+    ...collectNestedMediaCollections(data),
+    ...collectNestedMediaCollections(downloads),
   ];
 
   const seen = new Set();
@@ -310,6 +355,41 @@ export const downloadToDevice = async (fileUrl, filename, sourceUrl = '', mediaT
 
     // Fallback: proxy download through API to avoid CORS blocks.
     return proxyDownload();
+  }
+};
+
+export const fetchMediaBlob = async (fileUrl, sourceUrl = '', mediaType = '') => {
+  const absoluteFileUrl = absolutizeApiUrl(fileUrl);
+  const baseUrl = getApiBaseUrl();
+
+  const proxyFetch = async () => {
+    const proxyRes = await fetch(`${baseUrl}/download/file`, {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        url: absoluteFileUrl,
+        filename: 'download',
+        sourceUrl,
+        mediaType,
+      }),
+    });
+    if (!proxyRes.ok) {
+      const message = await getResponseMessage(proxyRes, `Proxy download failed (${proxyRes.status})`);
+      throw new Error(message);
+    }
+    return proxyRes.blob();
+  };
+
+  try {
+    const res = await fetch(absoluteFileUrl, { method: 'GET' });
+    if (!res.ok) {
+      const message = await getResponseMessage(res, `Failed to fetch file (${res.status})`);
+      throw new Error(message);
+    }
+    return res.blob();
+  } catch (error) {
+    if (isTikTokMediaUrl(absoluteFileUrl, sourceUrl)) return proxyFetch();
+    return proxyFetch();
   }
 };
 
@@ -592,6 +672,7 @@ export const downloadDash = {
     return resolveViaApi({ url, platform, quality, extractAudio });
   },
   downloadToDevice,
+  fetchMediaBlob,
 };
 
 export default downloadDash;
