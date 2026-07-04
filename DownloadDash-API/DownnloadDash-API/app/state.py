@@ -105,7 +105,7 @@ cookiefiles = {
     ),
 }
 
-outbound_proxy = settings.OUTBOUND_PROXY or settings.YTDLP_PROXY
+outbound_proxy = (settings.OUTBOUND_PROXY or settings.YTDLP_PROXY) if settings.USE_GLOBAL_PROXY_FOR_METADATA else None
 youtube_proxy = settings.YTDLP_PROXY_YOUTUBE or outbound_proxy
 yt_dlp_proxy_urls = {
     "default": outbound_proxy,
@@ -182,7 +182,7 @@ gallery_cookiefiles = {
         "gallery-dl-x-cookies.txt",
     ),
 }
-gallery_proxy = settings.GALLERY_DL_PROXY or settings.OUTBOUND_PROXY
+gallery_proxy = settings.GALLERY_DL_PROXY or outbound_proxy
 gallery_proxy_urls = {
     "default": gallery_proxy,
     "facebook": settings.GALLERY_DL_PROXY_FACEBOOK or settings.GALLERY_DL_PROXY_FACEBOOOK or gallery_proxy,

@@ -9,7 +9,7 @@ from flask import has_request_context, g
 from cache import get_stale_cache, get_validators, set_validators
 from config import Config
 from metrics import metrics
-from proxy import session
+from proxy import session_for_proxy
 from security import validate_public_url
 from utils.logger import logger
 
@@ -124,16 +124,16 @@ def _response_validators(response):
     }
 
 
-def _request(method, url, platform, validators=None):
+def _request(method, url, platform, validators=None, use_proxy=False):
     start = time.monotonic()
     response = None
     bytes_read = 0
     status_code = None
     content_length = 0
-    proxy_used = bool(Config.PROXY_URL)
+    proxy_used = bool(Config.PROXY_URL and use_proxy)
 
     try:
-        response = session.request(
+        response = session_for_proxy(use_proxy).request(
             method,
             url,
             headers=_conditional_headers(validators),
@@ -163,7 +163,7 @@ def _request(method, url, platform, validators=None):
         raise
 
 
-def _close_and_log(response, start, platform, method, url, bytes_read):
+def _close_and_log(response, start, platform, method, url, bytes_read, proxy_used=False):
     status_code = response.status_code if response is not None else None
     content_length = int(response.headers.get("Content-Length") or 0) if response else 0
     elapsed = (time.monotonic() - start) * 1000
@@ -178,7 +178,7 @@ def _close_and_log(response, start, platform, method, url, bytes_read):
 
     metrics.record_upstream(platform, bytes_read, elapsed)
     logger.info(
-        "request_id=%s event=upstream platform=%s method=%s url=%s status=%s content_length=%s bytes=%s time_ms=%.2f proxy=%s retries=%s",
+        "request_id=%s event=upstream platform=%s method=%s url=%s status=%s content_length=%s bytes=%s time_ms=%.2f proxy=%s direct_bytes=%s proxy_bytes=%s retries=%s",
         _request_id(),
         platform,
         method,
@@ -187,13 +187,15 @@ def _close_and_log(response, start, platform, method, url, bytes_read):
         content_length,
         bytes_read,
         elapsed,
-        bool(Config.PROXY_URL),
+        proxy_used,
+        0 if proxy_used else bytes_read,
+        bytes_read if proxy_used else 0,
         retries,
     )
 
 
-def _head_probe(url, platform, validators=None):
-    response, start, _, _, _, _ = _request("HEAD", url, platform, validators)
+def _head_probe(url, platform, validators=None, use_proxy=False):
+    response, start, _, _, _, proxy_used = _request("HEAD", url, platform, validators, use_proxy)
     try:
         if response.status_code == 304:
             return {
@@ -226,11 +228,11 @@ def _head_probe(url, platform, validators=None):
 
         return metadata, False
     finally:
-        _close_and_log(response, start, platform, "HEAD", url, 0)
+        _close_and_log(response, start, platform, "HEAD", url, 0, proxy_used)
 
 
-def _get_partial_metadata(url, platform, validators=None):
-    response, start, _, _, _, _ = _request("GET", url, platform, validators)
+def _get_partial_metadata(url, platform, validators=None, use_proxy=False):
+    response, start, _, _, _, proxy_used = _request("GET", url, platform, validators, use_proxy)
     bytes_read = 0
     chunks = []
 
@@ -281,7 +283,43 @@ def _get_partial_metadata(url, platform, validators=None):
         metadata["max_body_bytes"] = Config.MAX_HTML_BYTES
         return metadata
     finally:
-        _close_and_log(response, start, platform, "GET", url, bytes_read)
+        _close_and_log(response, start, platform, "GET", url, bytes_read, proxy_used)
+
+
+def _extract_metadata_attempt(url, platform, validators, stale, use_proxy=False):
+    head_metadata, head_is_enough = _head_probe(url, platform, validators, use_proxy=use_proxy)
+    if head_metadata.get("not_modified") and stale:
+        stale["network_strategy"] = "conditional_head_304_stale_cache"
+        stale["proxy_used"] = use_proxy
+        return stale
+
+    if head_is_enough:
+        result = {
+            "platform": platform,
+            "url": url,
+            "metadata": head_metadata,
+            "network_strategy": "head_only",
+            "proxy_used": use_proxy,
+        }
+        set_validators(url, head_metadata)
+        return result
+
+    get_metadata = _get_partial_metadata(url, platform, validators, use_proxy=use_proxy)
+    if get_metadata.get("not_modified") and stale:
+        stale["network_strategy"] = "conditional_get_304_stale_cache"
+        stale["proxy_used"] = use_proxy
+        return stale
+
+    merged = {**head_metadata, **get_metadata}
+    result = {
+        "platform": platform,
+        "url": url,
+        "metadata": merged,
+        "network_strategy": "head_then_partial_get",
+        "proxy_used": use_proxy,
+    }
+    set_validators(url, merged)
+    return result
 
 
 def extract_metadata(url):
@@ -292,32 +330,15 @@ def extract_metadata(url):
     if validators and not stale:
         validators = {}
 
-    head_metadata, head_is_enough = _head_probe(url, platform, validators)
-    if head_metadata.get("not_modified") and stale:
-        stale["network_strategy"] = "conditional_head_304_stale_cache"
-        return stale
-
-    if head_is_enough:
-        result = {
-            "platform": platform,
-            "url": url,
-            "metadata": head_metadata,
-            "network_strategy": "head_only",
-        }
-        set_validators(url, head_metadata)
-        return result
-
-    get_metadata = _get_partial_metadata(url, platform, validators)
-    if get_metadata.get("not_modified") and stale:
-        stale["network_strategy"] = "conditional_get_304_stale_cache"
-        return stale
-
-    merged = {**head_metadata, **get_metadata}
-    result = {
-        "platform": platform,
-        "url": url,
-        "metadata": merged,
-        "network_strategy": "head_then_partial_get",
-    }
-    set_validators(url, merged)
-    return result
+    try:
+        return _extract_metadata_attempt(url, platform, validators, stale, use_proxy=False)
+    except Exception:
+        if not Config.PROXY_URL:
+            raise
+        logger.info(
+            "request_id=%s event=proxy_metadata_fallback platform=%s url=%s",
+            _request_id(),
+            platform,
+            url,
+        )
+        return _extract_metadata_attempt(url, platform, validators, stale, use_proxy=True)

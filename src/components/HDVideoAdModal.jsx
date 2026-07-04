@@ -8,13 +8,21 @@ import { loadAdsterraScript, ADSTERRA_UNITS } from '@/config/adsterraConfig';
  * HD Video Unlock Ad Modal
  * Shows native Adsterra banner (zone 30079457) to unlock HD video downloads
  */
-export default function HDVideoAdModal({ isOpen, onClose, onComplete, videoTitle = 'HD Video' }) {
-  const [countdown, setCountdown] = useState(8);
+export default function HDVideoAdModal({
+  isOpen,
+  onClose,
+  onComplete,
+  videoTitle = 'HD Video',
+  countdownSeconds = 30,
+  rewardLabel = 'Claim Award',
+}) {
+  const [countdown, setCountdown] = useState(countdownSeconds);
   const containerId = 'adsterra-native-banner-hd-unlock';
 
   // Load native banner ad on mount
   useEffect(() => {
     if (!isOpen) return;
+    setCountdown(countdownSeconds);
 
     const timer = setTimeout(() => {
       loadAdsterraScript(
@@ -24,7 +32,7 @@ export default function HDVideoAdModal({ isOpen, onClose, onComplete, videoTitle
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [isOpen]);
+  }, [isOpen, countdownSeconds]);
 
   // Countdown timer
   useEffect(() => {
@@ -64,7 +72,7 @@ export default function HDVideoAdModal({ isOpen, onClose, onComplete, videoTitle
         <div className="flex items-center justify-between border-b border-purple-500/20 px-6 py-4">
           <div>
             <h2 className="text-lg font-bold text-white">Unlock {videoTitle}</h2>
-            <p className="text-sm text-gray-400 mt-1">Watch an advertisement to download in HD</p>
+            <p className="text-sm text-gray-400 mt-1">Watch the short sponsor panel, then claim your award to start the download</p>
           </div>
           <button
             onClick={onClose}
@@ -103,7 +111,7 @@ export default function HDVideoAdModal({ isOpen, onClose, onComplete, videoTitle
               <div className="mt-0.5 h-5 w-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
                 <span className="text-green-400 text-xs">✓</span>
               </div>
-              <p className="text-gray-300">Download in HD quality</p>
+              <p className="text-gray-300">Start your selected DownloadDash download</p>
             </div>
           </div>
 
@@ -113,7 +121,7 @@ export default function HDVideoAdModal({ isOpen, onClose, onComplete, videoTitle
             disabled={countdown > 0}
             className="w-full h-12 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold text-base disabled:opacity-60"
           >
-            {countdown > 0 ? `Wait ${countdown}s` : 'Get HD Download'}
+            {countdown > 0 ? `${videoTitle} in ${countdown}s` : rewardLabel}
           </Button>
 
           <p className="text-xs text-gray-500 text-center mt-3">

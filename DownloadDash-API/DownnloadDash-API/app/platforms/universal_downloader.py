@@ -49,9 +49,6 @@ class UniversalMediaDownloader:
         self.public_downloader = public_downloader
 
     def _httpx_client_kwargs(self, **kwargs: Any) -> Dict[str, Any]:
-        proxy_url = settings.OUTBOUND_PROXY or settings.YTDLP_PROXY
-        if proxy_url:
-            kwargs["proxy"] = proxy_url
         return kwargs
 
     async def resolve_media(
@@ -165,27 +162,40 @@ class UniversalMediaDownloader:
             if getattr(post, "typename", "") == "GraphSidecar":
                 items = []
                 for index, node in enumerate(post.get_sidecar_nodes() or []):
-                    if node.is_video:
-                        continue
-                    if node.display_url:
+                    if node.is_video and node.video_url:
+                        items.append({
+                            "url": node.video_url,
+                            "type": "video",
+                            "width": node.video_url_width,
+                            "height": node.video_url_height,
+                            "thumbnail": node.display_url,
+                            "extension": "mp4",
+                            "filename": f"{shortcode}-{index + 1}.mp4",
+                        })
+                    elif node.display_url:
                         items.append({
                             "url": node.display_url,
+                            "type": "image",
                             "width": node.display_url_width,
                             "height": node.display_url_height,
+                            "thumbnail": node.display_url,
                             "extension": "jpg",
                             "filename": f"{shortcode}-{index + 1}.jpg",
                         })
 
                 primary = items[0]["url"] if items else post.url
+                first_video = next((item for item in items if item.get("type") == "video"), None)
+                first_image = next((item for item in items if item.get("type") == "image"), None)
                 return {
                     "direct_url": primary,
                     "title": post.title or "Instagram Post",
-                    "thumbnail": primary,
-                    "ext": "jpg",
+                    "thumbnail": (first_image or items[0]).get("thumbnail") if items else primary,
+                    "ext": (items[0].get("extension") if items else "jpg"),
                     "filesize": None,
                     "kind": "album" if len(items) > 1 else "image",
                     "downloads": {
-                        "image": primary,
+                        "image": first_image["url"] if first_image else primary,
+                        **({"videoHD": first_video["url"], "videoSD": first_video["url"]} if first_video else {}),
                         "images": items,
                         "items": items,
                     },
@@ -414,6 +424,24 @@ class UniversalMediaDownloader:
                 return None
 
             primary = images[0]
+            audio_url = (
+                data.get("music_url")
+                or data.get("audio_url")
+                or data.get("sound_url")
+                or (data.get("music") or {}).get("play_url")
+                or (data.get("music") or {}).get("url")
+                or (data.get("audio") or {}).get("url")
+            )
+            items = [{"url": img, "type": "image", "extension": "jpg"} for img in images]
+            if audio_url:
+                items.append({"url": audio_url, "type": "audio", "extension": "mp3"})
+            downloads = {
+                "image": primary,
+                "images": items,
+                "items": items,
+            }
+            if audio_url:
+                downloads["audio"] = audio_url
             return {
                 "direct_url": primary,
                 "title": data.get("title") or "TikTok Photo",
@@ -421,10 +449,7 @@ class UniversalMediaDownloader:
                 "ext": "jpg",
                 "filesize": None,
                 "kind": "album" if len(images) > 1 else "image",
-                "downloads": {
-                    "image": primary,
-                    "images": [{"url": img} for img in images],
-                },
+                "downloads": downloads,
                 "author_username": data.get("author"),
                 "author_display_name": data.get("author"),
             }

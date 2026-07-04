@@ -15,6 +15,11 @@ from utils.logger import logger
 
 app = Flask(__name__)
 
+logger.info(
+    "startup_proxy_audit endpoint=/api/v1/extract policy=direct_first_proxy_fallback proxy_configured=%s expected_proxy_bandwidth=metadata_head_or_partial_html_only endpoints_never_proxy_media=/api/v1/extract_metadata_only",
+    bool(Config.PROXY_URL),
+)
+
 
 def _json_error(message, status=400, code="bad_request"):
     metrics.record_error()

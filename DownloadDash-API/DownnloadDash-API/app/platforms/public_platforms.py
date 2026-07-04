@@ -59,8 +59,6 @@ class PublicPlatformDownloader:
         return headers
 
     def _httpx_client_kwargs(self, **kwargs: Any) -> Dict[str, Any]:
-        if self.proxy_url:
-            kwargs["proxy"] = self.proxy_url
         return kwargs
     
     def get_ydl_opts(self, quality: Quality, output_template: str) -> Dict[str, Any]:
@@ -115,9 +113,6 @@ class PublicPlatformDownloader:
 
         if self.cookiefile and os.path.exists(self.cookiefile):
             opts["cookiefile"] = self.cookiefile
-        if self.proxy_url:
-            opts["proxy"] = self.proxy_url
-
         return opts
 
     def _platform_key_for_url(self, url: str) -> str:
@@ -153,11 +148,7 @@ class PublicPlatformDownloader:
 
     def _proxy_for_url(self, url: str) -> str | None:
         platform_key = self._platform_key_for_url(url)
-        return (
-            self.proxy_urls.get(platform_key)
-            or self.proxy_urls.get("default")
-            or self.proxy_url
-        )
+        return self.proxy_urls.get(platform_key) or self.proxy_urls.get("default")
 
     def _apply_proxy_for_url(self, opts: Dict[str, Any], url: str) -> Dict[str, Any]:
         proxy_url = self._proxy_for_url(url)
@@ -284,16 +275,18 @@ class PublicPlatformDownloader:
             ("web_cookie", ["web"], True),
         ]
 
-        if self.youtube_proxy_url:
-            return [
-                (f"{name}_proxy", clients, use_cookies, True)
-                for name, clients, use_cookies in base_profiles
-            ]
-
-        return [
+        direct_profiles = [
             (name, clients, use_cookies, False)
             for name, clients, use_cookies in base_profiles
         ]
+        if not self.youtube_proxy_url:
+            return direct_profiles
+
+        proxy_profiles = [
+            (f"{name}_proxy", clients, use_cookies, True)
+            for name, clients, use_cookies in base_profiles
+        ]
+        return direct_profiles + proxy_profiles
 
     def _is_youtube_url(self, url: str) -> bool:
         return "youtube.com" in url or "youtu.be" in url
@@ -804,8 +797,71 @@ class PublicPlatformDownloader:
         if not info:
             raise Exception("Resolve failed: no info returned")
 
-        # Handle playlists gracefully (pick first entry).
+        # Preserve gallery/carousel entries instead of collapsing to the first item.
         if isinstance(info, dict) and isinstance(info.get("entries"), list) and info["entries"]:
+            entry_items = []
+            for index, entry in enumerate(info["entries"]):
+                if not isinstance(entry, dict):
+                    continue
+                requested = self._requested_url_from_info(entry)
+                entry_url = (
+                    (requested or {}).get("url")
+                    or entry.get("url")
+                    or entry.get("webpage_url")
+                    or entry.get("thumbnail")
+                )
+                if not entry_url:
+                    continue
+                ext = (requested or {}).get("ext") or entry.get("ext")
+                vcodec = (requested or {}).get("vcodec") or entry.get("vcodec")
+                acodec = (requested or {}).get("acodec") or entry.get("acodec")
+                if vcodec and vcodec != "none":
+                    item_type = "video"
+                elif acodec and acodec != "none":
+                    item_type = "audio"
+                elif ext in ("mp4", "webm", "mov", "m4v"):
+                    item_type = "video"
+                elif ext in ("m4a", "mp3", "aac", "ogg"):
+                    item_type = "audio"
+                else:
+                    item_type = "image"
+                entry_items.append(
+                    {
+                        "url": entry_url,
+                        "type": item_type,
+                        "filename": entry.get("filename") or f"item-{index + 1}.{ext or 'bin'}",
+                        "extension": ext,
+                        "width": (requested or {}).get("width") or entry.get("width"),
+                        "height": (requested or {}).get("height") or entry.get("height"),
+                        "thumbnail": entry.get("thumbnail"),
+                    }
+                )
+
+            if len(entry_items) > 1:
+                primary = next((item for item in entry_items if item["type"] == "video"), None) or entry_items[0]
+                first_image = next((item for item in entry_items if item["type"] == "image"), None)
+                first_audio = next((item for item in entry_items if item["type"] == "audio"), None)
+                downloads: Dict[str, Any] = {
+                    "items": entry_items,
+                    "images": [item for item in entry_items if item["type"] == "image"],
+                }
+                if primary["type"] == "video":
+                    downloads["videoHD"] = primary["url"]
+                    downloads["videoSD"] = primary["url"]
+                if first_image:
+                    downloads["image"] = first_image["url"]
+                if first_audio:
+                    downloads["audio"] = first_audio["url"]
+                return {
+                    "direct_url": primary["url"],
+                    "title": info.get("title", "Gallery"),
+                    "thumbnail": (first_image or primary).get("thumbnail") or (first_image or primary).get("url"),
+                    "ext": primary.get("extension"),
+                    "filesize": None,
+                    "kind": "album",
+                    "downloads": downloads,
+                }
+
             info = info["entries"][0] or info
 
         formats = info.get("formats") or []

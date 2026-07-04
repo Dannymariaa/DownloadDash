@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.models.platform_requests import YouTubeDownloadIn
-from app.models.schemas import DownloadResponse, DownloadStatus, MediaInfo, MediaType, Platform
+from app.models.schemas import DownloadResponse, DownloadStatus, MediaInfo, MediaType, Platform, Quality
 from app.state import public_downloader, universal_downloader
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
@@ -87,6 +87,28 @@ async def download_youtube_file(
     url: str = Query(...),
     variant: str = Query("hd", pattern="^(hd|sd|audio)$"),
 ):
+    extract_audio = variant == "audio"
+    try:
+        resolved = await public_downloader.resolve_media(
+            url,
+            Quality.HIGH,
+            extract_audio=extract_audio,
+        )
+        downloads = resolved.get("downloads") or {}
+        direct_url = (
+            downloads.get("audio")
+            if extract_audio
+            else downloads.get("videoSD") if variant == "sd" else downloads.get("videoHD")
+        ) or resolved.get("direct_url")
+        if isinstance(direct_url, str) and direct_url.startswith(("http://", "https://")):
+            print(
+                "Info: youtube_file_direct_redirect "
+                f"variant={variant} proxy_used=false host={direct_url.split('/')[2] if '://' in direct_url else ''}"
+            )
+            return RedirectResponse(url=direct_url, status_code=302)
+    except Exception:
+        pass
+
     try:
         result = await public_downloader.download_youtube_variant(url, variant)
     except Exception as exc:

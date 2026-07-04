@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timedelta
+import time
 from typing import Any, Dict, Optional
 
 from fastapi import BackgroundTasks, HTTPException
@@ -26,6 +27,44 @@ GALLERY_FALLBACK_PLATFORMS = {
     Platform.X,
     Platform.YOUTUBE,
 }
+
+RESOLVE_CACHE_TTL_SECONDS = 600
+_resolve_cache: Dict[str, tuple[float, Dict[str, Any]]] = {}
+
+
+def _resolve_cache_key(platform: Platform, request: DownloadRequest) -> str:
+    return "|".join(
+        [
+            platform.value,
+            str(request.url),
+            str(request.quality),
+            str(bool(request.extract_audio)),
+            str(request.media_type or ""),
+        ]
+    )
+
+
+def _get_resolve_cache(key: str) -> Optional[Dict[str, Any]]:
+    cached = _resolve_cache.get(key)
+    if not cached:
+        return None
+    expires_at, value = cached
+    if expires_at <= time.time():
+        _resolve_cache.pop(key, None)
+        return None
+    print(f"Info: resolve_cache_hit key={key[:120]}")
+    return value
+
+
+def _set_resolve_cache(key: str, value: Dict[str, Any]) -> None:
+    if len(_resolve_cache) > 512:
+        now = time.time()
+        for cache_key, (expires_at, _) in list(_resolve_cache.items()):
+            if expires_at <= now:
+                _resolve_cache.pop(cache_key, None)
+        while len(_resolve_cache) > 384:
+            _resolve_cache.pop(next(iter(_resolve_cache)))
+    _resolve_cache[key] = (time.time() + RESOLVE_CACHE_TTL_SECONDS, value)
 
 
 def detect_platform(url: str) -> Optional[Platform]:
@@ -153,20 +192,24 @@ async def download_public(
     platform: Platform, request: DownloadRequest, background_tasks: BackgroundTasks
 ) -> DownloadResponse:
     url_str = str(request.url)
-
+    cache_key = _resolve_cache_key(platform, request)
+    result = _get_resolve_cache(cache_key)
     resolve_error: Optional[Exception] = None
-    try:
-        result = await universal_downloader.resolve_media(
-            url=url_str,
-            platform=platform,
-            quality=request.quality,
-            extract_audio=request.extract_audio,
-            media_type=request.media_type,
-            user_auth=request.user_auth,
-        )
-    except Exception as e:
-        resolve_error = e
-        result = None
+
+    if result is None:
+        print(f"Info: resolve_cache_miss platform={platform.value} url={url_str}")
+        try:
+            result = await universal_downloader.resolve_media(
+                url=url_str,
+                platform=platform,
+                quality=request.quality,
+                extract_audio=request.extract_audio,
+                media_type=request.media_type,
+                user_auth=request.user_auth,
+            )
+        except Exception as e:
+            resolve_error = e
+            result = None
 
     if not result or not result.get("direct_url"):
         gallery_result = await _resolve_with_gallery_fallback(
@@ -176,6 +219,9 @@ async def download_public(
         )
         if gallery_result:
             result = gallery_result
+
+    if result and result.get("direct_url"):
+        _set_resolve_cache(cache_key, result)
 
     if not result:
         return DownloadResponse(

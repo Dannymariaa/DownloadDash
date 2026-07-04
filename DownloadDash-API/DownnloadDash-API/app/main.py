@@ -27,7 +27,13 @@ from app.routers import (
 )
 
 # Import state managers
-from app.state import telegram_downloader, whatsapp_downloader, whatsapp_business_downloader
+from app.state import (
+    gallery_downloader,
+    public_downloader,
+    telegram_downloader,
+    whatsapp_downloader,
+    whatsapp_business_downloader,
+)
 
 # Create FastAPI app
 app = FastAPI(
@@ -136,6 +142,23 @@ async def startup_event():
     print("   - GET /whatsapp/status")
     print("   - GET /whatsapp-business/qr")
     print("   - GET /whatsapp-business/status")
+    print("\nResidential proxy audit:")
+    metadata_proxy_endpoints = [
+        name for name, proxy in sorted(getattr(public_downloader, "proxy_urls", {}).items()) if proxy
+    ]
+    gallery_proxy_endpoints = [
+        name for name, proxy in sorted(getattr(gallery_downloader, "proxy_urls", {}).items()) if proxy
+    ]
+    print(
+        "   Metadata/signature resolvers using proxy only when configured: "
+        + (", ".join(metadata_proxy_endpoints) if metadata_proxy_endpoints else "none")
+    )
+    print(
+        "   gallery-dl resolvers using proxy only when configured: "
+        + (", ".join(gallery_proxy_endpoints) if gallery_proxy_endpoints else "none")
+    )
+    print("   Direct-only media delivery: /download/file, /youtube/file, /gallery/file")
+    print("   Expected proxy bandwidth: metadata pages/manifests only; media bytes redirect or stream direct")
     print("\nAPI documentation: /docs")
     print("="*60 + "\n")
 

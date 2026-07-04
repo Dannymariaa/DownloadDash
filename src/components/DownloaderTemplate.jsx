@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
+import HDVideoAdModal from './HDVideoAdModal';
 import { useI18n } from '@/lib/i18n';
 import { getPlatformIcon } from '@/components/PlatformIcons';
 import { createPageUrl } from '@/utils';
@@ -347,6 +348,7 @@ export default function DownloaderTemplate({
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [adGate, setAdGate] = useState(null);
   const platformIconNode = React.isValidElement(platformIcon)
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
     : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
@@ -468,6 +470,19 @@ export default function DownloaderTemplate({
   };
 
   const requestDownload = (downloadUrl, type, label, items = null) => {
+    if (type === 'audio') {
+      beginDownloadAfterGate(downloadUrl, type, label, items);
+      return;
+    }
+
+    const countdownSeconds = type === 'videoHD' ? 30 : 5;
+    setAdGate({ downloadUrl, type, label, items, countdownSeconds });
+  };
+
+  const handleAdGateComplete = () => {
+    if (!adGate) return;
+    const { downloadUrl, type, label, items } = adGate;
+    setAdGate(null);
     beginDownloadAfterGate(downloadUrl, type, label, items);
   };
 
@@ -1058,6 +1073,20 @@ export default function DownloaderTemplate({
           <AdBanner position="bottom" size="medium" />
         </div>
       </div>
+
+      {/* Reward ad gate */}
+      <AnimatePresence>
+        {adGate && (
+          <HDVideoAdModal
+            isOpen={!!adGate}
+            onClose={() => setAdGate(null)}
+            onComplete={handleAdGateComplete}
+            videoTitle={adGate.label}
+            countdownSeconds={adGate.countdownSeconds}
+            rewardLabel="Claim Award"
+          />
+        )}
+      </AnimatePresence>
 
       {/* Preview Modal */}
       <AnimatePresence>

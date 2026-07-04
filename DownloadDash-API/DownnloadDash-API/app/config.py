@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     YTDLP_COOKIE_DATA_X: Optional[str] = None
     OUTBOUND_PROXY: Optional[str] = None
     YTDLP_PROXY: Optional[str] = None
+    USE_GLOBAL_PROXY_FOR_METADATA: bool = False
     YTDLP_PROXY_FACEBOOOK: Optional[str] = None
     YTDLP_PROXY_FACEBOOK: Optional[str] = None
     YTDLP_PROXY_INSTAGRAM: Optional[str] = None

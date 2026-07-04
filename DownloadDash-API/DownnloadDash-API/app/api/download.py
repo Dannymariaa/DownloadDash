@@ -1,8 +1,9 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Body, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 import httpx
 import os
 import re
+import time
 from urllib.parse import urlparse
 
 from app.api.shared import detect_platform, download_public
@@ -59,10 +60,21 @@ def _safe_filename(name: str) -> str:
 
 
 def _httpx_client_kwargs(**kwargs):
-    proxy_url = settings.OUTBOUND_PROXY or settings.YTDLP_PROXY
-    if proxy_url:
-        kwargs["proxy"] = proxy_url
+    # Final media bytes must not travel through residential proxies. This helper is
+    # intentionally direct-only; proxy use is limited to metadata/signature resolve.
     return kwargs
+
+
+def _should_redirect_direct(url: str, media_type: str | None = None) -> bool:
+    media_key = (media_type or "").lower()
+    if media_key in {"hd", "sd", "video", "audio", "image", "photo", "album"}:
+        return True
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    path = parsed.path.lower()
+    if any(token in host for token in ("googlevideo.com", "ytimg.com", "fbcdn.net", "cdninstagram.com", "tiktokcdn", "twimg.com", "pinimg.com")):
+        return True
+    return path.endswith((".mp4", ".m4a", ".mp3", ".webm", ".mov", ".jpg", ".jpeg", ".png", ".webp", ".gif"))
 
 
 def _download_headers(url: str, source_url: str | None = None, retry: bool = False) -> dict:
@@ -156,62 +168,101 @@ async def _serve_download_file(
         raise HTTPException(status_code=400, detail="url must be http(s)")
 
     safe_name = _safe_filename(filename or "download")
+    if _should_redirect_direct(url, media_type):
+        print(
+            "Info: direct_media_redirect "
+            f"filename={safe_name} media_type={media_type or ''} proxy_used=false url_host={urlparse(url).netloc}"
+        )
+        return RedirectResponse(url=url, status_code=302)
 
-    async with httpx.AsyncClient(
-        **_httpx_client_kwargs(timeout=60.0, follow_redirects=True)
-    ) as client:
-        try:
-            upstream = await client.get(url, headers=_download_headers(url, source_url))
-            if upstream.status_code in (403, 429):
-                upstream = await client.get(url, headers=_download_headers(url, source_url, retry=True))
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=f"Upstream download failed: {e}")
-
-        if upstream.status_code >= 400:
-            body_preview = upstream.text[:300] if upstream.text else ""
-            blocked_by_varnish = "varnish" in body_preview.lower() or "54113" in body_preview
-            is_tiktok_source = "tiktok.com" in f"{source_url or ''}".lower()
-            if is_tiktok_source:
-                variant = _tiktok_variant_for_media_type(media_type)
-                try:
-                    fallback = await public_downloader.download_tiktok_variant(source_url, variant)
-                except Exception as exc:
-                    raw_error = re.sub(r"\s+", " ", str(exc)).strip()
-                    detail = (
-                        "TikTok blocked both the signed media URL and the server fallback. "
-                        "Set fresh SMD_YTDLP_COOKIEFILE_TIKTOK cookies and, if needed, SMD_YTDLP_PROXY_TIKTOK on Render, then redeploy. "
-                        f"Fallback error: {raw_error}"
-                    )
-                    raise HTTPException(status_code=502, detail=detail)
-
-                path = fallback["path"]
-                if not os.path.exists(path):
-                    raise HTTPException(status_code=404, detail="Downloaded TikTok file not found")
-
-                background_tasks.add_task(os.remove, path)
-                return FileResponse(
-                    path,
-                    media_type=fallback["media_type"],
-                    filename=safe_name or fallback["filename"],
-                    background=background_tasks,
-                )
-
-            detail = (
-                "TikTok blocked the media request upstream (Varnish/Error 54113). "
-                "Please try again later or configure a TikTok/residential proxy for the API."
-                if blocked_by_varnish
-                else f"Upstream download failed ({upstream.status_code})"
+    started = time.monotonic()
+    client = httpx.AsyncClient(
+        **_httpx_client_kwargs(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=True)
+    )
+    try:
+        upstream = await client.send(
+            client.build_request("GET", url, headers=_download_headers(url, source_url)),
+            stream=True,
+        )
+        if upstream.status_code in (403, 429):
+            await upstream.aclose()
+            upstream = await client.send(
+                client.build_request("GET", url, headers=_download_headers(url, source_url, retry=True)),
+                stream=True,
             )
-            raise HTTPException(status_code=502, detail=detail)
+    except Exception as e:
+        await client.aclose()
+        raise HTTPException(status_code=502, detail=f"Upstream download failed: {e}")
 
-        content_type = upstream.headers.get("content-type") or "application/octet-stream"
-        content_length = upstream.headers.get("content-length")
+    if upstream.status_code >= 400:
+        body_preview = ""
+        try:
+            body_preview = (await upstream.aread()).decode("utf-8", errors="replace")[:300]
+        finally:
+            await upstream.aclose()
+            await client.aclose()
 
-        response = Response(content=upstream.content, media_type=content_type)
-        response.headers["Content-Disposition"] = f'attachment; filename="{safe_name}"'
-        if content_length:
-            response.headers["Content-Length"] = content_length
-        return response
+        blocked_by_varnish = "varnish" in body_preview.lower() or "54113" in body_preview
+        is_tiktok_source = "tiktok.com" in f"{source_url or ''}".lower()
+        if is_tiktok_source:
+            variant = _tiktok_variant_for_media_type(media_type)
+            try:
+                fallback = await public_downloader.download_tiktok_variant(source_url, variant)
+            except Exception as exc:
+                raw_error = re.sub(r"\s+", " ", str(exc)).strip()
+                detail = (
+                    "TikTok blocked both the signed media URL and the server fallback. "
+                    "Set fresh SMD_YTDLP_COOKIEFILE_TIKTOK cookies and, if needed, SMD_YTDLP_PROXY_TIKTOK on Render, then redeploy. "
+                    f"Fallback error: {raw_error}"
+                )
+                raise HTTPException(status_code=502, detail=detail)
+
+            path = fallback["path"]
+            if not os.path.exists(path):
+                raise HTTPException(status_code=404, detail="Downloaded TikTok file not found")
+
+            background_tasks.add_task(os.remove, path)
+            return FileResponse(
+                path,
+                media_type=fallback["media_type"],
+                filename=safe_name or fallback["filename"],
+                background=background_tasks,
+            )
+
+        detail = (
+            "TikTok blocked the media request upstream (Varnish/Error 54113). "
+            "Please try again later or configure a TikTok/residential proxy for the API."
+            if blocked_by_varnish
+            else f"Upstream download failed ({upstream.status_code})"
+        )
+        raise HTTPException(status_code=502, detail=detail)
+
+    content_type = upstream.headers.get("content-type") or "application/octet-stream"
+    content_length = upstream.headers.get("content-length")
+
+    async def iter_direct_media():
+        bytes_sent = 0
+        try:
+            async for chunk in upstream.aiter_bytes(chunk_size=1024 * 256):
+                if not chunk:
+                    continue
+                bytes_sent += len(chunk)
+                yield chunk
+        finally:
+            elapsed_ms = (time.monotonic() - started) * 1000
+            print(
+                "Info: direct_media_stream_complete "
+                f"filename={safe_name} bytes={bytes_sent} time_ms={elapsed_ms:.2f} proxy_used=false"
+            )
+            await upstream.aclose()
+            await client.aclose()
+
+    response = StreamingResponse(iter_direct_media(), media_type=content_type)
+    response.headers["Content-Disposition"] = f'attachment; filename="{safe_name}"'
+    response.headers["X-Proxy-Used"] = "false"
+    if content_length:
+        response.headers["Content-Length"] = content_length
+    return response
 
 
 @router.post("/download/file")

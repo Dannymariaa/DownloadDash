@@ -16,7 +16,7 @@ MINIMAL_HEADERS = {
 }
 
 
-def _create_session():
+def _create_session(proxy_url=None):
     session = requests.Session()
     session.trust_env = False
     session.verify = Config.VERIFY_TLS
@@ -24,8 +24,8 @@ def _create_session():
     session.headers.update(MINIMAL_HEADERS)
     session.max_redirects = 1
 
-    if Config.PROXY_URL:
-        session.proxies.update({"http": Config.PROXY_URL, "https": Config.PROXY_URL})
+    if proxy_url:
+        session.proxies.update({"http": proxy_url, "https": proxy_url})
 
     retry = Retry(
         total=Config.RETRY_TOTAL,
@@ -51,16 +51,25 @@ def _create_session():
         "global requests session ready pool_connections=%s pool_maxsize=%s proxy=%s",
         Config.CONNECTION_POOL_CONNECTIONS,
         Config.CONNECTION_POOL_MAXSIZE,
-        bool(Config.PROXY_URL),
+        bool(proxy_url),
     )
     return session
 
 
-session = _create_session()
+direct_session = _create_session()
+proxy_session = _create_session(Config.PROXY_URL) if Config.PROXY_URL else None
+
+
+def session_for_proxy(use_proxy=False):
+    if use_proxy and proxy_session is not None:
+        return proxy_session
+    return direct_session
 
 
 def close_session():
-    session.close()
+    direct_session.close()
+    if proxy_session is not None:
+        proxy_session.close()
 
 
 atexit.register(close_session)
