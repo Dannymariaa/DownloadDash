@@ -1,0 +1,520 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "DownloadDash Instagram API",
+    "version": "1.0.0",
+    "description": "Resolve public Instagram reels, videos, photos, and carousel media."
+  },
+  "servers": [
+    {
+      "url": "https://downloaddash-api.onrender.com",
+      "description": "Production API server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Instagram API",
+      "description": "Resolve public Instagram reels, videos, photos, and carousel media."
+    }
+  ],
+  "paths": {
+    "/instagram/download": {
+      "post": {
+        "tags": [
+          "Instagram API"
+        ],
+        "summary": "Download Instagram",
+        "description": "Download Instagram media with yt-dlp/instaloader first, then gallery-dl fallback.",
+        "operationId": "instagram_post_instagram_download",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstagramDownloadIn"
+              },
+              "examples": {
+                "default": {
+                  "summary": "Request",
+                  "value": {
+                    "url": "https://www.instagram.com/reel/CxExample/",
+                    "quality": "high",
+                    "extract_audio": false,
+                    "include_metadata": true
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadResponse"
+                },
+                "examples": {
+                  "default": {
+                    "summary": "Successful response",
+                    "value": {
+                      "success": true,
+                      "message": "Media resolved successfully",
+                      "download_id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                      "status": "completed",
+                      "media_info": {
+                        "id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                        "platform": "youtube",
+                        "media_type": "video",
+                        "url": "https://example.com/public-media",
+                        "title": "Public media",
+                        "thumbnail_url": "https://example.com/thumbnail.jpg",
+                        "download_url": "https://cdn.example.com/media.mp4",
+                        "file_format": "mp4"
+                      },
+                      "download_url": "https://cdn.example.com/media.mp4",
+                      "downloads": {
+                        "videoHD": "https://cdn.example.com/media-hd.mp4"
+                      },
+                      "warnings": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "examples": {
+                  "default": {
+                    "summary": "Validation error",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "url"
+                          ],
+                          "msg": "Input should be a valid URL",
+                          "type": "url_parsing"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DownloadResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "download_id": {
+            "type": "string",
+            "title": "Download Id",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/DownloadStatus"
+          },
+          "media_info": {
+            "$ref": "#/components/schemas/MediaInfo",
+            "nullable": true
+          },
+          "download_url": {
+            "type": "string",
+            "title": "Download Url",
+            "nullable": true
+          },
+          "downloads": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Downloads",
+            "nullable": true
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "title": "Error",
+            "nullable": true
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "message",
+          "status"
+        ],
+        "title": "DownloadResponse"
+      },
+      "DownloadStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "processing",
+          "completed",
+          "failed",
+          "cancelled"
+        ],
+        "title": "DownloadStatus"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InstagramDownloadIn": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Url"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/Quality",
+            "default": "high"
+          },
+          "extract_audio": {
+            "type": "boolean",
+            "title": "Extract Audio",
+            "default": false
+          },
+          "include_metadata": {
+            "type": "boolean",
+            "title": "Include Metadata",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "InstagramDownloadIn"
+      },
+      "MediaInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "media_type": {
+            "$ref": "#/components/schemas/MediaType"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "nullable": true
+          },
+          "thumbnail_url": {
+            "type": "string",
+            "title": "Thumbnail Url",
+            "nullable": true
+          },
+          "preview_url": {
+            "type": "string",
+            "title": "Preview Url",
+            "nullable": true
+          },
+          "download_url": {
+            "type": "string",
+            "title": "Download Url",
+            "nullable": true
+          },
+          "duration": {
+            "type": "number",
+            "title": "Duration",
+            "nullable": true
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height",
+            "nullable": true
+          },
+          "file_size": {
+            "type": "integer",
+            "title": "File Size",
+            "nullable": true
+          },
+          "file_format": {
+            "type": "string",
+            "title": "File Format",
+            "nullable": true
+          },
+          "bitrate": {
+            "type": "integer",
+            "title": "Bitrate",
+            "nullable": true
+          },
+          "fps": {
+            "type": "integer",
+            "title": "Fps",
+            "nullable": true
+          },
+          "author_id": {
+            "type": "string",
+            "title": "Author Id",
+            "nullable": true
+          },
+          "author_username": {
+            "type": "string",
+            "title": "Author Username",
+            "nullable": true
+          },
+          "author_display_name": {
+            "type": "string",
+            "title": "Author Display Name",
+            "nullable": true
+          },
+          "author_avatar_url": {
+            "type": "string",
+            "title": "Author Avatar Url",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "nullable": true
+          },
+          "uploaded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Uploaded At",
+            "nullable": true
+          },
+          "view_count": {
+            "type": "integer",
+            "title": "View Count",
+            "nullable": true
+          },
+          "like_count": {
+            "type": "integer",
+            "title": "Like Count",
+            "nullable": true
+          },
+          "comment_count": {
+            "type": "integer",
+            "title": "Comment Count",
+            "nullable": true
+          },
+          "share_count": {
+            "type": "integer",
+            "title": "Share Count",
+            "nullable": true
+          },
+          "available_qualities": {
+            "items": {
+              "$ref": "#/components/schemas/Quality"
+            },
+            "type": "array",
+            "title": "Available Qualities",
+            "default": []
+          },
+          "available_formats": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Available Formats",
+            "default": []
+          },
+          "audio_bitrate": {
+            "type": "integer",
+            "title": "Audio Bitrate",
+            "nullable": true
+          },
+          "audio_channels": {
+            "type": "integer",
+            "title": "Audio Channels",
+            "nullable": true
+          },
+          "audio_sample_rate": {
+            "type": "integer",
+            "title": "Audio Sample Rate",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "platform",
+          "media_type",
+          "url"
+        ],
+        "title": "MediaInfo"
+      },
+      "MediaType": {
+        "type": "string",
+        "enum": [
+          "video",
+          "image",
+          "photo",
+          "audio",
+          "story",
+          "status",
+          "reel",
+          "post",
+          "carousel",
+          "album",
+          "profile_picture",
+          "highlight",
+          "live",
+          "unknown"
+        ],
+        "title": "MediaType",
+        "description": "Media types for downloaded content - FIXED to match Instagram API"
+      },
+      "Platform": {
+        "type": "string",
+        "enum": [
+          "instagram",
+          "tiktok",
+          "facebook",
+          "reddit",
+          "pinterest",
+          "twitter",
+          "x",
+          "youtube",
+          "whatsapp",
+          "whatsapp_business",
+          "telegram",
+          "linkedin",
+          "threads",
+          "twitch",
+          "vimeo",
+          "dailymotion",
+          "spotify",
+          "soundcloud"
+        ],
+        "title": "Platform"
+      },
+      "Quality": {
+        "type": "string",
+        "enum": [
+          "lowest",
+          "low",
+          "medium",
+          "high",
+          "highest",
+          "audio_only",
+          "video_only",
+          "144p",
+          "240p",
+          "360p",
+          "480p",
+          "720p",
+          "1080p",
+          "1440p",
+          "2160p",
+          "4320p"
+        ],
+        "title": "Quality"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  }
+}

@@ -1,0 +1,585 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "DownloadDash Gallery API",
+    "version": "1.0.0",
+    "description": "Resolve and manage gallery-dl jobs for public image, video, audio, story, and status URLs."
+  },
+  "servers": [
+    {
+      "url": "https://downloaddash-api.onrender.com",
+      "description": "Production API server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Gallery API",
+      "description": "Resolve and manage gallery-dl jobs for public image, video, audio, story, and status URLs."
+    }
+  ],
+  "paths": {
+    "/gallery/resolve": {
+      "post": {
+        "tags": [
+          "Gallery API"
+        ],
+        "summary": "Resolve Gallery",
+        "description": "Resolve public images/videos/audio from gallery-dl without downloading files.",
+        "operationId": "gallery_post_gallery_resolve",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GalleryResolveIn"
+              },
+              "examples": {
+                "default": {
+                  "summary": "Request",
+                  "value": {
+                    "url": "https://www.example.com/gallery/public-post",
+                    "limit": 25
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "examples": {
+                  "default": {
+                    "summary": "Successful response",
+                    "value": {
+                      "success": true,
+                      "message": "Media resolved successfully",
+                      "download_id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                      "status": "completed",
+                      "media_info": {
+                        "id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                        "platform": "youtube",
+                        "media_type": "video",
+                        "url": "https://example.com/public-media",
+                        "title": "Public media",
+                        "thumbnail_url": "https://example.com/thumbnail.jpg",
+                        "download_url": "https://cdn.example.com/media.mp4",
+                        "file_format": "mp4"
+                      },
+                      "download_url": "https://cdn.example.com/media.mp4",
+                      "downloads": {
+                        "videoHD": "https://cdn.example.com/media-hd.mp4"
+                      },
+                      "warnings": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "examples": {
+                  "default": {
+                    "summary": "Validation error",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "url"
+                          ],
+                          "msg": "Input should be a valid URL",
+                          "type": "url_parsing"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/gallery/download": {
+      "post": {
+        "tags": [
+          "Gallery API"
+        ],
+        "summary": "Start Gallery Download",
+        "description": "Start a background gallery-dl download job for images, videos, audio, stories, or status URLs.",
+        "operationId": "gallery_post_gallery_download",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GalleryDownloadIn"
+              },
+              "examples": {
+                "default": {
+                  "summary": "Request",
+                  "value": {
+                    "url": "https://www.example.com/gallery/public-post",
+                    "limit": 50
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "examples": {
+                  "default": {
+                    "summary": "Successful response",
+                    "value": {
+                      "success": true,
+                      "message": "Media resolved successfully",
+                      "download_id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                      "status": "completed",
+                      "media_info": {
+                        "id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                        "platform": "youtube",
+                        "media_type": "video",
+                        "url": "https://example.com/public-media",
+                        "title": "Public media",
+                        "thumbnail_url": "https://example.com/thumbnail.jpg",
+                        "download_url": "https://cdn.example.com/media.mp4",
+                        "file_format": "mp4"
+                      },
+                      "download_url": "https://cdn.example.com/media.mp4",
+                      "downloads": {
+                        "videoHD": "https://cdn.example.com/media-hd.mp4"
+                      },
+                      "warnings": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "examples": {
+                  "default": {
+                    "summary": "Validation error",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "url"
+                          ],
+                          "msg": "Input should be a valid URL",
+                          "type": "url_parsing"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/gallery/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "Gallery API"
+        ],
+        "summary": "Get Gallery Job",
+        "operationId": "gallery_get_gallery_jobs_job_id",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            },
+            "example": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "examples": {
+                  "default": {
+                    "summary": "Successful response",
+                    "value": {
+                      "success": true,
+                      "message": "Media resolved successfully",
+                      "download_id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                      "status": "completed",
+                      "media_info": {
+                        "id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                        "platform": "youtube",
+                        "media_type": "video",
+                        "url": "https://example.com/public-media",
+                        "title": "Public media",
+                        "thumbnail_url": "https://example.com/thumbnail.jpg",
+                        "download_url": "https://cdn.example.com/media.mp4",
+                        "file_format": "mp4"
+                      },
+                      "download_url": "https://cdn.example.com/media.mp4",
+                      "downloads": {
+                        "videoHD": "https://cdn.example.com/media-hd.mp4"
+                      },
+                      "warnings": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "examples": {
+                  "default": {
+                    "summary": "Validation error",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "url"
+                          ],
+                          "msg": "Input should be a valid URL",
+                          "type": "url_parsing"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Resolve and manage gallery-dl jobs for public image, video, audio, story, and status URLs."
+      },
+      "delete": {
+        "tags": [
+          "Gallery API"
+        ],
+        "summary": "Delete Gallery Job",
+        "operationId": "gallery_delete_gallery_jobs_job_id",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            },
+            "example": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "examples": {
+                  "default": {
+                    "summary": "Successful response",
+                    "value": {
+                      "success": true,
+                      "message": "Media resolved successfully",
+                      "download_id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                      "status": "completed",
+                      "media_info": {
+                        "id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                        "platform": "youtube",
+                        "media_type": "video",
+                        "url": "https://example.com/public-media",
+                        "title": "Public media",
+                        "thumbnail_url": "https://example.com/thumbnail.jpg",
+                        "download_url": "https://cdn.example.com/media.mp4",
+                        "file_format": "mp4"
+                      },
+                      "download_url": "https://cdn.example.com/media.mp4",
+                      "downloads": {
+                        "videoHD": "https://cdn.example.com/media-hd.mp4"
+                      },
+                      "warnings": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "examples": {
+                  "default": {
+                    "summary": "Validation error",
+                    "value": {
+                      "detail": [
+                        {
+                          "loc": [
+                            "body",
+                            "url"
+                          ],
+                          "msg": "Input should be a valid URL",
+                          "type": "url_parsing"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Resolve and manage gallery-dl jobs for public image, video, audio, story, and status URLs."
+      }
+    },
+    "/gallery/file/{job_id}/{filename}": {
+      "get": {
+        "tags": [
+          "Gallery API"
+        ],
+        "summary": "Get Gallery File",
+        "operationId": "gallery_get_gallery_file_job_id_filename",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            },
+            "example": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1"
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Filename"
+            },
+            "example": "downloaded-media.mp4"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "examples": {
+                  "file": {
+                    "summary": "File response",
+                    "value": "Binary media file or a 302 redirect to a direct media URL."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "examples": {
+                  "file": {
+                    "summary": "File response",
+                    "value": "Binary media file or a 302 redirect to a direct media URL."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "Resolve and manage gallery-dl jobs for public image, video, audio, story, and status URLs."
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "GalleryDownloadIn": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Url"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "GalleryDownloadIn"
+      },
+      "GalleryResolveIn": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Url"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 25
+          }
+        },
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "title": "GalleryResolveIn"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  }
+}
