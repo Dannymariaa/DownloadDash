@@ -3,18 +3,27 @@
   "info": {
     "title": "DownloadDash Facebook API",
     "version": "1.0.0",
-    "description": "Resolve public Facebook video and media URLs for download workflows."
+    "description": "Resolve public Facebook videos and media URLs for download workflows.",
+    "contact": {
+      "name": "DownloadDash API Support",
+      "url": "https://downloaddash.store/contact",
+      "email": "support@downloaddash.store"
+    },
+    "license": {
+      "name": "Commercial API License",
+      "url": "https://downloaddash.store/terms-of-service"
+    }
   },
   "servers": [
     {
-      "url": "https://downloaddash-api.onrender.com",
+      "url": "https://api.downloaddash.store",
       "description": "Production API server"
     }
   ],
   "tags": [
     {
       "name": "Facebook API",
-      "description": "Resolve public Facebook video and media URLs for download workflows."
+      "description": "Resolve public Facebook videos and media URLs for download workflows."
     }
   ],
   "paths": {
@@ -516,5 +525,9 @@
         "name": "X-API-Key"
       }
     }
+  },
+  "externalDocs": {
+    "description": "DownloadDash API documentation and support",
+    "url": "https://downloaddash.store"
   }
 }

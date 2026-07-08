@@ -3,18 +3,27 @@
   "info": {
     "title": "DownloadDash YouTube API",
     "version": "1.0.0",
-    "description": "Resolve public YouTube media and retrieve HD, SD, or audio download files."
+    "description": "Resolve public YouTube videos, HD/SD variants, and audio downloads through DownloadDash.",
+    "contact": {
+      "name": "DownloadDash API Support",
+      "url": "https://downloaddash.store/contact",
+      "email": "support@downloaddash.store"
+    },
+    "license": {
+      "name": "Commercial API License",
+      "url": "https://downloaddash.store/terms-of-service"
+    }
   },
   "servers": [
     {
-      "url": "https://downloaddash-api.onrender.com",
+      "url": "https://api.downloaddash.store",
       "description": "Production API server"
     }
   ],
   "tags": [
     {
       "name": "YouTube API",
-      "description": "Resolve public YouTube media and retrieve HD, SD, or audio download files."
+      "description": "Resolve public YouTube videos, HD/SD variants, and audio downloads through DownloadDash."
     }
   ],
   "paths": {
@@ -150,7 +159,28 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {},
+                "examples": {
+                  "default": {
+                    "summary": "Response example",
+                    "value": {
+                      "success": true,
+                      "message": "Media resolved successfully",
+                      "download_id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                      "status": "completed",
+                      "media_info": {
+                        "id": "b4b5f3b8-6bdb-4e1e-9ad2-0e9b52f7a5b1",
+                        "platform": "youtube",
+                        "media_type": "video",
+                        "url": "https://example.com/public-media",
+                        "title": "Public media",
+                        "download_url": "https://cdn.example.com/media.mp4"
+                      },
+                      "download_url": "https://cdn.example.com/media.mp4",
+                      "warnings": []
+                    }
+                  }
+                }
               },
               "application/octet-stream": {
                 "schema": {
@@ -172,6 +202,14 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                },
+                "examples": {
+                  "default": {
+                    "summary": "Response example",
+                    "value": {
+                      "detail": "Request could not be processed"
+                    }
+                  }
                 }
               },
               "application/octet-stream": {
@@ -594,5 +632,9 @@
         "name": "X-API-Key"
       }
     }
+  },
+  "externalDocs": {
+    "description": "DownloadDash API documentation and support",
+    "url": "https://downloaddash.store"
   }
 }

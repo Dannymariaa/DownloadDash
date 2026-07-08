@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { AdsterraBanner } from '@/components/Ads/AdsterraAds';
+import { AdsterraBanner, AdsterraNativeBanner } from '@/components/Ads/AdsterraAds';
 import adManager from '@/lib/adManager';
 
 /**
@@ -84,9 +84,14 @@ export default function HDVideoAdModal({
 
         {/* Content */}
         <div className="p-6">
-          {/* Native Ad Container */}
-          <div className="mb-6 flex min-h-[250px] items-center justify-center rounded-lg border border-purple-500/20 bg-gradient-to-r from-purple-900/10 via-purple-900/5 to-purple-900/10 p-4">
-            <AdsterraBanner unitKey="banner300x250" placement="rewarded-download-gate" />
+          {/* Adsterra sponsor panel */}
+          <div className="mb-6 grid min-h-[250px] gap-4 rounded-lg border border-purple-500/20 bg-black/35 p-4 md:grid-cols-[1fr_320px]">
+            <div className="flex min-h-[250px] items-center justify-center overflow-hidden rounded-md bg-white/[0.03]">
+              <AdsterraNativeBanner placement="rewarded-download-gate-native" className="px-2" />
+            </div>
+            <div className="flex min-h-[250px] items-center justify-center overflow-hidden rounded-md bg-white/[0.03]">
+              <AdsterraBanner unitKey="banner300x250" placement="rewarded-download-gate-display" />
+            </div>
           </div>
 
           {/* Info Section */}

@@ -3,11 +3,20 @@
   "info": {
     "title": "DownloadDash Instagram API",
     "version": "1.0.0",
-    "description": "Resolve public Instagram reels, videos, photos, and carousel media."
+    "description": "Resolve public Instagram reels, videos, photos, and carousel media.",
+    "contact": {
+      "name": "DownloadDash API Support",
+      "url": "https://downloaddash.store/contact",
+      "email": "support@downloaddash.store"
+    },
+    "license": {
+      "name": "Commercial API License",
+      "url": "https://downloaddash.store/terms-of-service"
+    }
   },
   "servers": [
     {
-      "url": "https://downloaddash-api.onrender.com",
+      "url": "https://api.downloaddash.store",
       "description": "Production API server"
     }
   ],
@@ -516,5 +525,9 @@
         "name": "X-API-Key"
       }
     }
+  },
+  "externalDocs": {
+    "description": "DownloadDash API documentation and support",
+    "url": "https://downloaddash.store"
   }
 }

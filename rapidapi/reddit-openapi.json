@@ -3,18 +3,27 @@
   "info": {
     "title": "DownloadDash Reddit API",
     "version": "1.0.0",
-    "description": "Resolve public Reddit post media, including videos, images, and galleries."
+    "description": "Resolve public Reddit videos, images, and gallery media.",
+    "contact": {
+      "name": "DownloadDash API Support",
+      "url": "https://downloaddash.store/contact",
+      "email": "support@downloaddash.store"
+    },
+    "license": {
+      "name": "Commercial API License",
+      "url": "https://downloaddash.store/terms-of-service"
+    }
   },
   "servers": [
     {
-      "url": "https://downloaddash-api.onrender.com",
+      "url": "https://api.downloaddash.store",
       "description": "Production API server"
     }
   ],
   "tags": [
     {
       "name": "Reddit API",
-      "description": "Resolve public Reddit post media, including videos, images, and galleries."
+      "description": "Resolve public Reddit videos, images, and gallery media."
     }
   ],
   "paths": {
@@ -516,5 +525,9 @@
         "name": "X-API-Key"
       }
     }
+  },
+  "externalDocs": {
+    "description": "DownloadDash API documentation and support",
+    "url": "https://downloaddash.store"
   }
 }
