@@ -7,7 +7,6 @@ from urllib3.util.retry import Retry
 from config import Config
 from utils.logger import logger
 
-
 MINIMAL_HEADERS = {
     "Accept": "text/html,application/json,application/ld+json",
     "Accept-Encoding": "gzip, deflate, br",

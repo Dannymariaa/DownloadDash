@@ -1,9 +1,10 @@
 import json
-import requests
 import threading
 import time
 import unittest
 from unittest.mock import Mock, patch
+
+import requests
 
 import app as api
 import cache
@@ -55,9 +56,8 @@ class BandwidthApiTests(unittest.TestCase):
             "https://example.com/\nHeader: injected",
         ]
         for url in blocked:
-            with self.subTest(url=url):
-                with self.assertRaises(SecurityValidationError):
-                    validate_public_url(url)
+            with self.subTest(url=url), self.assertRaises(SecurityValidationError):
+                validate_public_url(url)
 
     def test_security_rejects_dns_rebinding_targets(self):
         with patch("security.socket.getaddrinfo") as getaddrinfo:
@@ -176,9 +176,8 @@ class BandwidthApiTests(unittest.TestCase):
     def test_cache_rejects_oversized_compressed_payload(self):
         payload = {"data": "x" * 128}
         packed = cache._pack(payload)
-        with patch.object(Config, "MAX_CACHE_PAYLOAD_BYTES", 16):
-            with self.assertRaises(ValueError):
-                cache._unpack(packed)
+        with patch.object(Config, "MAX_CACHE_PAYLOAD_BYTES", 16), self.assertRaises(ValueError):
+            cache._unpack(packed)
 
     def test_lock_manager_serializes_same_url(self):
         manager = LockManager()
@@ -199,11 +198,12 @@ class BandwidthApiTests(unittest.TestCase):
         self.assertIn(order, (["start-1", "end-1", "start-2", "end-2"], ["start-2", "end-2", "start-1", "end-1"]))
 
     def test_proxy_session_configuration(self):
-        adapter = proxy.session.get_adapter("https://example.com")
-        self.assertTrue(proxy.session.verify)
+        session = proxy.direct_session
+        adapter = session.get_adapter("https://example.com")
+        self.assertTrue(session.verify)
         self.assertEqual(adapter._pool_connections, Config.CONNECTION_POOL_CONNECTIONS)
         self.assertEqual(adapter._pool_maxsize, Config.CONNECTION_POOL_MAXSIZE)
-        self.assertEqual(proxy.session.headers["Connection"], "keep-alive")
+        self.assertEqual(session.headers["Connection"], "keep-alive")
 
     def test_config_validation_rejects_invalid_pool_sizes(self):
         original = Config.CONNECTION_POOL_MAXSIZE
@@ -278,9 +278,10 @@ class BandwidthApiTests(unittest.TestCase):
 
     def test_upstream_timeout_records_failure(self):
         before = api.metrics.get_report()["upstream_failures"]
-        with patch.object(downloader.session, "request", side_effect=requests.Timeout("timeout")):
-            with self.assertRaises(requests.Timeout):
-                downloader._request("HEAD", "https://example.com", "generic")
+        with patch.object(
+            proxy.direct_session, "request", side_effect=requests.Timeout("timeout")
+        ), self.assertRaises(requests.Timeout):
+            downloader._request("HEAD", "https://example.com", "generic")
         after = api.metrics.get_report()["upstream_failures"]
         self.assertEqual(after, before + 1)
 

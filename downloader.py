@@ -4,7 +4,7 @@ import time
 from urllib.parse import urlparse
 
 import requests
-from flask import has_request_context, g
+from flask import g, has_request_context
 
 from cache import get_stale_cache, get_validators, set_validators
 from config import Config

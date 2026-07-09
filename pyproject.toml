@@ -1,6 +1,13 @@
 [tool.ruff]
 line-length = 100
 target-version = "py313"
+extend-exclude = [
+  "DownloadDash-API/",
+  "dist/",
+  "mobile/",
+  "node_modules/",
+  "scripts/",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
@@ -8,6 +15,14 @@ ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011"]
+
+[tool.pytest.ini_options]
+norecursedirs = [
+  "DownloadDash-API",
+  "dist",
+  "mobile",
+  "node_modules",
+]
 
 [tool.mypy]
 python_version = "3.13"

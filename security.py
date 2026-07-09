@@ -54,7 +54,7 @@ def validate_public_url(url):
         raise SecurityValidationError("URL credentials are not allowed.")
 
     try:
-        parsed.port
+        _ = parsed.port
     except ValueError as exc:
         raise SecurityValidationError("URL port is invalid.") from exc
 
@@ -73,6 +73,6 @@ def validate_public_url(url):
     except ValueError:
         for address in _resolve_host(hostname):
             if _is_blocked_ip(address):
-                raise SecurityValidationError("URL resolves to an internal address.")
+                raise SecurityValidationError("URL resolves to an internal address.") from None
 
     return value
