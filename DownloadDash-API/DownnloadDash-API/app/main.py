@@ -1,29 +1,32 @@
+import hmac
+import logging
+import os
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-import time
 
-from app.config import settings
-from fastapi.middleware.cors import CORSMiddleware
 from app.api.core import router as core_router
 from app.api.download import router as download_router
+from app.config import settings
 
 # Import all platform-specific routers
 from app.routers import (
-    instagram_router,
-    tiktok_router,
     facebook_router,
+    gallery_router,
+    instagram_router,
     pinterest_router,
     reddit_router,
-    twitter_router,
-    youtube_router,
-    gallery_router,
     telegram_router,
+    tiktok_router,
+    twitter_router,
+    whatsapp_business_router,
     whatsapp_router,
-    whatsapp_business_router
+    youtube_router,
 )
 
 # Import state managers
@@ -31,9 +34,44 @@ from app.state import (
     gallery_downloader,
     public_downloader,
     telegram_downloader,
-    whatsapp_downloader,
     whatsapp_business_downloader,
+    whatsapp_downloader,
 )
+
+# Configure a dedicated auth logger so production logs can distinguish request sources.
+auth_logger = logging.getLogger("downloaddash.auth")
+
+# Public routes must remain available so docs, health checks, and OpenAPI generation still work.
+AUTH_EXCLUDED_PATHS = {
+    "/",
+    "/docs",
+    "/openapi.json",
+    "/redoc",
+    "/health",
+    "/api/health",
+}
+
+# Static assets are required by the custom Swagger/ReDoc favicon and should not break docs rendering.
+AUTH_EXCLUDED_PREFIXES = ("/static/",)
+
+# Header names used by RapidAPI and the DownloadDash frontend/client.
+RAPIDAPI_PROXY_SECRET_HEADER = "X-RapidAPI-Proxy-Secret"
+DOWNLOADDASH_API_KEY_HEADER = "X-DownloadDash-Key"
+
+
+def _is_auth_excluded_path(path: str) -> bool:
+    """Return True when a request path is intentionally public."""
+    return path in AUTH_EXCLUDED_PATHS or any(
+        path.startswith(prefix) for prefix in AUTH_EXCLUDED_PREFIXES
+    )
+
+
+def _matches_secret(provided_secret: str | None, expected_secret: str | None) -> bool:
+    """Compare secrets in constant time and fail closed when either value is missing."""
+    if not provided_secret or not expected_secret:
+        return False
+    return hmac.compare_digest(provided_secret, expected_secret)
+
 
 # Create FastAPI app
 app = FastAPI(
@@ -89,6 +127,48 @@ async def rate_limit_middleware(request: Request, call_next):
             )
 
     return await call_next(request)
+
+
+@app.middleware("http")
+async def authentication_middleware(request: Request, call_next):
+    """Authenticate protected requests from RapidAPI or DownloadDash."""
+    # Allow browser preflight requests through so existing CORS behavior is preserved.
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    # Keep public operational and documentation routes outside authentication.
+    if _is_auth_excluded_path(request.url.path):
+        return await call_next(request)
+
+    # Load secrets from the process environment; never hardcode production credentials.
+    rapidapi_proxy_secret = os.getenv("RAPIDAPI_PROXY_SECRET")
+    downloaddash_api_key = os.getenv("DOWNLOADDASH_API_KEY")
+
+    # Accept trusted RapidAPI proxy requests when the RapidAPI header matches.
+    if _matches_secret(
+        request.headers.get(RAPIDAPI_PROXY_SECRET_HEADER),
+        rapidapi_proxy_secret,
+    ):
+        auth_logger.info("RapidAPI request authorized: %s %s", request.method, request.url.path)
+        return await call_next(request)
+
+    # Accept trusted DownloadDash client requests when the DownloadDash header matches.
+    if _matches_secret(
+        request.headers.get(DOWNLOADDASH_API_KEY_HEADER),
+        downloaddash_api_key,
+    ):
+        auth_logger.info("DownloadDash request authorized: %s %s", request.method, request.url.path)
+        return await call_next(request)
+
+    # Reject every other protected request with the required production-safe response.
+    auth_logger.warning("Unauthorized request rejected: %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=403,
+        content={
+            "success": False,
+            "message": "Unauthorized",
+        },
+    )
 
 
 # Include all routers
