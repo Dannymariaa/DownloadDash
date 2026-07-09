@@ -29,7 +29,7 @@ export const downloadFromUrl = async (url, options = {}) => {
       url: cleanUrl,
       platform: platform,
       quality: quality,
-      extract_audio: extractAudio
+      extractAudio: extractAudio
     });
     
     if (!result || !result.success) {

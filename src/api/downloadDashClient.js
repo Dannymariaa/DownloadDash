@@ -1,24 +1,28 @@
 // @ts-nocheck
 
-const DEFAULT_API_BASE_URL = '/api';
+const DEFAULT_API_BASE_URL = '/api/smd';
+const PROTECTED_RENDER_API_HOSTS = new Set([
+  'api.downloaddash.store',
+]);
 
 const getApiBaseUrl = () => {
   const raw = import.meta.env.VITE_SMD_API_BASE_URL || DEFAULT_API_BASE_URL;
-  return String(raw).replace(/\/+$/, '');
+  const normalized = String(raw).replace(/\/+$/, '') || DEFAULT_API_BASE_URL;
+
+  if (normalized === '/api') return DEFAULT_API_BASE_URL;
+
+  try {
+    const parsed = new URL(normalized);
+    if (PROTECTED_RENDER_API_HOSTS.has(parsed.hostname.toLowerCase())) {
+      return DEFAULT_API_BASE_URL;
+    }
+  } catch {
+    // Relative URLs are expected for the Vercel serverless proxy.
+  }
+
+  return normalized;
 };
 
-const shouldSendApiKey = () => {
-  const flag = String(import.meta.env.VITE_SMD_REQUIRE_API_KEY || '').toLowerCase();
-  return flag === '1' || flag === 'true' || flag === 'yes';
-};
-
-const getApiKey = () => {
-  if (!shouldSendApiKey()) return '';
-
-  const value = String(import.meta.env.VITE_SMD_API_KEY || '').trim();
-  if (!value || value === 'your_api_key_here') return '';
-  return value;
-};
 const useRapidApiForYoutube = () => {
   const flag = String(import.meta.env.VITE_USE_RAPIDAPI_YOUTUBE || '').toLowerCase();
   return flag === '1' || flag === 'true' || flag === 'yes';
@@ -31,10 +35,7 @@ const absolutizeApiUrl = (url) => {
 };
 
 const buildHeaders = () => {
-  const headers = { 'Content-Type': 'application/json' };
-  const apiKey = getApiKey();
-  if (apiKey) headers['X-API-Key'] = apiKey;
-  return headers;
+  return { 'Content-Type': 'application/json' };
 };
 
 const tryParseJson = async (res) => {
@@ -61,13 +62,23 @@ const postJson = async (path, body) => {
     });
   } catch (error) {
     throw new Error(
-      `Unable to reach the DownloadDash API at ${baseUrl}. ` +
-        `Check that https://api.downloaddash.store is live and that VITE_SMD_API_BASE_URL is set correctly in Vercel.`
+      `Unable to reach the DownloadDash API proxy at ${baseUrl}. ` +
+        `Check that the Vercel deployment is live and that server-side DOWNLOADDASH_API_KEY is configured.`
     );
   }
 
   const data = await tryParseJson(res);
   if (!res.ok) {
+    if (res.status === 500 && data?.message?.includes('API key is not configured')) {
+      throw new Error(data.message);
+    }
+    if (res.status === 403) {
+      throw new Error(
+        data?.message === 'Unauthorized'
+          ? 'DownloadDash API authentication failed. Check the server-side DOWNLOADDASH_API_KEY in Vercel.'
+          : data?.message || 'DownloadDash API request was forbidden.'
+      );
+    }
     const message =
       data?.detail ||
       data?.error ||
