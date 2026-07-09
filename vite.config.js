@@ -13,13 +13,22 @@ export default defineConfig({
     },
   },
   server: {
-    host: true, // Listen on all addresses
-    port: 3001, // Local dev port (DownloadDash UI)
-    // Proxy API requests to avoid CORS issues in local dev.
+    host: true, // Listen on all network addresses
+    port: 3001, // Local dev port for DownloadDash UI
     proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8000',
+      // Catch frontend calls to /api/smd/... and cleanly route them locally
+      '/api/smd': {
+        // Change port to 5000 if your Flask app uses the default 5000 from your README
+        target: 'http://127.0.0.1:5000', 
         changeOrigin: true,
+        secure: false,
+        // Strip out the '/api/smd' part so your local Flask app receives plain endpoints (e.g., /youtube/download)
+        rewrite: (path) => path.replace(/^\/api\/smd/, ''),
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('[Vite Proxy Error]:', err.message);
+          });
+        },
       },
     },
   },

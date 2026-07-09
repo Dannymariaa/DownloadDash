@@ -23,6 +23,7 @@ const getUpstreamBaseUrl = () =>
 const getDownloadDashApiKey = () => String(process.env.DOWNLOADDASH_API_KEY || '').trim();
 
 const getRequestPath = (req) => {
+  // Vercel routes [...path] as either an array or a string inside req.query.path
   const rawPath = req.query?.path;
   const parts = Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [];
   return `/${parts.map((part) => encodeURIComponent(String(part))).join('/')}`;
@@ -53,6 +54,7 @@ const buildUpstreamHeaders = (req) => {
 const copyResponseHeaders = (upstream, res) => {
   upstream.headers.forEach((value, key) => {
     const lowerKey = key.toLowerCase();
+    // Do not forward connection/hop-by-hop elements or content-encoding overrides
     if (HOP_BY_HOP_HEADERS.has(lowerKey) || lowerKey === 'content-encoding') return;
     res.setHeader(key, value);
   });
@@ -76,8 +78,9 @@ export default async function handler(req, res) {
     redirect: 'follow',
   };
 
-  if (!['GET', 'HEAD'].includes(req.method)) {
-    init.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
+  // Safe Request Body Conversion for Vercel Serverless environment
+  if (!['GET', 'HEAD'].includes(req.method) && req.body) {
+    init.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
   }
 
   let upstream;
@@ -91,7 +94,11 @@ export default async function handler(req, res) {
     });
   }
 
+  // Pass status code and filter header payloads back cleanly
   copyResponseHeaders(upstream, res);
-  const body = Buffer.from(await upstream.arrayBuffer());
-  res.status(upstream.status).send(body);
+  
+  const arrayBuffer = await upstream.arrayBuffer();
+  const body = Buffer.from(arrayBuffer);
+  
+  res.status(upstream.status).end(body);
 }

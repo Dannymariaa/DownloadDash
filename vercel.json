@@ -129,6 +129,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/smd/:path*",
+      "destination": "/api/smd/[...path].js"
+    },
+    {
       "source": "/privacy-policy",
       "destination": "/privacy-policy.html"
     },

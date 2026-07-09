@@ -1,11 +1,10 @@
 ﻿// Download utility for DownloadDash
-import { downloadDash } from '@/api/downloadDashClient';
 
 /**
- * Download content from URL with automatic media type detection
+ * Download content from URL via the Vercel serverless API gateway
  * @param {string} url - The URL to download
  * @param {Object} options - Download options
- * @param {string} options.platform - Platform name (instagram, facebook, etc.)
+ * @param {string} options.platform - Platform name (instagram, facebook, tiktok, youtube, twitter, pinterest, reddit)
  * @param {string} options.quality - Quality preference (high, medium, low)
  * @param {boolean} options.extractAudio - Whether to extract audio
  * @returns {Promise<Object>} - Download result with media info
@@ -21,26 +20,39 @@ export const downloadFromUrl = async (url, options = {}) => {
       throw new Error('Invalid URL provided');
     }
     
-    // Clean and sanitize URL
-    const cleanUrl = url.trim().split('?')[0]; // Remove query parameters
+    // Clean whitespace but KEEP critical query parameters intact for media tracking structures
+    const cleanUrl = url.trim(); 
     
-    // Call the downloadDash API
-    const result = await downloadDash.functions.invoke('downloadVideo', {
-      url: cleanUrl,
-      platform: platform,
-      quality: quality,
-      extractAudio: extractAudio
+    // Determine target API endpoint dynamically based on platform
+    let targetEndpoint = `${platform.toLowerCase()}/download`;
+    if (platform.toLowerCase() === 'twitter' || platform.toLowerCase() === 'x') {
+      targetEndpoint = 'twitter/download';
+    }
+
+    // Call the Vercel API catch-all rewrite gateway directly
+    const response = await fetch(`/api/smd/${targetEndpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        url: cleanUrl,
+        quality: quality,
+        extractAudio: extractAudio
+      })
     });
+
+    const result = await response.json();
     
-    if (!result || !result.success) {
-      throw new Error(result?.error || 'Failed to download content');
+    if (!response.ok || !result || result.success === false) {
+      throw new Error(result?.message || result?.error || 'Failed to download content from provider');
     }
     
     // Transform response to ensure consistent format
     const transformedResult = transformDownloadResponse(result, platform);
     
     console.log(`[Downloader] Download successful for ${platform}:`, transformedResult.type);
-    
     return transformedResult;
     
   } catch (error) {
@@ -120,7 +132,6 @@ export const saveToGallery = async (mediaUrl, filename, options = {}) => {
     
     // Check if we're in a browser environment
     if (typeof window !== 'undefined') {
-      // Create download link
       const link = document.createElement('a');
       const objectUrl = URL.createObjectURL(blob);
       
@@ -130,13 +141,11 @@ export const saveToGallery = async (mediaUrl, filename, options = {}) => {
       link.click();
       document.body.removeChild(link);
       
-      // Cleanup
       URL.revokeObjectURL(objectUrl);
       
       console.log('[Downloader] Media saved to gallery:', finalFilename);
       return true;
     } else {
-      // For server-side or React Native environments
       console.warn('[Downloader] Not in browser environment, returning blob');
       return blob;
     }
@@ -148,7 +157,7 @@ export const saveToGallery = async (mediaUrl, filename, options = {}) => {
 };
 
 /**
- * Save multiple files (for carousel posts)
+ * Save multiple files (for multi-photo albums / carousel posts)
  * @param {Array} items - Array of {url, filename, type} objects
  * @param {string} platform - Platform name
  * @returns {Promise<Object>} - Results with success/failure counts
@@ -185,14 +194,13 @@ export const saveMultipleToGallery = async (items, platform = 'instagram') => {
  * @returns {Object} - Transformed response
  */
 const transformDownloadResponse = (response, platform) => {
-  const { media_info, downloads, download_url, thumbnail, title, success, type, download_id } = response;
+  const { media_info, downloads, download_url, thumbnail, title, type, download_id } = response;
   
-  // Handle different response structures
   let mediaType = type || media_info?.media_type || 'unknown';
   let downloadUrls = {};
   let thumbnailUrl = thumbnail || media_info?.thumbnail_url;
   
-  // Normalize media type
+  // Normalize media types
   if (mediaType === 'image' || mediaType === 'photo') {
     mediaType = 'image';
   } else if (mediaType === 'carousel' || mediaType === 'album') {
@@ -201,44 +209,52 @@ const transformDownloadResponse = (response, platform) => {
     mediaType = 'video';
   }
   
-  // Build download URLs based on media type
-  if (mediaType === 'carousel' && downloads) {
-    // Handle carousel (multiple items)
+  // Build download URLs cleanly based on unified types
+  if (mediaType === 'carousel' || downloads) {
     const items = [];
-    Object.entries(downloads).forEach(([key, url]) => {
-      const isVideo = url.includes('.mp4') || url.includes('video');
-      items.push({
-        url: url,
-        type: isVideo ? 'video' : 'image',
-        filename: generateFilename(platform, media_info, key, isVideo ? 'video' : 'image')
+    
+    if (Array.isArray(downloads)) {
+      downloads.forEach((item, index) => {
+        const urlStr = typeof item === 'string' ? item : item.url;
+        const isVideo = urlStr.includes('.mp4') || urlStr.includes('video');
+        items.push({
+          url: urlStr,
+          type: isVideo ? 'video' : 'image',
+          filename: generateFilename(platform, media_info, urlStr, isVideo ? 'video' : 'image')
+        });
       });
-    });
-    downloadUrls = { items };
+    } else if (downloads && typeof downloads === 'object') {
+      Object.entries(downloads).forEach(([key, url]) => {
+        const isVideo = url.includes('.mp4') || url.includes('video');
+        items.push({
+          url: url,
+          type: isVideo ? 'video' : 'image',
+          filename: generateFilename(platform, media_info, key, isVideo ? 'video' : 'image')
+        });
+      });
+    }
+    
+    if (items.length > 0) {
+      mediaType = 'carousel';
+      downloadUrls = { items };
+    }
   } 
-  else if (mediaType === 'video') {
-    // Handle video content
-    downloadUrls = {
-      videoHD: download_url || media_info?.download_url,
-      videoSD: download_url || media_info?.download_url,
-      audio: media_info?.audio_bitrate ? `${download_url}?audio=1` : null,
-      thumbnail: thumbnailUrl
-    };
-  } 
-  else if (mediaType === 'image') {
-    // Handle image content
-    downloadUrls = {
-      image: media_info?.url || download_url,
-      thumbnail: thumbnailUrl || media_info?.url
-    };
-  }
-  else {
-    // Fallback - try to detect from available data
-    if (download_url && download_url.includes('.mp4')) {
-      downloadUrls = { videoHD: download_url, thumbnail: thumbnailUrl };
+  
+  if (mediaType !== 'carousel') {
+    if (mediaType === 'video' || (download_url && download_url.includes('.mp4'))) {
       mediaType = 'video';
-    } else if (media_info?.url || download_url) {
-      downloadUrls = { image: media_info?.url || download_url, thumbnail: thumbnailUrl };
+      downloadUrls = {
+        videoHD: download_url || media_info?.download_url || media_info?.url,
+        videoSD: download_url || media_info?.download_url || media_info?.url,
+        audio: media_info?.audio_bitrate || response.audio_url ? (response.audio_url || `${download_url}?audio=1`) : null,
+        thumbnail: thumbnailUrl
+      };
+    } else {
       mediaType = 'image';
+      downloadUrls = {
+        image: media_info?.url || download_url,
+        thumbnail: thumbnailUrl || media_info?.url
+      };
     }
   }
   
@@ -257,11 +273,6 @@ const transformDownloadResponse = (response, platform) => {
 
 /**
  * Generate filename for downloaded content
- * @param {string} platform - Platform name
- * @param {Object} mediaInfo - Media information
- * @param {string} key - Item key (for carousel)
- * @param {string} type - Media type (video/image)
- * @returns {string} - Generated filename
  */
 const generateFilename = (platform, mediaInfo, key, type) => {
   const username = mediaInfo?.author_username || mediaInfo?.username || platform;
@@ -271,7 +282,6 @@ const generateFilename = (platform, mediaInfo, key, type) => {
   
   let extension = type === 'video' ? 'mp4' : 'jpg';
   
-  // Try to detect proper extension from URL if available
   if (key && typeof key === 'string') {
     if (key.includes('.png')) extension = 'png';
     else if (key.includes('.webp')) extension = 'webp';
@@ -284,21 +294,11 @@ const generateFilename = (platform, mediaInfo, key, type) => {
   return `${platformPrefix}_${safeUsername}_${date}_${typeLabel}.${extension}`;
 };
 
-/**
- * Get file extension from URL
- * @param {string} url - Media URL
- * @returns {string} - File extension
- */
 const getFileExtension = (url) => {
   const match = url.match(/\.([a-z0-9]+)(?:\?|$)/i);
   return match ? match[1] : 'mp4';
 };
 
-/**
- * Format duration in seconds to readable format
- * @param {number} seconds - Duration in seconds
- * @returns {string} - Formatted duration (e.g., "2:30")
- */
 const formatDuration = (seconds) => {
   if (!seconds) return null;
   const mins = Math.floor(seconds / 60);
@@ -308,9 +308,6 @@ const formatDuration = (seconds) => {
 
 /**
  * Check if a URL is valid for download
- * @param {string} url - URL to validate
- * @param {string} platform - Platform name
- * @returns {Object} - Validation result
  */
 export const validateDownloadUrl = (url, platform = 'instagram') => {
   if (!url || typeof url !== 'string') {
@@ -329,15 +326,14 @@ export const validateDownloadUrl = (url, platform = 'instagram') => {
     return { valid: false, error: 'Invalid URL format' };
   }
   
-  // Platform-specific validation patterns
   const patterns = {
     instagram: /^https?:\/\/(www\.)?(instagram\.com|instagr\.am)\/.+/i,
-    facebook: /^https?:\/\/(www\.|m\.)?(facebook\.com|fb\.watch|fb\.me)\/.+/i,
+    facebook: /^https?:\/\/(www\.|m\.)?(facebook\.com|fb\.watch|fb\.me|fb\.gg)\/.+/i,
     tiktok: /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\/.+/i,
-    youtube: /^https?:\/\/(www\.|m\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/).+/i,
-    twitter: /^https?:\/\/(www\.|mobile\.)?(twitter\.com|x\.com)\/.+\/status\/.+/i,
-    telegram: /^https?:\/\/(t\.me|telegram\.me)\/.+/i,
-    whatsapp: /^(https?:\/\/)?(wa\.me|whatsapp\.com)\/.+/i
+    youtube: /^https?:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|youtube-nocookie\.com)\/.+/i,
+    twitter: /^https?:\/\/(www\.|mobile\.)?(twitter\.com|x\.com)\/.+/i,
+    pinterest: /^https?:\/\/(www\.|[a-z]{2}\.)?(pinterest\.com|pin\.it)\/.+/i,
+    reddit: /^https?:\/\/(www\.)?(reddit\.com|redd\.it)\/.+/i
   };
   
   const pattern = patterns[platform.toLowerCase()];
@@ -350,13 +346,9 @@ export const validateDownloadUrl = (url, platform = 'instagram') => {
 
 /**
  * Batch download multiple URLs
- * @param {Array} urls - Array of URLs to download
- * @param {Object} options - Download options
- * @returns {Promise<Array>} - Array of download results
  */
 export const batchDownload = async (urls, options = {}) => {
   const results = [];
-  
   for (let i = 0; i < urls.length; i++) {
     try {
       const result = await downloadFromUrl(urls[i], options);
@@ -365,11 +357,9 @@ export const batchDownload = async (urls, options = {}) => {
       results.push({ success: false, index: i, error: error.message });
     }
   }
-  
   return results;
 };
 
-// Export default object for convenience
 const downloader = {
   download: downloadFromUrl,
   saveToGallery,
