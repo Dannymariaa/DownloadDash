@@ -1,3 +1,4 @@
+cat << 'EOF' > app.py
 import os
 import time
 import uuid
@@ -177,13 +178,26 @@ def swagger_docs():
     return Response(html, mimetype="text/html")
 
 
-@app.route("/extract", methods=["GET"])
-@app.route("/api/v1/extract", methods=["GET"])
+@app.route("/extract", methods=["GET", "POST"])
+@app.route("/api/v1/extract", methods=["GET", "POST"])
+@app.route("/api/v1/<string:platform>/download", methods=["POST"])
 @rate_limit
-def extract_media():
+def extract_media(platform=None):
     metrics.record_api_request()
-    raw_url = request.args.get("url")
-    raw_platform = request.args.get("platform")
+    
+    # Handle incoming payloads seamlessly whether they are URL params or JSON POST bodies
+    raw_url = None
+    raw_platform = platform
+
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        raw_url = payload.get("url")
+        if not raw_platform:
+            raw_platform = payload.get("platform")
+    else:
+        raw_url = request.args.get("url")
+        if not raw_platform:
+            raw_platform = request.args.get("platform")
 
     if raw_url is None:
         return _json_error("URL parameter is missing.", 400, "missing_url")
@@ -254,6 +268,17 @@ def extract_media():
 
         try:
             result = extract_metadata(url)
+            
+            # --- FRONTEND PAYLOAD COMPATIBILITY NORMALIZER ---
+            # Ensure a top-level 'url' string is available if nested within an extraction matrix
+            if isinstance(result, dict) and "url" not in result:
+                if "medias" in result and len(result["medias"]) > 0:
+                    result["url"] = result["medias"][0].get("url") or result["medias"][0].get("download_url")
+                elif "streams" in result and len(result["streams"]) > 0:
+                    result["url"] = result["streams"][0].get("url")
+                elif "links" in result and len(result["links"]) > 0:
+                    result["url"] = result["links"][0] if isinstance(result["links"][0], str) else result["links"][0].get("url")
+
         except SecurityValidationError as exc:
             logger.warning("request_id=%s event=security_rejected error=%s", g.request_id, exc)
             return _json_error(str(exc), 400, "invalid_url")
@@ -365,3 +390,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.getenv("PORT", "5000")),
     )
+EOF
