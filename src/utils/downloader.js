@@ -194,7 +194,10 @@ export const saveMultipleToGallery = async (items, platform = 'instagram') => {
  * @returns {Object} - Transformed response
  */
 const transformDownloadResponse = (response, platform) => {
-  const { media_info, downloads, download_url, thumbnail, title, type, download_id } = response;
+  // Unpack payload fields out of the nested container data safely
+  const payload = response.result || response || {};
+  
+  const { media_info, downloads, download_url, thumbnail, title, type, download_id } = payload;
   
   let mediaType = type || media_info?.media_type || 'unknown';
   let downloadUrls = {};
@@ -216,6 +219,7 @@ const transformDownloadResponse = (response, platform) => {
     if (Array.isArray(downloads)) {
       downloads.forEach((item, index) => {
         const urlStr = typeof item === 'string' ? item : item.url;
+        if (!urlStr) return;
         const isVideo = urlStr.includes('.mp4') || urlStr.includes('video');
         items.push({
           url: urlStr,
@@ -225,6 +229,7 @@ const transformDownloadResponse = (response, platform) => {
       });
     } else if (downloads && typeof downloads === 'object') {
       Object.entries(downloads).forEach(([key, url]) => {
+        if (!url || typeof url !== 'string') return;
         const isVideo = url.includes('.mp4') || url.includes('video');
         items.push({
           url: url,
@@ -241,19 +246,25 @@ const transformDownloadResponse = (response, platform) => {
   } 
   
   if (mediaType !== 'carousel') {
-    if (mediaType === 'video' || (download_url && download_url.includes('.mp4'))) {
+    const fallbackUrl = download_url || payload.url || media_info?.download_url || media_info?.url;
+    
+    if (!fallbackUrl) {
+      throw new Error('No downloadable URL returned from API');
+    }
+
+    if (mediaType === 'video' || fallbackUrl.includes('.mp4') || fallbackUrl.includes('video')) {
       mediaType = 'video';
       downloadUrls = {
-        videoHD: download_url || media_info?.download_url || media_info?.url,
-        videoSD: download_url || media_info?.download_url || media_info?.url,
-        audio: media_info?.audio_bitrate || response.audio_url ? (response.audio_url || `${download_url}?audio=1`) : null,
+        videoHD: fallbackUrl,
+        videoSD: fallbackUrl,
+        audio: media_info?.audio_bitrate || payload.audio_url ? (payload.audio_url || `${fallbackUrl}?audio=1`) : null,
         thumbnail: thumbnailUrl
       };
     } else {
       mediaType = 'image';
       downloadUrls = {
-        image: media_info?.url || download_url,
-        thumbnail: thumbnailUrl || media_info?.url
+        image: fallbackUrl,
+        thumbnail: thumbnailUrl || fallbackUrl
       };
     }
   }
@@ -369,3 +380,4 @@ const downloader = {
 };
 
 export default downloader;
+EOF
