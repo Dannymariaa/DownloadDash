@@ -1,13 +1,44 @@
 ﻿// Download utility for DownloadDash
 
 /**
+ * Deep scan helper to search an object recursively for any valid URL
+ */
+const findAnyValidUrl = (obj) => {
+  if (!obj) return null;
+  if (typeof obj === 'string') {
+    if (obj.startsWith('http://') || obj.startsWith('https://')) {
+      // Ignore common image extensions if looking for a fallback link, or accept everything
+      return obj;
+    }
+    return null;
+  }
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const found = findAnyValidUrl(item);
+      if (found) return found;
+    }
+  }
+  if (typeof obj === 'object') {
+    // Prioritize keys that sound like media links
+    const prioritizedKeys = ['url', 'download', 'download_url', 'link', 'src', 'href', 'media_url'];
+    for (const key of prioritizedKeys) {
+      if (obj[key] && typeof obj[key] === 'string' && (obj[key].startsWith('http://') || obj[key].startsWith('https://'))) {
+        return obj[key];
+      }
+    }
+    // Fallback scan everything else
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        const found = findAnyValidUrl(obj[key]);
+        if (found) return found;
+      }
+    }
+  }
+  return null;
+};
+
+/**
  * Download content from URL via the Vercel serverless API gateway
- * @param {string} url - The URL to download
- * @param {Object} options - Download options
- * @param {string} options.platform - Platform name (instagram, facebook, tiktok, youtube, twitter, pinterest, reddit)
- * @param {string} options.quality - Quality preference (high, medium, low)
- * @param {boolean} options.extractAudio - Whether to extract audio
- * @returns {Promise<Object>} - Download result with media info
  */
 export const downloadFromUrl = async (url, options = {}) => {
   const { platform = 'instagram', quality = 'high', extractAudio = false } = options;
@@ -15,21 +46,17 @@ export const downloadFromUrl = async (url, options = {}) => {
   try {
     console.log(`[Downloader] Starting download from ${platform}:`, url);
     
-    // Validate URL before attempting download
     if (!url || typeof url !== 'string') {
       throw new Error('Invalid URL provided');
     }
     
-    // Clean whitespace but KEEP critical query parameters intact for media tracking structures
     const cleanUrl = url.trim(); 
     
-    // Determine target API endpoint dynamically based on platform
     let targetEndpoint = `${platform.toLowerCase()}/download`;
     if (platform.toLowerCase() === 'twitter' || platform.toLowerCase() === 'x') {
       targetEndpoint = 'twitter/download';
     }
 
-    // Call the Vercel API catch-all rewrite gateway directly
     const response = await fetch(`/api/smd/${targetEndpoint}`, {
       method: 'POST',
       headers: {
@@ -57,28 +84,12 @@ export const downloadFromUrl = async (url, options = {}) => {
     
   } catch (error) {
     console.error('[Downloader] Download error:', error);
-    
-    // Provide user-friendly error messages
-    let errorMessage = error.message || 'Failed to download content';
-    
-    if (errorMessage.includes('403') || errorMessage.includes('forbidden')) {
-      errorMessage = 'Access denied. The platform is blocking the request. Please try again later or use a VPN.';
-    } else if (errorMessage.includes('404')) {
-      errorMessage = 'Content not found. Please check the URL and try again.';
-    } else if (errorMessage.includes('network') || errorMessage.includes('fetch')) {
-      errorMessage = 'Network error. Please check your internet connection.';
-    }
-    
-    throw new Error(errorMessage);
+    throw new Error(error.message || 'Failed to download content');
   }
 };
 
 /**
  * Save media to device gallery with proper filename detection
- * @param {string} mediaUrl - The URL of the media to save
- * @param {string} filename - Desired filename (optional, will auto-detect if not provided)
- * @param {Object} options - Save options
- * @returns {Promise<boolean>} - Success status
  */
 export const saveToGallery = async (mediaUrl, filename, options = {}) => {
   const { platform = 'instagram', mediaType = 'auto' } = options;
@@ -90,7 +101,6 @@ export const saveToGallery = async (mediaUrl, filename, options = {}) => {
       throw new Error('No media URL provided');
     }
     
-    // Auto-detect media type from URL if not specified
     let detectedType = mediaType;
     if (detectedType === 'auto') {
       if (mediaUrl.includes('.mp4') || mediaUrl.includes('video')) {
@@ -103,7 +113,6 @@ export const saveToGallery = async (mediaUrl, filename, options = {}) => {
       }
     }
     
-    // Generate filename if not provided
     let finalFilename = filename;
     if (!finalFilename) {
       const timestamp = Date.now();
@@ -121,54 +130,34 @@ export const saveToGallery = async (mediaUrl, filename, options = {}) => {
       }
     }
     
-    // Fetch the media file
     const response = await fetch(mediaUrl);
-    
     if (!response.ok) {
       throw new Error(`Failed to fetch media: ${response.status} ${response.statusText}`);
     }
     
     const blob = await response.blob();
     
-    // Check if we're in a browser environment
     if (typeof window !== 'undefined') {
       const link = document.createElement('a');
       const objectUrl = URL.createObjectURL(blob);
-      
       link.href = objectUrl;
       link.download = finalFilename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
       URL.revokeObjectURL(objectUrl);
-      
-      console.log('[Downloader] Media saved to gallery:', finalFilename);
       return true;
     } else {
-      console.warn('[Downloader] Not in browser environment, returning blob');
       return blob;
     }
-    
   } catch (error) {
     console.error('[Downloader] Save error:', error);
     return false;
   }
 };
 
-/**
- * Save multiple files (for multi-photo albums / carousel posts)
- * @param {Array} items - Array of {url, filename, type} objects
- * @param {string} platform - Platform name
- * @returns {Promise<Object>} - Results with success/failure counts
- */
 export const saveMultipleToGallery = async (items, platform = 'instagram') => {
-  const results = {
-    success: [],
-    failed: [],
-    total: items.length
-  };
-  
+  const results = { success: [], failed: [], total: items.length };
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     try {
@@ -182,28 +171,24 @@ export const saveMultipleToGallery = async (items, platform = 'instagram') => {
       results.failed.push({ index: i, url: item.url, error: error.message });
     }
   }
-  
-  console.log(`[Downloader] Saved ${results.success.length}/${results.total} files`);
   return results;
 };
 
 /**
  * Transform API response to consistent format
- * @param {Object} response - Raw API response
- * @param {string} platform - Platform name
- * @returns {Object} - Transformed response
  */
 const transformDownloadResponse = (response, platform) => {
-  // Unpack payload fields out of the nested container data safely
+  // Inspect incoming data structure
+  console.log('[Downloader] Unpacking clean data payload structure:');
+  console.dir(response);
+
   const payload = response.result || response || {};
-  
   const { media_info, downloads, download_url, thumbnail, title, type, download_id } = payload;
   
   let mediaType = type || media_info?.media_type || 'unknown';
   let downloadUrls = {};
   let thumbnailUrl = thumbnail || media_info?.thumbnail_url;
   
-  // Normalize media types
   if (mediaType === 'image' || mediaType === 'photo') {
     mediaType = 'image';
   } else if (mediaType === 'carousel' || mediaType === 'album') {
@@ -212,12 +197,10 @@ const transformDownloadResponse = (response, platform) => {
     mediaType = 'video';
   }
   
-  // Build download URLs cleanly based on unified types
   if (mediaType === 'carousel' || downloads) {
     const items = [];
-    
     if (Array.isArray(downloads)) {
-      downloads.forEach((item, index) => {
+      downloads.forEach((item) => {
         const urlStr = typeof item === 'string' ? item : item.url;
         if (!urlStr) return;
         const isVideo = urlStr.includes('.mp4') || urlStr.includes('video');
@@ -246,7 +229,8 @@ const transformDownloadResponse = (response, platform) => {
   } 
   
   if (mediaType !== 'carousel') {
-    const fallbackUrl = download_url || payload.url || media_info?.download_url || media_info?.url;
+    // 1. Check strict parameters, 2. Look for recursive generic URL extraction fallback
+    const fallbackUrl = download_url || payload.url || media_info?.download_url || media_info?.url || findAnyValidUrl(payload);
     
     if (!fallbackUrl) {
       throw new Error('No downloadable URL returned from API');
@@ -282,9 +266,6 @@ const transformDownloadResponse = (response, platform) => {
   };
 };
 
-/**
- * Generate filename for downloaded content
- */
 const generateFilename = (platform, mediaInfo, key, type) => {
   const username = mediaInfo?.author_username || mediaInfo?.username || platform;
   const timestamp = mediaInfo?.created_at || mediaInfo?.uploaded_at || new Date().toISOString();
@@ -292,17 +273,12 @@ const generateFilename = (platform, mediaInfo, key, type) => {
   const safeUsername = username.replace(/[^a-z0-9]/gi, '_').toLowerCase();
   
   let extension = type === 'video' ? 'mp4' : 'jpg';
-  
   if (key && typeof key === 'string') {
     if (key.includes('.png')) extension = 'png';
     else if (key.includes('.webp')) extension = 'webp';
     else if (key.includes('.gif')) extension = 'gif';
   }
-  
-  const platformPrefix = platform.charAt(0).toUpperCase() + platform.slice(1);
-  const typeLabel = type === 'video' ? 'Video' : 'Photo';
-  
-  return `${platformPrefix}_${safeUsername}_${date}_${typeLabel}.${extension}`;
+  return `${platform.charAt(0).toUpperCase() + platform.slice(1)}_${safeUsername}_${date}_${type === 'video' ? 'Video' : 'Photo'}.${extension}`;
 };
 
 const getFileExtension = (url) => {
@@ -317,25 +293,11 @@ const formatDuration = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-/**
- * Check if a URL is valid for download
- */
 export const validateDownloadUrl = (url, platform = 'instagram') => {
-  if (!url || typeof url !== 'string') {
-    return { valid: false, error: 'URL is required' };
-  }
-  
+  if (!url || typeof url !== 'string') return { valid: false, error: 'URL is required' };
   const trimmedUrl = url.trim();
-  
-  if (trimmedUrl.length < 10) {
-    return { valid: false, error: 'URL is too short' };
-  }
-  
-  try {
-    new URL(trimmedUrl);
-  } catch {
-    return { valid: false, error: 'Invalid URL format' };
-  }
+  if (trimmedUrl.length < 10) return { valid: false, error: 'URL is too short' };
+  try { new URL(trimmedUrl); } catch { return { valid: false, error: 'Invalid URL format' }; }
   
   const patterns = {
     instagram: /^https?:\/\/(www\.)?(instagram\.com|instagr\.am)\/.+/i,
@@ -348,16 +310,10 @@ export const validateDownloadUrl = (url, platform = 'instagram') => {
   };
   
   const pattern = patterns[platform.toLowerCase()];
-  if (pattern && !pattern.test(trimmedUrl)) {
-    return { valid: false, error: `Please enter a valid ${platform} URL` };
-  }
-  
+  if (pattern && !pattern.test(trimmedUrl)) return { valid: false, error: `Please enter a valid ${platform} URL` };
   return { valid: true, url: trimmedUrl };
 };
 
-/**
- * Batch download multiple URLs
- */
 export const batchDownload = async (urls, options = {}) => {
   const results = [];
   for (let i = 0; i < urls.length; i++) {
@@ -371,13 +327,6 @@ export const batchDownload = async (urls, options = {}) => {
   return results;
 };
 
-const downloader = {
-  download: downloadFromUrl,
-  saveToGallery,
-  saveMultiple: saveMultipleToGallery,
-  validate: validateDownloadUrl,
-  batch: batchDownload
-};
-
+const downloader = { download: downloadFromUrl, saveToGallery, saveMultiple: saveMultipleToGallery, validate: validateDownloadUrl, batch: batchDownload };
 export default downloader;
 EOF
