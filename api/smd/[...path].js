@@ -22,39 +22,17 @@ const getUpstreamBaseUrl = () =>
 
 const getDownloadDashApiKey = () => String(process.env.DOWNLOADDASH_API_KEY || '').trim();
 
-const getRequestPath = (req) => {
-  // Vercel routes [...path] as either an array or a string inside req.query.path
-  const rawPath = req.query?.path;
-  const parts = Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [];
-  return `/${parts.map((part) => encodeURIComponent(String(part))).join('/')}`;
-};
-
-const appendQuery = (target, req) => {
-  for (const [key, value] of Object.entries(req.query || {})) {
-    if (key === 'path') continue;
-    const values = Array.isArray(value) ? value : [value];
-    for (const item of values) {
-      if (item !== undefined) target.searchParams.append(key, String(item));
-    }
-  }
-};
-
 const buildUpstreamHeaders = (req) => {
   const headers = {
-    Accept: req.headers.accept || 'application/json',
+    Accept: 'application/json',
     'X-DownloadDash-Key': getDownloadDashApiKey(),
   };
-
-  const contentType = req.headers['content-type'];
-  if (contentType) headers['Content-Type'] = contentType;
-
   return headers;
 };
 
 const copyResponseHeaders = (upstream, res) => {
   upstream.headers.forEach((value, key) => {
     const lowerKey = key.toLowerCase();
-    // Do not forward connection/hop-by-hop elements or content-encoding overrides
     if (HOP_BY_HOP_HEADERS.has(lowerKey) || lowerKey === 'content-encoding') return;
     res.setHeader(key, value);
   });
@@ -69,19 +47,42 @@ export default async function handler(req, res) {
     });
   }
 
-  const target = new URL(`${getUpstreamBaseUrl()}${getRequestPath(req)}`);
-  appendQuery(target, req);
+  let mediaUrl = '';
+  
+  // Extract URL from POST body safely
+  if (req.body) {
+    try {
+      const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+      mediaUrl = payload.url || '';
+    } catch (e) {
+      mediaUrl = '';
+    }
+  }
+
+  // Fallback check query if body was not parsed
+  if (!mediaUrl && req.query.url) {
+    mediaUrl = req.query.url;
+  }
+
+  if (!mediaUrl) {
+    return json(res, 400, { success: false, message: 'No media URL provided.' });
+  }
+
+  // Extract the requested platform from the trailing endpoint path name cleanly
+  const rawPath = req.query?.path;
+  const parts = Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [];
+  const inferredPlatform = parts[0] || 'instagram';
+
+  // Construct the single correct endpoint expected by app.py
+  const target = new URL(`${getUpstreamBaseUrl()}/api/v1/extract`);
+  target.searchParams.append('url', mediaUrl.trim());
+  target.searchParams.append('platform', inferredPlatform.toLowerCase());
 
   const init = {
-    method: req.method,
+    method: 'GET', // app.py route uses GET method
     headers: buildUpstreamHeaders(req),
     redirect: 'follow',
   };
-
-  // Safe Request Body Conversion for Vercel Serverless environment
-  if (!['GET', 'HEAD'].includes(req.method) && req.body) {
-    init.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-  }
 
   let upstream;
   try {
@@ -94,7 +95,6 @@ export default async function handler(req, res) {
     });
   }
 
-  // Pass status code and filter header payloads back cleanly
   copyResponseHeaders(upstream, res);
   
   const arrayBuffer = await upstream.arrayBuffer();
