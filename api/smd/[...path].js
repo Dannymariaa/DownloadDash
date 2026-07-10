@@ -16,40 +16,22 @@ const json = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
-const getUpstreamBaseUrl = () =>
-  String(process.env.SMD_API_BASE_URL || process.env.VITE_SMD_API_BASE_URL || DEFAULT_UPSTREAM_BASE_URL)
-    .replace(/\/+$/, '');
-
-const getDownloadDashApiKey = () => String(process.env.DOWNLOADDASH_API_KEY || '').trim();
-
-const buildUpstreamHeaders = (req) => {
-  const headers = {
-    Accept: 'application/json',
-    'X-DownloadDash-Key': getDownloadDashApiKey(),
-  };
-  return headers;
-};
-
-const copyResponseHeaders = (upstream, res) => {
-  upstream.headers.forEach((value, key) => {
-    const lowerKey = key.toLowerCase();
-    if (HOP_BY_HOP_HEADERS.has(lowerKey) || lowerKey === 'content-encoding') return;
-    res.setHeader(key, value);
-  });
-};
-
 export default async function handler(req, res) {
-  const apiKey = getDownloadDashApiKey();
-  if (!apiKey) {
-    return json(res, 500, {
-      success: false,
-      message: 'DownloadDash API key is not configured on Vercel.',
-    });
+  // Handle CORS Preflight Options
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-DownloadDash-Key');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
   }
+
+  const apiKey = String(process.env.DOWNLOADDASH_API_KEY || '').trim();
+  const baseUrl = String(process.env.SMD_API_BASE_URL || process.env.VITE_SMD_API_BASE_URL || DEFAULT_UPSTREAM_BASE_URL).replace(/\/+$/, '');
 
   let mediaUrl = '';
   
-  // Extract URL from POST body safely
+  // Safely capture payload URL from POST body
   if (req.body) {
     try {
       const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -59,7 +41,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // Fallback check query if body was not parsed
+  // Fallback to query parameter if body wasn't fully read
   if (!mediaUrl && req.query.url) {
     mediaUrl = req.query.url;
   }
@@ -68,37 +50,53 @@ export default async function handler(req, res) {
     return json(res, 400, { success: false, message: 'No media URL provided.' });
   }
 
-  // Extract the requested platform from the trailing endpoint path name cleanly
+  // Deduce platform from path parts
   const rawPath = req.query?.path;
   const parts = Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [];
   const inferredPlatform = parts[0] || 'instagram';
 
-  // Construct the single correct endpoint expected by app.py
-  const target = new URL(`${getUpstreamBaseUrl()}/api/v1/extract`);
+  // --- MAP TO EXACT FLASK ROUTE ---
+  // Transforms /api/smd/youtube/download POST -> /api/v1/extract?url=...&platform=... GET
+  const target = new URL(`${baseUrl}/api/v1/extract`);
   target.searchParams.append('url', mediaUrl.trim());
   target.searchParams.append('platform', inferredPlatform.toLowerCase());
 
-  const init = {
-    method: 'GET', // app.py route uses GET method
-    headers: buildUpstreamHeaders(req),
-    redirect: 'follow',
-  };
-
-  let upstream;
   try {
-    upstream = await fetch(target, init);
+    const upstream = await fetch(target.toString(), {
+      method: 'GET', // Matches app.py @app.route("/api/v1/extract", methods=["GET"])
+      headers: {
+        'Accept': 'application/json',
+        'X-DownloadDash-Key': apiKey,
+      }
+    });
+
+    if (!upstream.ok) {
+      const errorText = await upstream.text();
+      try {
+        const errorJson = JSON.parse(errorText);
+        return json(res, upstream.status, errorJson);
+      } catch {
+        return json(res, upstream.status, { success: false, error: 'Upstream server error', detail: errorText });
+      }
+    }
+
+    const data = await upstream.json();
+    
+    // Forward response headers while dropping hop-by-hop restrictions
+    upstream.headers.forEach((value, key) => {
+      const lowerKey = key.toLowerCase();
+      if (!HOP_BY_HOP_HEADERS.has(lowerKey) && lowerKey !== 'content-encoding') {
+        res.setHeader(key, value);
+      }
+    });
+
+    return res.status(upstream.status).json(data);
+
   } catch (error) {
     return json(res, 502, {
       success: false,
-      message: `Unable to reach the DownloadDash API at ${getUpstreamBaseUrl()}.`,
-      detail: error?.message || 'Network request failed.',
+      message: 'The downloading engine took too long to return data. Please try again.',
+      detail: error?.message || 'Network fetch connection timeout.'
     });
   }
-
-  copyResponseHeaders(upstream, res);
-  
-  const arrayBuffer = await upstream.arrayBuffer();
-  const body = Buffer.from(arrayBuffer);
-  
-  res.status(upstream.status).end(body);
 }

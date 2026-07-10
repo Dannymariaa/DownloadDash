@@ -7,7 +7,6 @@ const findAnyValidUrl = (obj) => {
   if (!obj) return null;
   if (typeof obj === 'string') {
     if (obj.startsWith('http://') || obj.startsWith('https://')) {
-      // Ignore common image extensions if looking for a fallback link, or accept everything
       return obj;
     }
     return null;
@@ -19,14 +18,12 @@ const findAnyValidUrl = (obj) => {
     }
   }
   if (typeof obj === 'object') {
-    // Prioritize keys that sound like media links
     const prioritizedKeys = ['url', 'download', 'download_url', 'link', 'src', 'href', 'media_url'];
     for (const key of prioritizedKeys) {
       if (obj[key] && typeof obj[key] === 'string' && (obj[key].startsWith('http://') || obj[key].startsWith('https://'))) {
         return obj[key];
       }
     }
-    // Fallback scan everything else
     for (const key in obj) {
       if (Object.prototype.hasOwnProperty.call(obj, key)) {
         const found = findAnyValidUrl(obj[key]);
@@ -38,7 +35,7 @@ const findAnyValidUrl = (obj) => {
 };
 
 /**
- * Download content from URL via the Vercel serverless API gateway
+ * Download content from URL via the Vercel serverless API gateway using optimized GET queries
  */
 export const downloadFromUrl = async (url, options = {}) => {
   const { platform = 'instagram', quality = 'high', extractAudio = false } = options;
@@ -52,34 +49,36 @@ export const downloadFromUrl = async (url, options = {}) => {
     
     const cleanUrl = url.trim(); 
     
-    let targetEndpoint = `${platform.toLowerCase()}/download`;
-    if (platform.toLowerCase() === 'twitter' || platform.toLowerCase() === 'x') {
-      targetEndpoint = 'twitter/download';
-    }
+    // Normalize platform key formatting
+    let normalizedPlatform = platform.toLowerCase();
+    if (normalizedPlatform === 'x') normalizedPlatform = 'twitter';
 
-    const response = await fetch(`/api/smd/${targetEndpoint}`, {
-      method: 'POST',
+    // Build optimized GET query strings to perfectly match app.py expected arguments
+    const queryParams = new URLSearchParams({
+      url: cleanUrl,
+      platform: normalizedPlatform,
+      quality: quality,
+      extractAudio: extractAudio ? 'true' : 'false'
+    });
+
+    // Invoke the unified /api/smd/extract routing path matching the backend architecture
+    const response = await fetch(`/api/smd/api/v1/extract?${queryParams.toString()}`, {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
         'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        url: cleanUrl,
-        quality: quality,
-        extractAudio: extractAudio
-      })
+      }
     });
 
     const result = await response.json();
     
     if (!response.ok || !result || result.success === false) {
-      throw new Error(result?.message || result?.error || 'Failed to download content from provider');
+      throw new Error(result?.error || result?.message || 'Failed to download content from provider');
     }
     
-    // Transform response to ensure consistent format
-    const transformedResult = transformDownloadResponse(result, platform);
+    // Transform response to ensure consistent UI rendering mapping structures
+    const transformedResult = transformDownloadResponse(result, normalizedPlatform);
     
-    console.log(`[Downloader] Download successful for ${platform}:`, transformedResult.type);
+    console.log(`[Downloader] Download successful for ${normalizedPlatform}:`, transformedResult.type);
     return transformedResult;
     
   } catch (error) {
@@ -178,10 +177,6 @@ export const saveMultipleToGallery = async (items, platform = 'instagram') => {
  * Transform API response to consistent format
  */
 const transformDownloadResponse = (response, platform) => {
-  // Inspect incoming data structure
-  console.log('[Downloader] Unpacking clean data payload structure:');
-  console.dir(response);
-
   const payload = response.result || response || {};
   const { media_info, downloads, download_url, thumbnail, title, type, download_id } = payload;
   
@@ -229,7 +224,6 @@ const transformDownloadResponse = (response, platform) => {
   } 
   
   if (mediaType !== 'carousel') {
-    // 1. Check strict parameters, 2. Look for recursive generic URL extraction fallback
     const fallbackUrl = download_url || payload.url || media_info?.download_url || media_info?.url || findAnyValidUrl(payload);
     
     if (!fallbackUrl) {
@@ -329,4 +323,3 @@ export const batchDownload = async (urls, options = {}) => {
 
 const downloader = { download: downloadFromUrl, saveToGallery, saveMultiple: saveMultipleToGallery, validate: validateDownloadUrl, batch: batchDownload };
 export default downloader;
-EOF
