@@ -165,6 +165,15 @@ export default async function handler(req, res) {
 
     console.info('[DownloadDash SMD proxy] after_fetch status=%s', upstream?.status);
 
+    // TEMP diagnostics: capture a small prefix of response body (safe only for debugging)
+    const text = await upstream.clone().text();
+    console.info(
+      '[DownloadDash SMD proxy] upstream_status=%s body=%s',
+      upstream.status,
+      text.substring(0, 500)
+    );
+
+
 
     upstream.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
