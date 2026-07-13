@@ -131,7 +131,19 @@ export default async function handler(req, res) {
     return json(res, 404, { success: false, message: 'API proxy path is missing.' });
   }
 
-  const target = new URL(`${baseUrl}/${parts.join('/')}`);
+  let forwardParts = parts;
+
+  // Map frontend path: /api/smd/<platform>/download -> upstream: /api/v1/<platform>/download
+  // (backend exposes POST /api/v1/<platform>/download)
+  if (parts.length >= 2 && parts[1] === 'download') {
+    // If a single-segment platform is present (e.g. ['youtube','download'])
+    // rewrite by prefixing /api/v1.
+    // Also support nested segments defensively.
+    forwardParts = ['api', 'v1', ...parts];
+  }
+
+  const target = new URL(`${baseUrl}/${forwardParts.join('/')}`);
+
 
   console.info('[DownloadDash SMD proxy] resolved_target=%s', target.toString());
 
