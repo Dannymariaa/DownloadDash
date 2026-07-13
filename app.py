@@ -4,6 +4,8 @@ import uuid
 
 from flask import Flask, Response, g, jsonify, request
 
+from dotenv import load_dotenv
+
 from cache import get_cache, redis_health, set_cache
 from config import Config
 from downloader import UpstreamBlocked, detect_platform, extract_metadata
@@ -12,6 +14,8 @@ from metrics import metrics
 from rate_limit import rate_limit
 from security import SecurityValidationError, validate_public_url
 from utils.logger import logger
+
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -389,3 +393,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.getenv("PORT", "5000")),
     )
+
