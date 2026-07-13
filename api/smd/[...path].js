@@ -87,6 +87,12 @@ const buildForwardHeaders = (req, apiKey) => {
 };
 
 export default async function handler(req, res) {
+  // TEMP DIAGNOSTICS (remove after root cause)
+  console.info('[DownloadDash SMD proxy] handler_start');
+  console.info('[DownloadDash SMD proxy] method=%s', req?.method);
+  console.info('[DownloadDash SMD proxy] url=%s', req?.url);
+  console.info('[DownloadDash SMD proxy] query=%o', req?.query);
+
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,HEAD,OPTIONS');
   res.setHeader(
@@ -100,6 +106,8 @@ export default async function handler(req, res) {
 
   const apiKey = String(process.env.DOWNLOADDASH_API_KEY || '').trim();
   const baseUrl = normalizeUpstreamBaseUrl(process.env.SMD_API_BASE_URL || DEFAULT_UPSTREAM_BASE_URL);
+
+  console.info('[DownloadDash SMD proxy] apiKey_configured=%s', Boolean(apiKey));
 
   if (!apiKey) {
     return json(res, 500, {
@@ -116,10 +124,17 @@ export default async function handler(req, res) {
         : pathPartsFromUrl(req);
 
   if (!parts.length) {
+    console.info('[DownloadDash SMD proxy] parts_missing=%o', {
+      query_path: req?.query?.path,
+      query_triple: req?.query?.['...path'],
+    });
     return json(res, 404, { success: false, message: 'API proxy path is missing.' });
   }
 
   const target = new URL(`${baseUrl}/${parts.join('/')}`);
+
+  console.info('[DownloadDash SMD proxy] resolved_target=%s', target.toString());
+
   appendQueryParams(target, req.query);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -127,12 +142,17 @@ export default async function handler(req, res) {
   try {
     console.info('[DownloadDash SMD proxy] upstream_url=%s method=%s', target.toString(), req.method);
 
+    console.info('[DownloadDash SMD proxy] before_fetch target=%s', target.toString());
+
     const upstream = await fetch(target.toString(), {
       method: req.method,
       body: getRequestBody(req),
       signal: controller.signal,
       headers: buildForwardHeaders(req, apiKey),
     });
+
+    console.info('[DownloadDash SMD proxy] after_fetch status=%s', upstream?.status);
+
 
     upstream.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
