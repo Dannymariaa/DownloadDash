@@ -98,7 +98,10 @@ function getRequestBody(req) {
 function buildForwardHeaders(req, apiKey) {
   const headers = {
     Accept: req.headers.accept || 'application/json',
+    // --- FIX 1: Send the key in BOTH commonly-expected header formats ---
     'X-DownloadDash-Key': apiKey,
+    'X-API-Key': apiKey, 
+    'Authorization': `Bearer ${apiKey}`
   };
 
   const contentType = req.headers['content-type'];
@@ -134,7 +137,7 @@ export default async function handler(req, res) {
   );
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type,Accept,Authorization,X-DownloadDash-Key,X-RapidAPI-Proxy-Secret'
+    'Content-Type,Accept,Authorization,X-DownloadDash-Key,X-API-Key,X-RapidAPI-Proxy-Secret'
   );
 
   if (req.method === 'OPTIONS') {
@@ -174,6 +177,7 @@ export default async function handler(req, res) {
 
   let forwardParts;
 
+  // --- FIX 2: Ensure correct matching of the API routes ---
   if (parts.length === 1 && parts[0] === 'test') {
     forwardParts = ['api', 'v1', 'test'];
   } else if (parts.length >= 2 && parts[1] === 'download') {

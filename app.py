@@ -3,7 +3,6 @@ import time
 import uuid
 
 from flask import Flask, Response, g, jsonify, request
-
 from dotenv import load_dotenv
 
 from cache import get_cache, redis_health, set_cache
@@ -393,4 +392,3 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.getenv("PORT", "5000")),
     )
-
