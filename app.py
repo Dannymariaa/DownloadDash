@@ -156,15 +156,21 @@ def _openapi_spec():
     }
 
 
-@app.route("/openapi.json", methods=["GET"])
-@app.route("/api/v1/openapi.json", methods=["GET"])
+@app.route("/openapi.json", methods=["GET", "POST", "OPTIONS"])
+@app.route("/api/v1/openapi.json", methods=["GET", "POST", "OPTIONS"])
 def openapi():
+    # Handle CORS preflight browser requests cleanly
+    if request.method == "OPTIONS":
+        return "", 204
     return jsonify(_openapi_spec())
 
 
-@app.route("/docs", methods=["GET"])
-@app.route("/api/v1/docs", methods=["GET"])
+@app.route("/docs", methods=["GET", "OPTIONS"])
+@app.route("/api/v1/docs", methods=["GET", "OPTIONS"])
 def swagger_docs():
+    if request.method == "OPTIONS":
+        return "", 204
+        
     html = """<!doctype html>
 <html>
 <head>
