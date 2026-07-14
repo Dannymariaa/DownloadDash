@@ -12,63 +12,97 @@ const HOP_BY_HOP_HEADERS = new Set([
   'upgrade',
 ]);
 
-const json = (res, status, body) => {
-  res.status(status).setHeader('Content-Type', 'application/json');
+function json(res, status, body) {
+  res.status(status);
+  res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(body));
-};
+}
 
-const normalizeUpstreamBaseUrl = (value) => {
-  let normalized = String(value || DEFAULT_UPSTREAM_BASE_URL).trim().replace(/\/+$/, '');
+function normalizeUpstreamBaseUrl(value) {
+  let normalized = String(value || DEFAULT_UPSTREAM_BASE_URL)
+    .trim()
+    .replace(/\/+$/, '');
+
   normalized = normalized.replace(/\/api\/smd$/i, '');
   normalized = normalized.replace(/\/api$/i, '');
   normalized = normalized.replace(/\/smd$/i, '');
-  return normalized || DEFAULT_UPSTREAM_BASE_URL;
-};
 
-const asPathParts = (value) => {
+  return normalized || DEFAULT_UPSTREAM_BASE_URL;
+}
+
+function asPathParts(value) {
   if (!value) return [];
+
   const values = Array.isArray(value) ? value : [value];
+
   return values
     .flatMap((part) => String(part).split('/'))
     .filter(Boolean)
     .map((part) => encodeURIComponent(decodeURIComponent(part)));
-};
+}
 
-const pathPartsFromUrl = (req) => {
+function pathPartsFromUrl(req) {
   const requestUrl = req.url || req.originalUrl;
-  if (!requestUrl) return [];
-  const parsed = new URL(requestUrl, 'https://downloaddash.local');
-  const match = parsed.pathname.match(/^\/api\/smd\/?(.*)$/);
-  if (!match?.[1]) return [];
-  return asPathParts(match[1]);
-};
 
-const appendQueryParams = (target, query = {}) => {
+  if (!requestUrl) {
+    return [];
+  }
+
+  const parsed = new URL(requestUrl, 'https://downloaddash.local');
+
+  const match = parsed.pathname.match(/^\/api\/smd\/?(.*)$/);
+
+  if (!match || !match[1]) {
+    return [];
+  }
+
+  return asPathParts(match[1]);
+}
+
+function appendQueryParams(target, query = {}) {
   Object.entries(query).forEach(([key, value]) => {
-    if (key === 'path' || key === '...path') return;
+    if (key === 'path' || key === '...path') {
+      return;
+    }
+
     const values = Array.isArray(value) ? value : [value];
+
     values.forEach((entry) => {
       if (entry !== undefined && entry !== null) {
         target.searchParams.append(key, String(entry));
       }
     });
   });
-};
+}
 
-const getRequestBody = (req) => {
-  if (req.method === 'GET' || req.method === 'HEAD') return undefined;
-  if (req.body === undefined || req.body === null) return undefined;
-  if (Buffer.isBuffer(req.body) || typeof req.body === 'string') return req.body;
+function getRequestBody(req) {
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return undefined;
+  }
+
+  if (req.body === undefined || req.body === null) {
+    return undefined;
+  }
+
+  if (Buffer.isBuffer(req.body)) {
+    return req.body;
+  }
+
+  if (typeof req.body === 'string') {
+    return req.body;
+  }
+
   return JSON.stringify(req.body);
-};
+}
 
-const buildForwardHeaders = (req, apiKey) => {
+function buildForwardHeaders(req, apiKey) {
   const headers = {
     Accept: req.headers.accept || 'application/json',
     'X-DownloadDash-Key': apiKey,
   };
 
   const contentType = req.headers['content-type'];
+
   if (contentType) {
     headers['Content-Type'] = contentType;
   } else if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -80,24 +114,27 @@ const buildForwardHeaders = (req, apiKey) => {
   }
 
   if (req.headers['x-rapidapi-proxy-secret']) {
-    headers['X-RapidAPI-Proxy-Secret'] = req.headers['x-rapidapi-proxy-secret'];
+    headers['X-RapidAPI-Proxy-Secret'] =
+      req.headers['x-rapidapi-proxy-secret'];
   }
 
   return headers;
-};
+}
 
 export default async function handler(req, res) {
-  // TEMP DIAGNOSTICS (remove after root cause)
-  console.info('[DownloadDash SMD proxy] handler_start');
-  console.info('[DownloadDash SMD proxy] method=%s', req?.method);
-  console.info('[DownloadDash SMD proxy] url=%s', req?.url);
-  console.info('[DownloadDash SMD proxy] query=%o', req?.query);
+  console.info('[DownloadDash SMD Proxy] START');
+  console.info('Method:', req.method);
+  console.info('URL:', req.url);
+  console.info('Query:', req.query);
 
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,HEAD,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS'
+  );
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, Accept, Authorization, X-DownloadDash-Key, X-RapidAPI-Proxy-Secret'
+    'Content-Type,Accept,Authorization,X-DownloadDash-Key,X-RapidAPI-Proxy-Secret'
   );
 
   if (req.method === 'OPTIONS') {
@@ -105,101 +142,104 @@ export default async function handler(req, res) {
   }
 
   const apiKey = String(process.env.DOWNLOADDASH_API_KEY || '').trim();
-  const baseUrl = normalizeUpstreamBaseUrl(process.env.SMD_API_BASE_URL || DEFAULT_UPSTREAM_BASE_URL);
 
-  console.info('[DownloadDash SMD proxy] apiKey_configured=%s', Boolean(apiKey));
+  const baseUrl = normalizeUpstreamBaseUrl(
+    process.env.SMD_API_BASE_URL || DEFAULT_UPSTREAM_BASE_URL
+  );
 
   if (!apiKey) {
     return json(res, 500, {
       success: false,
-      message: 'DOWNLOADDASH_API_KEY is not configured on the Vercel serverless proxy.',
+      message:
+        'DOWNLOADDASH_API_KEY is not configured on the Vercel serverless function.',
     });
   }
 
-  const parts =
-    asPathParts(req.query?.path).length
-      ? asPathParts(req.query.path)
-      : asPathParts(req.query?.['...path']).length
-        ? asPathParts(req.query['...path'])
-        : pathPartsFromUrl(req);
+  let parts = asPathParts(req.query?.path);
 
   if (!parts.length) {
-    console.info('[DownloadDash SMD proxy] parts_missing=%o', {
-      query_path: req?.query?.path,
-      query_triple: req?.query?.['...path'],
-    });
-    return json(res, 404, { success: false, message: 'API proxy path is missing.' });
+    parts = asPathParts(req.query?.['...path']);
   }
 
-  let forwardParts = parts;
+  if (!parts.length) {
+    parts = pathPartsFromUrl(req);
+  }
 
-  // Map frontend path: /api/smd/<platform>/download -> upstream: /api/v1/<platform>/download
-  // (backend exposes POST /api/v1/<platform>/download)
-  if (parts.length >= 2 && parts[1] === 'download') {
-    // If a single-segment platform is present (e.g. ['youtube','download'])
-    // rewrite by prefixing /api/v1.
-    // Also support nested segments defensively.
+  if (!parts.length) {
+    return json(res, 404, {
+      success: false,
+      message: 'API proxy path is missing.',
+    });
+  }
+
+  let forwardParts;
+
+  if (parts.length === 1 && parts[0] === 'test') {
+    forwardParts = ['api', 'v1', 'test'];
+  } else if (parts.length >= 2 && parts[1] === 'download') {
+    forwardParts = ['api', 'v1', parts[0], 'download'];
+  } else {
     forwardParts = ['api', 'v1', ...parts];
   }
 
   const target = new URL(`${baseUrl}/${forwardParts.join('/')}`);
 
-
-  console.info('[DownloadDash SMD proxy] resolved_target=%s', target.toString());
-
   appendQueryParams(target, req.query);
+
+  console.info('Forward URL:', target.toString());
+
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, REQUEST_TIMEOUT_MS);
 
   try {
-    console.info('[DownloadDash SMD proxy] upstream_url=%s method=%s', target.toString(), req.method);
-
-    console.info('[DownloadDash SMD proxy] before_fetch target=%s', target.toString());
-
     const upstream = await fetch(target.toString(), {
       method: req.method,
+      headers: buildForwardHeaders(req, apiKey),
       body: getRequestBody(req),
       signal: controller.signal,
-      headers: buildForwardHeaders(req, apiKey),
     });
 
-    console.info('[DownloadDash SMD proxy] after_fetch status=%s', upstream?.status);
-
-    // TEMP diagnostics: capture a small prefix of response body (safe only for debugging)
-    const text = await upstream.clone().text();
-    console.info(
-      '[DownloadDash SMD proxy] upstream_status=%s body=%s',
-      upstream.status,
-      text.substring(0, 500)
-    );
-
-
+    console.info('Upstream Status:', upstream.status);
 
     upstream.headers.forEach((value, key) => {
-      const lowerKey = key.toLowerCase();
+      const lower = key.toLowerCase();
+
       if (
-        !HOP_BY_HOP_HEADERS.has(lowerKey) &&
-        !['content-encoding', 'content-length', 'access-control-allow-origin'].includes(lowerKey)
+        HOP_BY_HOP_HEADERS.has(lower) ||
+        lower === 'content-length' ||
+        lower === 'content-encoding' ||
+        lower === 'access-control-allow-origin'
       ) {
-        res.setHeader(key, value);
+        return;
       }
+
+      res.setHeader(key, value);
     });
 
-    const contentType = upstream.headers.get('content-type') || '';
     const buffer = Buffer.from(await upstream.arrayBuffer());
+
     res.status(upstream.status);
+
     if (!res.getHeader('Content-Type')) {
-      res.setHeader('Content-Type', contentType || 'application/octet-stream');
+      res.setHeader(
+        'Content-Type',
+        upstream.headers.get('content-type') || 'application/octet-stream'
+      );
     }
+
     return res.end(buffer);
   } catch (error) {
     const timedOut = error?.name === 'AbortError';
+
     return json(res, 502, {
       success: false,
       message: timedOut
         ? 'The downloading engine took too long to return data. Please try again.'
         : 'The DownloadDash API proxy could not reach the Render backend.',
-      detail: error?.message || 'Network fetch connection failed.',
+      detail: error?.message || 'Network connection failed.',
     });
   } finally {
     clearTimeout(timeout);
