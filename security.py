@@ -1,8 +1,12 @@
+from functools import wraps
+from flask import request, jsonify, g
+import os
 import ipaddress
 import socket
 from urllib.parse import urlparse
 
 from config import Config
+from utils.logger import logger
 
 
 class SecurityValidationError(ValueError):
@@ -76,3 +80,19 @@ def validate_public_url(url):
                 raise SecurityValidationError("URL resolves to an internal address.") from None
 
     return value
+
+def require_api_key(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if os.getenv("REQUIRE_API_KEY", "0") == "1":
+            api_key = request.headers.get(Config.API_KEY_HEADER)
+            if not api_key or api_key != Config.DOWNLOADDASH_API_KEY:
+                logger.warning(
+                    "request_id=%s event=api_key_rejected ip=%s agent=%s",
+                    g.get("request_id", "-"),
+                    request.headers.get("X-Forwarded-For", request.remote_addr),
+                    request.headers.get("User-Agent", "-"),
+                )
+                return jsonify({"success": False, "error": "Unauthorized - Missing or Invalid API Key", "code": "unauthorized"}), 401
+        return f(*args, **kwargs)
+    return decorated_function

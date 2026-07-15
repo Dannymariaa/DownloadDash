@@ -80,6 +80,9 @@ class Config:
         ],
     )
 
+    DOWNLOADDASH_API_KEY = os.getenv("DOWNLOADDASH_API_KEY", "").strip()
+    API_KEY_HEADER = "X-Downloaddash-Key"
+
     @classmethod
     def validate(cls):
         checks = {
@@ -107,6 +110,7 @@ class Config:
             "RATE_LIMIT_WINDOW_SECONDS": cls.RATE_LIMIT_WINDOW_SECONDS > 0,
             "LOG_LEVEL": cls.LOG_LEVEL
             in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"},
+            "DOWNLOADDASH_API_KEY": bool(cls.DOWNLOADDASH_API_KEY) if os.getenv("REQUIRE_API_KEY", "0") == "1" else True,
         }
         invalid = [name for name, ok in checks.items() if not ok]
         if invalid:
@@ -114,3 +118,4 @@ class Config:
 
 
 Config.validate()
+

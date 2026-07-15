@@ -5,6 +5,21 @@ const PROTECTED_RENDER_API_HOSTS = new Set([
   'api.downloaddash.store',
 ]);
 
+// --- FIX: Platform mapping for consistent API routing ---
+const PLATFORM_MAP = {
+  'youtube': 'youtube',
+  'instagram': 'instagram',
+  'tiktok': 'tiktok',
+  'facebook': 'facebook',
+  'pinterest': 'pinterest',
+  'reddit': 'reddit',
+  'x': 'x',
+  'twitter': 'x',
+  'telegram': 'telegram',
+  'whatsappbusiness': 'whatsapp_business',
+  'whatsapp_business': 'whatsapp_business'
+};
+
 const getApiBaseUrl = () => {
   const raw = import.meta.env.VITE_SMD_API_BASE_URL || DEFAULT_API_BASE_URL;
   const normalized = String(raw).replace(/\/+$/, '') || DEFAULT_API_BASE_URL;
@@ -51,6 +66,7 @@ const getResponseMessage = async (res, fallback) => {
   return data?.detail || data?.error || data?.message || fallback;
 };
 
+// --- FIX: Improved postJson with better error handling ---
 const postJson = async (path, body) => {
   const baseUrl = getApiBaseUrl();
   let res;
@@ -67,16 +83,51 @@ const postJson = async (path, body) => {
     );
   }
 
-  const data = await tryParseJson(res);
+  // --- FIX: Get response text first to handle empty responses ---
+  let responseText;
+  try {
+    responseText = await res.text();
+  } catch {
+    throw new Error('Failed to read response from server');
+  }
+
+  // --- FIX: Check for empty response ---
+  if (!responseText || responseText.trim() === '') {
+    if (res.status === 404) {
+      throw new Error(`API endpoint not found. Please check your API configuration.`);
+    }
+    throw new Error(`Server returned an empty response (${res.status})`);
+  }
+
+  // --- FIX: Parse JSON with error handling ---
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (parseError) {
+    console.error('JSON Parse Error:', parseError);
+    console.log('Raw response:', responseText.substring(0, 500));
+    throw new Error('Invalid response format from server');
+  }
+
   if (!res.ok) {
     if (res.status === 500 && data?.message?.includes('API key is not configured')) {
       throw new Error(data.message);
     }
-    if (res.status === 403) {
+    if (res.status === 401 || res.status === 403) {
       throw new Error(
         data?.message === 'Unauthorized'
           ? 'DownloadDash API authentication failed. Check the server-side DOWNLOADDASH_API_KEY in Vercel.'
           : data?.message || 'DownloadDash API request was forbidden.'
+      );
+    }
+    if (res.status === 404) {
+      throw new Error(
+        data?.message || `API endpoint not found (${res.status}). Please check your API configuration.`
+      );
+    }
+    if (res.status === 429) {
+      throw new Error(
+        data?.message || 'Rate limit exceeded. Please try again later.'
       );
     }
     const message =
@@ -416,6 +467,7 @@ const saveToHistory = async (entry) => {
   }
 };
 
+// --- FIX: Improved resolveViaApi with better error handling and platform mapping ---
 const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   if (platform === 'youtube' && useRapidApiForYoutube()) {
     throw new Error(
@@ -423,51 +475,89 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
     );
   }
 
-  const normalizedPlatform =
-    platform === 'whatsappbusiness'
-      ? 'whatsapp_business'
-      : platform;
+  // --- FIX: Map platform to correct name ---
+  const mappedPlatform = PLATFORM_MAP[platform] || platform;
+  
+  // --- FIX: Use correct API endpoint path ---
+  const apiPath = `/${mappedPlatform}/download`;
+  
+  // --- FIX: Validate we have a valid platform ---
+  if (!mappedPlatform || mappedPlatform === 'undefined') {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
 
   const payload = {
     url,
-    platform: normalizedPlatform,
+    platform: mappedPlatform,
     quality: quality || 'highest',
     extract_audio: !!extractAudio,
     include_metadata: true,
   };
 
-  const data = await postJson(`/${normalizedPlatform}/download`, payload);
+  console.log(`[DownloadDash] Resolving: ${mappedPlatform} | ${apiPath}`);
+
+  let data;
+  try {
+    data = await postJson(apiPath, payload);
+  } catch (error) {
+    // --- FIX: Provide better error messages ---
+    if (error.message.includes('404')) {
+      throw new Error(`Platform "${platform}" endpoint not found. Please check your API configuration.`);
+    }
+    if (error.message.includes('empty response')) {
+      throw new Error('Server returned an empty response. Please try again.');
+    }
+    throw error;
+  }
 
   if (data?.success === false) {
     const message = data?.error || data?.message || 'Resolve failed';
     throw new Error(message);
   }
 
-  const title = data?.media_info?.title || 'Media';
+  // --- FIX: Normalize response data ---
+  const title = data?.media_info?.title || data?.title || 'Media';
   const thumbnail =
     data?.media_info?.thumbnail_url ||
     data?.media_info?.preview_url ||
+    data?.thumbnail_url ||
     null;
 
   const downloads = { ...(data?.downloads || {}) };
+  
+  // --- FIX: Extract download URLs from various possible locations ---
   if (!downloads.videoHD && downloads.video) downloads.videoHD = downloads.video;
   if (!downloads.videoSD && downloads.video) downloads.videoSD = downloads.video;
   if (!downloads.audio && downloads.audio_url) downloads.audio = downloads.audio_url;
+  if (!downloads.image && data?.image) downloads.image = data.image;
+  if (!downloads.image && data?.download_url) downloads.image = data.download_url;
+  
+  // --- FIX: Find audio from nested locations ---
   if (!downloads.audio) {
     downloads.audio = findAudioUrl(downloads, data, data?.media_info);
   }
+  
+  // --- FIX: Collect media items ---
   const collectedItems = collectMediaItems(data, downloads);
   if (collectedItems.length) downloads.items = collectedItems;
+  
+  // --- FIX: Absolutize all URLs ---
   downloads.videoHD = absolutizeApiUrl(downloads.videoHD);
   downloads.videoSD = absolutizeApiUrl(downloads.videoSD);
   downloads.video = absolutizeApiUrl(downloads.video);
   downloads.audio = absolutizeApiUrl(downloads.audio);
   downloads.image = absolutizeApiUrl(downloads.image);
+  
+  // --- FIX: Get image from items if not set ---
   if (!downloads.image && Array.isArray(downloads.items)) {
     const firstImage = downloads.items.find((item) => item.type !== 'video' && item.type !== 'audio');
     downloads.image = firstImage?.url;
   }
+  
+  // --- FIX: Determine media type ---
   const mediaType = data?.media_type || data?.media_info?.media_type || null;
+  
+  // --- FIX: Get primary download URL ---
   const downloadUrl =
     downloads.videoHD ||
     downloads.videoSD ||
@@ -475,26 +565,29 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
     downloads.audio ||
     downloads.image ||
     data?.download_url ||
-    data?.media_info?.download_url;
+    data?.media_info?.download_url ||
+    data?.url;
 
   const fallbackImage =
     downloads.image ||
     data?.media_info?.thumbnail_url ||
     data?.media_info?.preview_url ||
+    thumbnail ||
     null;
 
-  if (!downloadUrl && fallbackImage) {
-    downloads.image = downloads.image || fallbackImage;
-  }
-
+  // --- FIX: Ensure we have at least one URL ---
   if (!downloadUrl && !fallbackImage) {
-    throw new Error('No downloadable URL returned from API');
+    console.error('No download URL found in response:', data);
+    throw new Error('No downloadable URL returned from API. The content may not be available for download.');
   }
+  
   const finalDownloadUrl = downloadUrl || fallbackImage;
 
+  // --- FIX: Determine content kind ---
   const hasVideo = !!(downloads.videoHD || downloads.videoSD || downloads.video);
   const hasAudio = !!downloads.audio;
   const hasImage = !!downloads.image;
+  
   let kind = extractAudio
     ? 'audio'
     : hasVideo
@@ -506,7 +599,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   if (kind === 'photo' || kind === 'image') kind = 'image';
   if (kind === 'album' || kind === 'carousel') kind = 'album';
 
-  // Ensure we always expose at least one actionable download per resolved kind.
+  // --- FIX: Ensure downloads have at least one URL per kind ---
   if (kind === 'video' && !downloads.videoHD && finalDownloadUrl) {
     downloads.videoHD = finalDownloadUrl;
     downloads.videoSD = downloads.videoSD || finalDownloadUrl;
@@ -518,8 +611,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
     downloads.image = finalDownloadUrl;
   }
 
-  const platformOut = data?.media_info?.platform || platform || 'unknown';
-
+  // --- FIX: Handle album items ---
   const albumItems = Array.isArray(downloads.items)
     ? downloads.items
         .map((item, index) => normalizeMediaItem(item, index))
@@ -543,10 +635,13 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
     }
   }
 
+  // --- FIX: Get platform from response or fallback ---
+  const platformOut = data?.media_info?.platform || data?.platform || mappedPlatform || 'unknown';
+
   return {
     success: true,
     title,
-    thumbnail,
+    thumbnail: absolutizeApiUrl(thumbnail),
     platform: platformOut,
     type: kind,
     author_username: data?.author_username || data?.media_info?.author_username || null,

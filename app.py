@@ -1,6 +1,8 @@
 import os
 import time
 import uuid
+import re
+from functools import wraps
 
 from flask import Flask, Response, g, jsonify, request
 from dotenv import load_dotenv
@@ -23,20 +25,93 @@ logger.info(
     bool(Config.PROXY_URL),
 )
 
+# --- FIX: Platform mapping for consistent API routing ---
+PLATFORM_MAP = {
+    'youtube': 'youtube',
+    'instagram': 'instagram',
+    'tiktok': 'tiktok',
+    'facebook': 'facebook',
+    'pinterest': 'pinterest',
+    'reddit': 'reddit',
+    'x': 'x',
+    'twitter': 'x',
+    'telegram': 'telegram'
+}
+
+# --- FIX: Authentication helper using DOWNLOADDASH_API_KEY ---
+def authenticate_request():
+    """Check if the request has a valid DOWNLOADDASH_API_KEY"""
+    api_key = request.headers.get('DOWNLOADDASH_API_KEY', '').strip()
+    expected_key = os.environ.get('DOWNLOADDASH_API_KEY', '').strip()
+    
+    if not expected_key:
+        # If no API key is configured, allow all requests (development mode)
+        logger.warning("DOWNLOADDASH_API_KEY not configured in environment")
+        return True
+    
+    if not api_key:
+        logger.warning("Missing DOWNLOADDASH_API_KEY header")
+        return False
+    
+    return api_key == expected_key
+
+# --- FIX: Authentication middleware ---
+@app.before_request
+def check_auth():
+    """Verify authentication for all protected endpoints"""
+    # Skip auth for public endpoints
+    public_endpoints = [
+        '/', 
+        '/health', 
+        '/liveness', 
+        '/readiness', 
+        '/docs', 
+        '/openapi.json',
+        '/api/v1/health',
+        '/api/v1/liveness', 
+        '/api/v1/readiness',
+        '/api/v1/docs',
+        '/api/v1/openapi.json',
+        '/metrics',
+        '/api/v1/metrics'
+    ]
+    
+    if request.path in public_endpoints:
+        return
+    
+    if request.method == 'OPTIONS':
+        return
+    
+    # Check authentication
+    if not authenticate_request():
+        logger.warning(
+            "request_id=%s event=auth_failed path=%s ip=%s",
+            g.get('request_id', '-'),
+            request.path,
+            request.headers.get('X-Forwarded-For', request.remote_addr)
+        )
+        return jsonify({
+            "success": False,
+            "message": "Invalid or missing DOWNLOADDASH_API_KEY",
+            "error": "AUTH_FAILED",
+            "tip": "Make sure you are sending the DOWNLOADDASH_API_KEY header with your request"
+        }), 403
 
 def _json_error(message, status=400, code="bad_request"):
     metrics.record_error()
     return jsonify({"success": False, "error": message, "code": code}), status
 
-
 def _validate_platform(value):
     if value is None or value == "":
         return None
     platform = value.strip().lower()
-    if platform not in Config.SUPPORTED_PLATFORMS:
-        raise ValueError("Unsupported platform.")
-    return platform
-
+    # --- FIX: Map platform aliases ---
+    mapped_platform = PLATFORM_MAP.get(platform)
+    if mapped_platform and mapped_platform in Config.SUPPORTED_PLATFORMS:
+        return mapped_platform
+    if platform in Config.SUPPORTED_PLATFORMS:
+        return platform
+    raise ValueError("Unsupported platform.")
 
 @app.before_request
 def attach_request_context():
@@ -45,7 +120,6 @@ def attach_request_context():
     g.request_id = request_id[:128] if request_id else str(uuid.uuid4())
     g.correlation_id = correlation_id[:128] if correlation_id else g.request_id
     g.started_at = time.monotonic()
-
 
 @app.after_request
 def log_request(response):
@@ -64,7 +138,6 @@ def log_request(response):
     )
     return response
 
-
 @app.route("/", methods=["GET"])
 def home():
     return jsonify(
@@ -75,18 +148,15 @@ def home():
         }
     )
 
-
 @app.route("/health", methods=["GET"])
 @app.route("/api/v1/health", methods=["GET"])
 def health():
     return jsonify({"success": True, "status": "healthy"})
 
-
 @app.route("/liveness", methods=["GET"])
 @app.route("/api/v1/liveness", methods=["GET"])
 def liveness():
     return jsonify({"success": True, "status": "alive"})
-
 
 @app.route("/readiness", methods=["GET"])
 @app.route("/api/v1/readiness", methods=["GET"])
@@ -109,7 +179,6 @@ def readiness():
         ),
         status,
     )
-
 
 def _openapi_spec():
     return {
@@ -155,15 +224,12 @@ def _openapi_spec():
         },
     }
 
-
 @app.route("/openapi.json", methods=["GET", "POST", "OPTIONS"])
 @app.route("/api/v1/openapi.json", methods=["GET", "POST", "OPTIONS"])
 def openapi():
-    # Handle CORS preflight browser requests cleanly
     if request.method == "OPTIONS":
         return "", 204
     return jsonify(_openapi_spec())
-
 
 @app.route("/docs", methods=["GET", "OPTIONS"])
 @app.route("/api/v1/docs", methods=["GET", "OPTIONS"])
@@ -185,27 +251,23 @@ def swagger_docs():
 </html>"""
     return Response(html, mimetype="text/html")
 
-
+# --- FIX: Main extraction endpoint with improved platform handling ---
 @app.route("/extract", methods=["GET", "POST"])
 @app.route("/api/v1/extract", methods=["GET", "POST"])
-@app.route("/api/v1/<string:platform>/download", methods=["POST"])
 @rate_limit
-def extract_media(platform=None):
+def extract_media():
     metrics.record_api_request()
     
-    # Handle incoming payloads seamlessly whether they are URL params or JSON POST bodies
     raw_url = None
-    raw_platform = platform
+    raw_platform = None
 
     if request.method == "POST":
         payload = request.get_json(silent=True) or {}
         raw_url = payload.get("url")
-        if not raw_platform:
-            raw_platform = payload.get("platform")
+        raw_platform = payload.get("platform")
     else:
         raw_url = request.args.get("url")
-        if not raw_platform:
-            raw_platform = request.args.get("platform")
+        raw_platform = request.args.get("platform")
 
     if raw_url is None:
         return _json_error("URL parameter is missing.", 400, "missing_url")
@@ -277,16 +339,9 @@ def extract_media(platform=None):
         try:
             result = extract_metadata(url)
             
-            # --- FRONTEND PAYLOAD COMPATIBILITY NORMALIZER ---
-            # Ensure a top-level 'url' string is available if nested within an extraction matrix
-            if isinstance(result, dict) and "url" not in result:
-                if "medias" in result and len(result["medias"]) > 0:
-                    result["url"] = result["medias"][0].get("url") or result["medias"][0].get("download_url")
-                elif "streams" in result and len(result["streams"]) > 0:
-                    result["url"] = result["streams"][0].get("url")
-                elif "links" in result and len(result["links"]) > 0:
-                    result["url"] = result["links"][0] if isinstance(result["links"][0], str) else result["links"][0].get("url")
-
+            # --- FIX: Normalize response for frontend compatibility ---
+            result = normalize_extraction_result(result, url, detected_platform)
+            
         except SecurityValidationError as exc:
             logger.warning("request_id=%s event=security_rejected error=%s", g.request_id, exc)
             return _json_error(str(exc), 400, "invalid_url")
@@ -308,6 +363,152 @@ def extract_media(platform=None):
         set_cache(url, result)
         return jsonify({"success": True, "cached": False, "result": result})
 
+# --- FIX: New endpoint for platform-specific downloads ---
+@app.route("/api/v1/<string:platform>/download", methods=["POST"])
+@rate_limit
+def platform_download(platform):
+    """Handle platform-specific download requests"""
+    metrics.record_api_request()
+    
+    # --- FIX: Map platform to correct name ---
+    mapped_platform = PLATFORM_MAP.get(platform.lower(), platform.lower())
+    if mapped_platform not in Config.SUPPORTED_PLATFORMS:
+        return _json_error(f"Unsupported platform: {platform}", 400, "unsupported_platform")
+    
+    payload = request.get_json(silent=True) or {}
+    url = payload.get("url")
+    
+    if not url:
+        return _json_error("URL parameter is missing.", 400, "missing_url")
+    
+    try:
+        validated_url = validate_public_url(url)
+        detected_platform = detect_platform(validated_url)
+        
+        # --- FIX: Validate platform matches URL ---
+        if detected_platform and detected_platform != mapped_platform:
+            return _json_error(
+                f"URL does not match platform. Detected: {detected_platform}, Requested: {mapped_platform}",
+                400,
+                "platform_mismatch"
+            )
+    except SecurityValidationError as exc:
+        return _json_error(str(exc), 400, "invalid_url")
+    
+    # --- FIX: Extract metadata using the platform-specific endpoint ---
+    try:
+        result = extract_metadata(validated_url)
+        result = normalize_extraction_result(result, validated_url, mapped_platform)
+        
+        return jsonify({
+            "success": True,
+            "platform": mapped_platform,
+            "media_info": result.get("media_info", {}),
+            "downloads": result.get("downloads", {}),
+            "metadata": result.get("metadata", {}),
+            "url": result.get("url", validated_url)
+        })
+        
+    except Exception as exc:
+        logger.error(f"Platform download error: {exc}", exc_info=True)
+        return _json_error(str(exc), 500, "extract_failed")
+
+# --- FIX: Normalization helper function ---
+def normalize_extraction_result(result, url, platform):
+    """Normalize extraction result for consistent frontend consumption"""
+    
+    if not isinstance(result, dict):
+        result = {"raw": result}
+    
+    # Ensure platform is set
+    if "platform" not in result:
+        result["platform"] = platform
+    
+    # Ensure URL is present
+    if "url" not in result:
+        result["url"] = url
+    
+    # Create media_info if missing
+    if "media_info" not in result:
+        result["media_info"] = {}
+    
+    # Ensure media_info has required fields
+    if "title" not in result["media_info"]:
+        result["media_info"]["title"] = result.get("title", "DownloadDash Media")
+    
+    # Create downloads structure
+    if "downloads" not in result:
+        result["downloads"] = {}
+    
+    # --- FIX: Extract download URLs from various possible locations ---
+    downloads = result["downloads"]
+    
+    # Extract from various common formats
+    if "download_url" in result and not downloads.get("videoHD"):
+        downloads["videoHD"] = result["download_url"]
+    
+    if "video" in result and not downloads.get("videoSD"):
+        downloads["videoSD"] = result["video"]
+    
+    if "audio" in result and not downloads.get("audio"):
+        downloads["audio"] = result["audio"]
+    
+    if "image" in result and not downloads.get("image"):
+        downloads["image"] = result["image"]
+    
+    # Handle medias/streams arrays
+    if "medias" in result and isinstance(result["medias"], list):
+        for media in result["medias"]:
+            if isinstance(media, dict):
+                media_type = media.get("type", media.get("media_type", "video"))
+                media_url = media.get("url", media.get("download_url"))
+                if media_url:
+                    if "video" in media_type.lower() and not downloads.get("videoHD"):
+                        downloads["videoHD"] = media_url
+                    elif "audio" in media_type.lower() and not downloads.get("audio"):
+                        downloads["audio"] = media_url
+                    elif "image" in media_type.lower() and not downloads.get("image"):
+                        downloads["image"] = media_url
+    
+    if "streams" in result and isinstance(result["streams"], list):
+        for stream in result["streams"]:
+            if isinstance(stream, dict):
+                stream_url = stream.get("url", stream.get("download_url"))
+                quality = stream.get("quality", stream.get("label", "default"))
+                if stream_url:
+                    if "hd" in quality.lower() or "high" in quality.lower():
+                        downloads["videoHD"] = stream_url
+                    elif not downloads.get("videoSD"):
+                        downloads["videoSD"] = stream_url
+    
+    # Handle links array
+    if "links" in result and isinstance(result["links"], list):
+        for link in result["links"]:
+            if isinstance(link, str) and not downloads.get("fallback"):
+                downloads["fallback"] = link
+            elif isinstance(link, dict):
+                link_url = link.get("url", link.get("download_url"))
+                link_type = link.get("type", "video")
+                if link_url:
+                    if "video" in link_type.lower() and not downloads.get("videoHD"):
+                        downloads["videoHD"] = link_url
+                    elif "audio" in link_type.lower() and not downloads.get("audio"):
+                        downloads["audio"] = link_url
+                    elif "image" in link_type.lower() and not downloads.get("image"):
+                        downloads["image"] = link_url
+    
+    # Set fallback if nothing else found
+    if not downloads and "url" in result:
+        downloads["fallback"] = result["url"]
+    
+    # Ensure proper thumbnail
+    if "thumbnail" in result and not result["media_info"].get("thumbnail_url"):
+        result["media_info"]["thumbnail_url"] = result["thumbnail"]
+    
+    if "thumbnail_url" in result and not result["media_info"].get("thumbnail_url"):
+        result["media_info"]["thumbnail_url"] = result["thumbnail_url"]
+    
+    return result
 
 def _prometheus_metrics(report):
     lines = [
@@ -359,7 +560,6 @@ def _prometheus_metrics(report):
         )
     return "\n".join(lines) + "\n"
 
-
 @app.route("/metrics", methods=["GET"])
 @app.route("/api/v1/metrics", methods=["GET"])
 def get_metrics():
@@ -370,16 +570,13 @@ def get_metrics():
         return jsonify(report)
     return Response(_prometheus_metrics(report), mimetype="text/plain; version=0.0.4")
 
-
 @app.errorhandler(404)
 def not_found(exc):
     return _json_error("Not found.", 404, "not_found")
 
-
 @app.errorhandler(405)
 def method_not_allowed(exc):
     return _json_error("Method not allowed.", 405, "method_not_allowed")
-
 
 @app.errorhandler(Exception)
 def handle_exception(exc):
@@ -390,7 +587,6 @@ def handle_exception(exc):
         exc_info=True,
     )
     return _json_error("Internal server error.", 500, "internal_error")
-
 
 if __name__ == "__main__":
     app.run(
