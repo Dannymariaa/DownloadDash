@@ -34,10 +34,10 @@ const findAnyValidUrl = (obj) => {
   return null;
 };
 
-// --- FIX: API Base URL - Directly call the backend API ---
-const API_BASE_URL = 'https://api.downloaddash.store';
+// --- FIX: Use Vercel proxy instead of direct backend call ---
+const API_BASE_URL = '/api';
 
-// --- FIX: Platform mapping (no more /api/smd/ prefix) ---
+// --- Platform mapping ---
 const PLATFORM_MAP = {
   'youtube': 'youtube',
   'instagram': 'instagram',
@@ -45,13 +45,28 @@ const PLATFORM_MAP = {
   'facebook': 'facebook',
   'pinterest': 'pinterest',
   'reddit': 'reddit',
-  'x': 'twitter',  // Map x to twitter for backend
+  'x': 'twitter',
   'twitter': 'twitter',
   'telegram': 'telegram'
 };
 
 /**
- * Download content from URL via the backend API
+ * Get API key from environment
+ */
+const getApiKey = () => {
+  // Try multiple sources for the API key
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env.DOWNLOADDASH_API_KEY || process.env.NEXT_PUBLIC_DOWNLOADDASH_API_KEY || '';
+  }
+  // For browser environment
+  if (typeof window !== 'undefined' && window.__ENV) {
+    return window.__ENV.DOWNLOADDASH_API_KEY || '';
+  }
+  return '';
+};
+
+/**
+ * Download content from URL via the Vercel proxy with API key
  */
 export const downloadFromUrl = async (url, options = {}) => {
   const { platform = 'instagram', quality = 'high', extractAudio = false } = options;
@@ -67,20 +82,31 @@ export const downloadFromUrl = async (url, options = {}) => {
     
     // Normalize platform
     let normalizedPlatform = platform.toLowerCase();
-    // Use the platform map to get the correct backend endpoint
     const mappedPlatform = PLATFORM_MAP[normalizedPlatform] || normalizedPlatform;
 
-    // --- FIX: Direct API call to backend (NO /api/smd prefix) ---
+    // --- FIX: Use Vercel proxy URL ---
     const apiUrl = `${API_BASE_URL}/${mappedPlatform}/download`;
     console.log(`[Downloader] Calling API: ${apiUrl}`);
 
+    // --- FIX: Get API key from environment ---
+    const apiKey = getApiKey();
+
+    // --- FIX: Build headers with API key ---
+    const headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+    };
+
+    // Add API key if available
+    if (apiKey) {
+      headers['X-API-Key'] = apiKey;
+      headers['DOWNLOADDASH_API_KEY'] = apiKey;
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        // No API key needed - public endpoint
-      },
+      headers: headers,
       body: JSON.stringify({
         url: cleanUrl,
         quality: quality,
@@ -96,9 +122,18 @@ export const downloadFromUrl = async (url, options = {}) => {
         const errorData = await response.json();
         if (errorData.message) errorMessage = errorData.message;
         else if (errorData.error) errorMessage = errorData.error;
+        else if (errorData.detail) errorMessage = errorData.detail;
       } catch (e) {
         // If response is not JSON, use status text
       }
+      
+      // Specific error messages for common status codes
+      if (response.status === 401 || response.status === 403) {
+        errorMessage = 'Authentication failed. Please check your API key.';
+      } else if (response.status === 404) {
+        errorMessage = `API endpoint not found for platform: ${platform}`;
+      }
+      
       throw new Error(errorMessage);
     }
 
