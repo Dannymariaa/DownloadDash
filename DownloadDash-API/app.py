@@ -1,36 +1,27 @@
 import os
-import time
-import uuid
-import re
-from functools import wraps
-
-from flask import Flask, Response, g, jsonify, request
-from dotenv import load_dotenv
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-load_dotenv()
-
 app = Flask(__name__)
-
-# Enable CORS
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# --- Platform mapping ---
-PLATFORM_MAP = {
-    'youtube': 'youtube',
-    'instagram': 'instagram',
-    'tiktok': 'tiktok',
-    'facebook': 'facebook',
-    'pinterest': 'pinterest',
-    'reddit': 'reddit',
-    'x': 'x',
-    'twitter': 'x',
-    'telegram': 'telegram'
-}
+# --- HARDCODE THE API KEY FOR TESTING ---
+EXPECTED_API_KEY = "sk_prod_vnZgbbIjmt3yOfy6A0rSpkwnqRAYEnnRjksvFnsc0U"
 
-# --- Authentication helper ---
-def authenticate_request():
-    """Check if the request has a valid DOWNLOADDASH_API_KEY"""
+# --- Authentication with hardcoded key ---
+@app.before_request
+def check_auth():
+    """Verify authentication for all protected endpoints"""
+    # Public endpoints
+    public_endpoints = ['/', '/health', '/liveness', '/readiness', '/docs', '/openapi.json', '/metrics']
+    
+    if request.path in public_endpoints or request.path.startswith('/static/'):
+        return
+    
+    if request.method == 'OPTIONS':
+        return
+    
+    # Get API key from headers
     api_key = request.headers.get('DOWNLOADDASH_API_KEY', '').strip()
     
     # Try Authorization header as fallback
@@ -39,45 +30,33 @@ def authenticate_request():
         if auth_header.startswith('Bearer '):
             api_key = auth_header[7:].strip()
     
-    expected_key = os.environ.get('DOWNLOADDASH_API_KEY', '').strip()
-    
-    # DEVELOPMENT MODE: If no API key is configured, allow all
-    if not expected_key:
-        print("⚠️ DOWNLOADDASH_API_KEY not configured - allowing all requests (DEVELOPMENT MODE)")
-        return True
+    # Debug logging
+    print("=" * 60)
+    print("🔐 AUTHENTICATION DEBUG")
+    print("=" * 60)
+    print(f"📥 Received API Key: '{api_key}'")
+    print(f"📥 Received Key Length: {len(api_key) if api_key else 0}")
+    print(f"📤 Expected API Key: '{EXPECTED_API_KEY}'")
+    print(f"📤 Expected Key Length: {len(EXPECTED_API_KEY)}")
+    print(f"🔑 Keys Match: {api_key == EXPECTED_API_KEY}")
+    print("=" * 60)
     
     if not api_key:
-        print("❌ Missing DOWNLOADDASH_API_KEY header")
-        return False
-    
-    if api_key != expected_key:
-        print(f"❌ Invalid API key: {api_key[:15]}... != {expected_key[:15]}...")
-        return False
-    
-    print("✅ Authentication successful")
-    return True
-
-# --- Authentication middleware ---
-@app.before_request
-def check_auth():
-    """Verify authentication for all protected endpoints"""
-    public_endpoints = [
-        '/', '/health', '/liveness', '/readiness', 
-        '/docs', '/openapi.json', '/metrics'
-    ]
-    
-    if request.path in public_endpoints or request.path.startswith('/static/'):
-        return
-    
-    if request.method == 'OPTIONS':
-        return
-    
-    if not authenticate_request():
         return jsonify({
             "success": False,
-            "message": "Invalid or missing DOWNLOADDASH_API_KEY",
+            "message": "Missing DOWNLOADDASH_API_KEY header",
             "error": "AUTH_FAILED"
         }), 403
+    
+    if api_key != EXPECTED_API_KEY:
+        return jsonify({
+            "success": False,
+            "message": "Invalid DOWNLOADDASH_API_KEY",
+            "error": "AUTH_FAILED"
+        }), 403
+    
+    print("✅ Authentication successful!")
+    return
 
 # --- CORS headers ---
 @app.after_request
@@ -90,31 +69,24 @@ def add_cors_headers(response):
 # --- Routes ---
 @app.route("/", methods=["GET"])
 def home():
-    return jsonify({
-        "success": True,
-        "service": "DownloadDash API",
-        "version": "1.0.0"
-    })
+    return jsonify({"success": True, "service": "DownloadDash API", "version": "1.0.0"})
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"success": True, "status": "healthy"})
 
-@app.route("/liveness", methods=["GET"])
-def liveness():
-    return jsonify({"success": True, "status": "alive"})
-
 @app.route("/youtube/download", methods=["POST"])
 def youtube_download():
     """YouTube download endpoint"""
     try:
-        data = request.get_json()
-        url = data.get('url') if data else None
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"success": False, "error": "Missing JSON body"}), 400
         
+        url = data.get('url')
         if not url:
             return jsonify({"success": False, "error": "URL is required"}), 400
         
-        # Return mock response for testing
         return jsonify({
             "success": True,
             "platform": "youtube",
@@ -130,91 +102,108 @@ def youtube_download():
 
 @app.route("/instagram/download", methods=["POST"])
 def instagram_download():
-    """Instagram download endpoint"""
-    return jsonify({
-        "success": True,
-        "platform": "instagram",
-        "title": "Instagram Post Download",
-        "downloads": {
-            "image": "https://example.com/image.jpg",
-            "video": "https://example.com/video.mp4"
-        }
-    })
+    try:
+        data = request.get_json(silent=True)
+        if not data or not data.get('url'):
+            return jsonify({"success": False, "error": "URL is required"}), 400
+        return jsonify({
+            "success": True,
+            "platform": "instagram",
+            "title": "Instagram Post Download",
+            "downloads": {"image": "https://example.com/image.jpg", "video": "https://example.com/video.mp4"}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/tiktok/download", methods=["POST"])
 def tiktok_download():
-    """TikTok download endpoint"""
-    return jsonify({
-        "success": True,
-        "platform": "tiktok",
-        "title": "TikTok Video Download",
-        "downloads": {
-            "video": "https://example.com/tiktok.mp4"
-        }
-    })
+    try:
+        data = request.get_json(silent=True)
+        if not data or not data.get('url'):
+            return jsonify({"success": False, "error": "URL is required"}), 400
+        return jsonify({
+            "success": True,
+            "platform": "tiktok",
+            "title": "TikTok Video Download",
+            "downloads": {"video": "https://example.com/tiktok.mp4"}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/facebook/download", methods=["POST"])
 def facebook_download():
-    """Facebook download endpoint"""
-    return jsonify({
-        "success": True,
-        "platform": "facebook",
-        "title": "Facebook Video Download",
-        "downloads": {
-            "video": "https://example.com/facebook.mp4"
-        }
-    })
+    try:
+        data = request.get_json(silent=True)
+        if not data or not data.get('url'):
+            return jsonify({"success": False, "error": "URL is required"}), 400
+        return jsonify({
+            "success": True,
+            "platform": "facebook",
+            "title": "Facebook Video Download",
+            "downloads": {"video": "https://example.com/facebook.mp4"}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/pinterest/download", methods=["POST"])
 def pinterest_download():
-    """Pinterest download endpoint"""
-    return jsonify({
-        "success": True,
-        "platform": "pinterest",
-        "title": "Pinterest Image Download",
-        "downloads": {
-            "image": "https://example.com/pinterest.jpg"
-        }
-    })
+    try:
+        data = request.get_json(silent=True)
+        if not data or not data.get('url'):
+            return jsonify({"success": False, "error": "URL is required"}), 400
+        return jsonify({
+            "success": True,
+            "platform": "pinterest",
+            "title": "Pinterest Image Download",
+            "downloads": {"image": "https://example.com/pinterest.jpg"}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/reddit/download", methods=["POST"])
 def reddit_download():
-    """Reddit download endpoint"""
-    return jsonify({
-        "success": True,
-        "platform": "reddit",
-        "title": "Reddit Post Download",
-        "downloads": {
-            "video": "https://example.com/reddit.mp4",
-            "image": "https://example.com/reddit.jpg"
-        }
-    })
+    try:
+        data = request.get_json(silent=True)
+        if not data or not data.get('url'):
+            return jsonify({"success": False, "error": "URL is required"}), 400
+        return jsonify({
+            "success": True,
+            "platform": "reddit",
+            "title": "Reddit Post Download",
+            "downloads": {"video": "https://example.com/reddit.mp4", "image": "https://example.com/reddit.jpg"}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/twitter/download", methods=["POST"])
 def twitter_download():
-    """Twitter/X download endpoint"""
-    return jsonify({
-        "success": True,
-        "platform": "x",
-        "title": "X/Twitter Post Download",
-        "downloads": {
-            "video": "https://example.com/x.mp4",
-            "image": "https://example.com/x.jpg"
-        }
-    })
+    try:
+        data = request.get_json(silent=True)
+        if not data or not data.get('url'):
+            return jsonify({"success": False, "error": "URL is required"}), 400
+        return jsonify({
+            "success": True,
+            "platform": "x",
+            "title": "X/Twitter Post Download",
+            "downloads": {"video": "https://example.com/x.mp4", "image": "https://example.com/x.jpg"}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/telegram/download", methods=["POST"])
 def telegram_download():
-    """Telegram download endpoint"""
-    return jsonify({
-        "success": True,
-        "platform": "telegram",
-        "title": "Telegram Media Download",
-        "downloads": {
-            "video": "https://example.com/telegram.mp4",
-            "file": "https://example.com/telegram.zip"
-        }
-    })
+    try:
+        data = request.get_json(silent=True)
+        if not data or not data.get('url'):
+            return jsonify({"success": False, "error": "URL is required"}), 400
+        return jsonify({
+            "success": True,
+            "platform": "telegram",
+            "title": "Telegram Media Download",
+            "downloads": {"video": "https://example.com/telegram.mp4", "file": "https://example.com/telegram.zip"}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/docs", methods=["GET"])
 def docs():
@@ -233,18 +222,6 @@ def docs():
         }
     })
 
-@app.errorhandler(404)
-def not_found(e):
-    return jsonify({"success": False, "error": "Endpoint not found"}), 404
-
-@app.errorhandler(500)
-def server_error(e):
-    return jsonify({"success": False, "error": "Internal server error"}), 500
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
-    app.run(
-        debug=os.getenv("FLASK_DEBUG", "0") == "1",
-        host="0.0.0.0",
-        port=port
-    )
+    app.run(host="0.0.0.0", port=port, debug=False)

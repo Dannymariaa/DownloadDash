@@ -1,4 +1,4 @@
-﻿// Download utility for DownloadDash
+﻿// utils/downloader.js
 
 /**
  * Deep scan helper to search an object recursively for any valid URL
@@ -34,8 +34,24 @@ const findAnyValidUrl = (obj) => {
   return null;
 };
 
+// --- FIX: API Base URL - Directly call the backend API ---
+const API_BASE_URL = 'https://api.downloaddash.store';
+
+// --- FIX: Platform mapping (no more /api/smd/ prefix) ---
+const PLATFORM_MAP = {
+  'youtube': 'youtube',
+  'instagram': 'instagram',
+  'tiktok': 'tiktok',
+  'facebook': 'facebook',
+  'pinterest': 'pinterest',
+  'reddit': 'reddit',
+  'x': 'twitter',  // Map x to twitter for backend
+  'twitter': 'twitter',
+  'telegram': 'telegram'
+};
+
 /**
- * Download content from URL via the Vercel serverless API gateway using optimized GET queries
+ * Download content from URL via the backend API
  */
 export const downloadFromUrl = async (url, options = {}) => {
   const { platform = 'instagram', quality = 'high', extractAudio = false } = options;
@@ -49,32 +65,50 @@ export const downloadFromUrl = async (url, options = {}) => {
     
     const cleanUrl = url.trim(); 
     
-    // Normalize platform key formatting
+    // Normalize platform
     let normalizedPlatform = platform.toLowerCase();
-    if (normalizedPlatform === 'x') normalizedPlatform = 'twitter';
+    // Use the platform map to get the correct backend endpoint
+    const mappedPlatform = PLATFORM_MAP[normalizedPlatform] || normalizedPlatform;
 
-    const response = await fetch(`/api/smd/${normalizedPlatform}/download`, {
+    // --- FIX: Direct API call to backend (NO /api/smd prefix) ---
+    const apiUrl = `${API_BASE_URL}/${mappedPlatform}/download`;
+    console.log(`[Downloader] Calling API: ${apiUrl}`);
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
+        // No API key needed - public endpoint
       },
       body: JSON.stringify({
         url: cleanUrl,
-        platform: normalizedPlatform,
-        quality,
+        quality: quality,
         extract_audio: !!extractAudio,
         include_metadata: true,
       }),
     });
 
+    // --- FIX: Better error handling ---
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      try {
+        const errorData = await response.json();
+        if (errorData.message) errorMessage = errorData.message;
+        else if (errorData.error) errorMessage = errorData.error;
+      } catch (e) {
+        // If response is not JSON, use status text
+      }
+      throw new Error(errorMessage);
+    }
+
     const result = await response.json();
     
-    if (!response.ok || !result || result.success === false) {
-      throw new Error(result?.error || result?.message || 'Failed to download content from provider');
+    if (!result || result.success === false) {
+      throw new Error(result?.error || result?.message || 'Failed to download content');
     }
     
-    // Transform response to ensure consistent UI rendering mapping structures
+    // Transform response to ensure consistent UI rendering
     const transformedResult = transformDownloadResponse(result, normalizedPlatform);
     
     console.log(`[Downloader] Download successful for ${normalizedPlatform}:`, transformedResult.type);
@@ -320,5 +354,12 @@ export const batchDownload = async (urls, options = {}) => {
   return results;
 };
 
-const downloader = { download: downloadFromUrl, saveToGallery, saveMultiple: saveMultipleToGallery, validate: validateDownloadUrl, batch: batchDownload };
+const downloader = { 
+  download: downloadFromUrl, 
+  saveToGallery, 
+  saveMultiple: saveMultipleToGallery, 
+  validate: validateDownloadUrl, 
+  batch: batchDownload 
+};
+
 export default downloader;
