@@ -1,4 +1,5 @@
 // api/smd/[...path].js
+// api/smd/[...path].js
 const DEFAULT_UPSTREAM_BASE_URL = "https://api.downloaddash.store";
 const REQUEST_TIMEOUT_MS = 55000;
 
@@ -20,8 +21,8 @@ const PLATFORM_MAP = {
   "facebook": "facebook",
   "pinterest": "pinterest",
   "reddit": "reddit",
-  "x": "x",
-  "twitter": "x",
+  "x": "twitter",  // Map x to twitter for backend
+  "twitter": "twitter",
   "telegram": "telegram"
 };
 
@@ -108,10 +109,12 @@ function getRequestBody(req) {
   return JSON.stringify(req.body);
 }
 
-// --- FIX: Build headers with DOWNLOADDASH_API_KEY ---
+// --- FIX: Build headers with DOWNLOADDASH_API_KEY (multiple header formats) ---
 function buildForwardHeaders(req, apiKey) {
   const headers = {
     "Accept": req.headers.accept || "application/json",
+    "X-API-Key": apiKey,
+    "X-DownloadDash-Key": apiKey,
     "DOWNLOADDASH_API_KEY": apiKey,
     "Authorization": "Bearer " + apiKey
   };
@@ -166,8 +169,9 @@ export default async function handler(req, res) {
   );
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type,Accept,Authorization,DOWNLOADDASH_API_KEY,X-RapidAPI-Proxy-Secret"
+    "Content-Type,Accept,Authorization,X-API-Key,X-DownloadDash-Key,DOWNLOADDASH_API_KEY,X-RapidAPI-Proxy-Secret"
   );
+  res.setHeader("Access-Control-Expose-Headers", "*");
 
   if (req.method === "OPTIONS") {
     return res.status(200).end();
@@ -222,20 +226,41 @@ export default async function handler(req, res) {
     });
   }
 
-  // Handle platform download routes
+  // --- FIX: Handle platform download routes (support both /api/smd/ and /api/) ---
   let forwardParts;
   let platform = parts[0]?.toLowerCase();
   
+  // Handle test route
   if (parts.length === 1 && parts[0] === "test") {
     forwardParts = ["api", "v1", "test"];
-  } else if (parts.length >= 2 && parts[1] === "download") {
-    const mappedPlatform = PLATFORM_MAP[platform] || platform;
-    forwardParts = ["api", "v1", mappedPlatform, "download"];
-  } else if (parts.length === 1) {
+  } 
+  // Handle download routes: /api/smd/{platform}/download or /api/{platform}/download
+  else if (parts.length >= 2 && parts[parts.length - 1] === "download") {
+    // Check if this is a platform download
+    const platformIndex = parts.length - 2;
+    const platformName = parts[platformIndex];
+    const mappedPlatform = PLATFORM_MAP[platformName] || platformName;
+    
+    // If the first part is "smd", skip it
+    if (parts[0] === "smd") {
+      forwardParts = ["api", "v1", mappedPlatform, "download"];
+    } else {
+      forwardParts = ["api", "v1", mappedPlatform, "download"];
+    }
+  } 
+  // Handle root platform routes: /api/smd/{platform} or /api/{platform}
+  else if (parts.length === 1) {
     const mappedPlatform = PLATFORM_MAP[platform] || platform;
     forwardParts = ["api", "v1", mappedPlatform];
-  } else {
-    forwardParts = ["api", "v1"].concat(parts);
+  } 
+  // Handle smd prefix
+  else if (parts[0] === "smd" && parts.length === 2) {
+    const mappedPlatform = PLATFORM_MAP[parts[1]] || parts[1];
+    forwardParts = ["api", "v1", mappedPlatform];
+  }
+  // Handle any other custom routes
+  else {
+    forwardParts = ["api", "v1", ...parts];
   }
 
   const target = new URL(baseUrl + "/" + forwardParts.join("/"));
@@ -292,17 +317,20 @@ export default async function handler(req, res) {
       });
     }
 
+    // --- FIX: Handle 404 ---
+    if (upstream.status === 404) {
+      return json(res, 404, {
+        success: false,
+        message: "API endpoint not found.",
+        error: "ENDPOINT_NOT_FOUND",
+        details: `The endpoint ${target.toString()} was not found on the upstream API`,
+        tip: "Check that the platform is supported and the URL is correct"
+      });
+    }
+
     const responseText = await upstream.text();
     
     if (!responseText || responseText.trim() === "") {
-      if (upstream.status === 404) {
-        return json(res, 404, {
-          success: false,
-          message: "Endpoint not found.",
-          platform: platform
-        });
-      }
-      
       return json(res, upstream.status || 502, {
         success: false,
         message: "Empty response from upstream.",
