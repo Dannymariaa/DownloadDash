@@ -84,8 +84,11 @@ export const downloadFromUrl = async (url, options = {}) => {
     let normalizedPlatform = platform.toLowerCase();
     const mappedPlatform = PLATFORM_MAP[normalizedPlatform] || normalizedPlatform;
 
-    // --- FIX: Use Vercel proxy URL ---
+    // --- Use Vercel proxy ---
+    const API_BASE_URL = '/api/smd'; // or '/api'
+
     const apiUrl = `${API_BASE_URL}/${mappedPlatform}/download`;
+    // Example: /api/smd/youtube/download
     console.log(`[Downloader] Calling API: ${apiUrl}`);
 
     // --- FIX: Get API key from environment ---
