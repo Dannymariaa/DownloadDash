@@ -36,6 +36,7 @@ const findAnyValidUrl = (obj) => {
 
 // --- API Base URL with environment variable support ---
 const DEFAULT_API_BASE_URL = '/api';
+const DIRECT_API_BASE_URL = 'https://api.downloaddash.store';
 
 const getApiBaseUrl = function() {
   // Try multiple sources for the API base URL
@@ -76,6 +77,10 @@ const getApiKey = () => {
   if (typeof window !== 'undefined' && window.__ENV) {
     return window.__ENV.DOWNLOADDASH_API_KEY || '';
   }
+  // For Vite environment
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    return import.meta.env.VITE_DOWNLOADDASH_API_KEY || '';
+  }
   return '';
 };
 
@@ -104,7 +109,13 @@ const buildHeaders = function() {
  * Download content from URL via the Vercel proxy with API key
  */
 export const downloadFromUrl = async (url, options = {}) => {
-  const { platform = 'instagram', quality = 'high', extractAudio = false } = options;
+  const { 
+    platform = 'instagram', 
+    quality = 'high', 
+    extractAudio = false,
+    timeout = 60000, // 60 seconds default
+    useDirectApi = false // Set to true to bypass Vercel proxy
+  } = options;
   
   try {
     console.log(`[Downloader] Starting download from ${platform}:`, url);
@@ -119,11 +130,23 @@ export const downloadFromUrl = async (url, options = {}) => {
     let normalizedPlatform = platform.toLowerCase();
     const mappedPlatform = PLATFORM_MAP[normalizedPlatform] || normalizedPlatform;
 
-    // --- Use getApiBaseUrl() for flexible API URL ---
-    const baseUrl = getApiBaseUrl();
-    const apiUrl = `${baseUrl}/${mappedPlatform}/download`;
-    // Example: /api/youtube/download
+    // --- Build the API URL ---
+    let apiUrl;
+    if (useDirectApi) {
+      // Direct call to backend (bypasses Vercel)
+      apiUrl = `${DIRECT_API_BASE_URL}/${mappedPlatform}/download`;
+    } else {
+      // Use Vercel proxy
+      const baseUrl = getApiBaseUrl();
+      apiUrl = `${baseUrl}/${mappedPlatform}/download`;
+    }
     console.log(`[Downloader] Calling API: ${apiUrl}`);
+
+    // --- Abort controller for timeout ---
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
 
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -134,7 +157,10 @@ export const downloadFromUrl = async (url, options = {}) => {
         extract_audio: !!extractAudio,
         include_metadata: true,
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     // --- Better error handling ---
     if (!response.ok) {
@@ -153,6 +179,10 @@ export const downloadFromUrl = async (url, options = {}) => {
         errorMessage = 'Authentication failed. Please check your API key.';
       } else if (response.status === 404) {
         errorMessage = `API endpoint not found for platform: ${platform}`;
+      } else if (response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again later.';
+      } else if (response.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
       }
       
       throw new Error(errorMessage);
@@ -172,6 +202,12 @@ export const downloadFromUrl = async (url, options = {}) => {
     
   } catch (error) {
     console.error('[Downloader] Download error:', error);
+    
+    // Handle timeout errors
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timed out after ${timeout/1000} seconds. Please try again.`);
+    }
+    
     throw new Error(error.message || 'Failed to download content');
   }
 };
