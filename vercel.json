@@ -1,11 +1,11 @@
 {
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "https://api.downloaddash.store/$1"
+      "source": "/api/:path*",
+      "destination": "https://api.downloaddash.store/:path*"
     }
   ],
   "env": {
     "DOWNLOADDASH_API_KEY": "@downloaddash_api_key"
   }
-}
+} 
