@@ -5,8 +5,8 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*", "expose_headers": "*"}})
 
-# --- HARDCODE THE API KEY FOR TESTING ---
-EXPECTED_API_KEY = "sk_prod_vnZgbbIjmt3yOfy6A0rSpkwnqRAYEnnRjksvFnsc0U"
+# --- USE ENVIRONMENT VARIABLE FOR API KEY ---
+EXPECTED_API_KEY = os.environ.get('DOWNLOADDASH_API_KEY', '').strip()
 
 # --- Authentication with raw header access ---
 @app.before_request
@@ -31,13 +31,17 @@ def check_auth():
     if not api_key:
         api_key = request.headers.get('X-API-Key', '').strip()
     
-    # Method 3: Try Authorization header
+    # Method 3: Try X-DownloadDash-Key
+    if not api_key:
+        api_key = request.headers.get('X-DownloadDash-Key', '').strip()
+    
+    # Method 4: Try Authorization header
     if not api_key:
         auth_header = request.headers.get('Authorization', '').strip()
         if auth_header.startswith('Bearer '):
             api_key = auth_header[7:].strip()
     
-    # Method 4: Try raw environ (bypasses any header filtering)
+    # Method 5: Try raw environ (bypasses any header filtering)
     if not api_key:
         # Check environ for HTTP_ prefixed headers
         for key, value in request.environ.items():
@@ -47,12 +51,6 @@ def check_auth():
                 if header_name == 'Downloaddash-Api-Key':
                     api_key = value.strip()
                     break
-    
-    # Method 5: Get all headers from environ as a last resort
-    if not api_key:
-        for key, value in request.environ.items():
-            if 'API' in key or 'KEY' in key:
-                print(f"Found in environ: {key} = {value[:20] if value else ''}")
     
     # Debug logging
     print("=" * 60)
@@ -69,14 +67,15 @@ def check_auth():
     for key, value in request.headers.items():
         print(f"   {key}: {value[:30] if len(str(value)) > 30 else value}")
     
-    # Print all HTTP_* headers from environ
-    print("📋 Headers from environ (HTTP_*):")
-    for key, value in request.environ.items():
-        if key.startswith('HTTP_'):
-            print(f"   {key}: {value[:30] if len(str(value)) > 30 else value}")
     print("=" * 60)
     
+    # --- EARLY RETURN - NO PROCESSING IF AUTH FAILS ---
+    if not EXPECTED_API_KEY:
+        print("⚠️ DOWNLOADDASH_API_KEY not configured - allowing all requests (DEVELOPMENT MODE)")
+        return
+    
     if not api_key:
+        print("❌ Missing API key - returning 403 immediately")
         return jsonify({
             "success": False,
             "message": "Missing DOWNLOADDASH_API_KEY header",
@@ -84,6 +83,7 @@ def check_auth():
         }), 403
     
     if api_key != EXPECTED_API_KEY:
+        print("❌ Invalid API key - returning 403 immediately")
         return jsonify({
             "success": False,
             "message": "Invalid DOWNLOADDASH_API_KEY",
@@ -106,34 +106,15 @@ def add_cors_headers(response):
 @app.route("/debug-headers", methods=["GET", "POST"])
 def debug_headers():
     """Debug endpoint to see all received headers"""
-    # Get headers from multiple sources
-    headers_dict = {}
-    
-    # From request.headers
-    for key, value in request.headers.items():
-        headers_dict[key] = value
-    
-    # From environ
-    environ_headers = {}
-    for key, value in request.environ.items():
-        if key.startswith('HTTP_'):
-            environ_headers[key] = value
-    
-    # Raw headers from request
-    raw_headers = {}
-    for key, value in request.headers.items():
-        raw_headers[key] = value
-    
     return jsonify({
         "headers_from_request": dict(request.headers),
-        "headers_from_environ": environ_headers,
-        "all_headers": raw_headers,
         "downloaddash_key": request.headers.get('DOWNLOADDASH_API_KEY'),
         "x_api_key": request.headers.get('X-API-Key'),
+        "x_downloaddash_key": request.headers.get('X-DownloadDash-Key'),
         "authorization": request.headers.get('Authorization'),
         "method": request.method,
         "path": request.path,
-        "environ_keys": [k for k in request.environ.keys() if k.startswith('HTTP_')]
+        "all_headers": dict(request.headers)
     })
 
 # --- Routes ---
