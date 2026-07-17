@@ -1,4 +1,4 @@
-﻿// utils/downloader.js
+﻿// src/utils/Downloader.js
 
 /**
  * Deep scan helper to search an object recursively for any valid URL

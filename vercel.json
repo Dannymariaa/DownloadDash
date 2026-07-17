@@ -7,14 +7,6 @@
     {
       "source": "/api/:platform/download",
       "destination": "https://api.downloaddash.store/:platform/download"
-    },
-    {
-      "source": "/api/smd/:path*",
-      "destination": "https://api.downloaddash.store/:path*"
-    },
-    {
-      "source": "/api/:path*",
-      "destination": "https://api.downloaddash.store/:path*"
     }
   ],
   "env": {
