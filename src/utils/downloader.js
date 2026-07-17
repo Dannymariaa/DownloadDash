@@ -446,12 +446,41 @@ export const batchDownload = async (urls, options = {}) => {
   return results;
 };
 
+// --- Export with auth methods for platform pages ---
 const downloader = { 
   download: downloadFromUrl, 
   saveToGallery, 
   saveMultiple: saveMultipleToGallery, 
   validate: validateDownloadUrl, 
-  batch: batchDownload 
+  batch: batchDownload,
+  auth: {
+    isAuthenticated: async () => {
+      // Check if user is authenticated (you can implement this)
+      return false;
+    },
+    me: async () => {
+      // Return user data
+      return null;
+    }
+  },
+  detectPlatform: (url) => {
+    // Platform detection logic
+    const patterns = {
+      youtube: /youtube\.com|youtu\.be/,
+      instagram: /instagram\.com/,
+      tiktok: /tiktok\.com/,
+      facebook: /facebook\.com|fb\.watch/,
+      pinterest: /pinterest\.com|pin\.it/,
+      reddit: /reddit\.com|redd\.it/,
+      twitter: /twitter\.com|x\.com/,
+      telegram: /t\.me|telegram\./
+    };
+    for (const [platform, pattern] of Object.entries(patterns)) {
+      if (pattern.test(url)) return platform;
+    }
+    return null;
+  },
+  resolveViaApi: downloadFromUrl
 };
 
 export default downloader;

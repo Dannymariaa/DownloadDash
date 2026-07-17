@@ -1,6 +1,7 @@
 // @ts-nocheck
+// src/api/downloadDashClient.js
 
-const DEFAULT_API_BASE_URL = '/api/smd';
+const DEFAULT_API_BASE_URL = '/api';  // Changed from '/api/smd'
 const PROTECTED_RENDER_API_HOSTS = new Set([
   'api.downloaddash.store',
 ]);
@@ -13,8 +14,8 @@ const PLATFORM_MAP = {
   'facebook': 'facebook',
   'pinterest': 'pinterest',
   'reddit': 'reddit',
-  'x': 'x',
-  'twitter': 'x',
+  'x': 'twitter',  // Map x to twitter for backend
+  'twitter': 'twitter',
   'telegram': 'telegram',
   'whatsappbusiness': 'whatsapp_business',
   'whatsapp_business': 'whatsapp_business'
@@ -49,8 +50,23 @@ const absolutizeApiUrl = (url) => {
   return `${getApiBaseUrl()}${url}`;
 };
 
+// --- FIX: Build headers with API key ---
 const buildHeaders = () => {
-  return { 'Content-Type': 'application/json' };
+  const headers = { 'Content-Type': 'application/json' };
+  
+  // Get API key from environment
+  const apiKey = import.meta.env.DOWNLOADDASH_API_KEY || 
+                 import.meta.env.VITE_DOWNLOADDASH_API_KEY || 
+                 '';
+  
+  if (apiKey && apiKey.trim() !== '') {
+    headers['X-API-Key'] = apiKey.trim();
+    headers['X-DownloadDash-Key'] = apiKey.trim();
+    headers['DOWNLOADDASH_API_KEY'] = apiKey.trim();
+    headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+  }
+  
+  return headers;
 };
 
 const tryParseJson = async (res) => {
@@ -414,8 +430,6 @@ export const downloadToDevice = async (fileUrl, filename, sourceUrl = '', mediaT
     if (isApiManagedDownload) {
       throw error;
     }
-
-    // Fallback: proxy download through API to avoid CORS blocks.
     return proxyDownload();
   }
 };
@@ -478,7 +492,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   // --- FIX: Map platform to correct name ---
   const mappedPlatform = PLATFORM_MAP[platform] || platform;
   
-  // --- FIX: Use correct API endpoint path ---
+  // --- FIX: Use correct API endpoint path (without /smd/) ---
   const apiPath = `/${mappedPlatform}/download`;
   
   // --- FIX: Validate we have a valid platform ---
@@ -667,7 +681,6 @@ export const downloadDash = {
     isAuthenticated: async () => true,
     me: async () => ({ email: 'user@downloaddash.com' }),
     redirectToLogin: () => {
-      // No auth system yet; keep behavior non-breaking.
       window.location.reload();
     },
   },
