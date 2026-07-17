@@ -34,8 +34,19 @@ const findAnyValidUrl = (obj) => {
   return null;
 };
 
-// --- FIX: Use Vercel proxy instead of direct backend call ---
-const API_BASE_URL = '/api';
+// --- API Base URL with environment variable support ---
+const DEFAULT_API_BASE_URL = '/api';
+
+const getApiBaseUrl = function() {
+  // Try multiple sources for the API base URL
+  const raw = import.meta?.env?.VITE_SMD_API_BASE_URL || 
+              import.meta?.env?.NEXT_PUBLIC_API_URL ||
+              import.meta?.env?.VITE_API_BASE_URL ||
+              DEFAULT_API_BASE_URL;
+  
+  const normalized = String(raw).replace(/\/+$/, "") || DEFAULT_API_BASE_URL;
+  return normalized;
+};
 
 // --- Platform mapping ---
 const PLATFORM_MAP = {
@@ -56,13 +67,37 @@ const PLATFORM_MAP = {
 const getApiKey = () => {
   // Try multiple sources for the API key
   if (typeof process !== 'undefined' && process.env) {
-    return process.env.DOWNLOADDASH_API_KEY || process.env.NEXT_PUBLIC_DOWNLOADDASH_API_KEY || '';
+    return process.env.DOWNLOADDASH_API_KEY || 
+           process.env.NEXT_PUBLIC_DOWNLOADDASH_API_KEY || 
+           process.env.VITE_DOWNLOADDASH_API_KEY || 
+           '';
   }
   // For browser environment
   if (typeof window !== 'undefined' && window.__ENV) {
     return window.__ENV.DOWNLOADDASH_API_KEY || '';
   }
   return '';
+};
+
+/**
+ * Build headers with API key
+ */
+const buildHeaders = function() {
+  const headers = { 
+    "Content-Type": "application/json",
+    "Accept": "application/json"
+  };
+
+  const apiKey = getApiKey();
+
+  if (apiKey && apiKey.trim() !== "") {
+    headers["X-API-Key"] = apiKey.trim();
+    headers["X-DownloadDash-Key"] = apiKey.trim();
+    headers["DOWNLOADDASH_API_KEY"] = apiKey.trim();
+    headers["Authorization"] = "Bearer " + apiKey.trim();
+  }
+
+  return headers;
 };
 
 /**
@@ -84,32 +119,15 @@ export const downloadFromUrl = async (url, options = {}) => {
     let normalizedPlatform = platform.toLowerCase();
     const mappedPlatform = PLATFORM_MAP[normalizedPlatform] || normalizedPlatform;
 
-    // --- Use Vercel proxy ---
-    const API_BASE_URL = '/api/smd'; // or '/api'
-
-    const apiUrl = `${API_BASE_URL}/${mappedPlatform}/download`;
-    // Example: /api/smd/youtube/download
+    // --- Use getApiBaseUrl() for flexible API URL ---
+    const baseUrl = getApiBaseUrl();
+    const apiUrl = `${baseUrl}/${mappedPlatform}/download`;
+    // Example: /api/youtube/download
     console.log(`[Downloader] Calling API: ${apiUrl}`);
-
-    // --- FIX: Get API key from environment ---
-    const apiKey = getApiKey();
-
-    // --- FIX: Build headers with API key ---
-    const headers = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-    };
-
-    // Add API key if available
-    if (apiKey) {
-      headers['X-API-Key'] = apiKey;
-      headers['DOWNLOADDASH_API_KEY'] = apiKey;
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
 
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: headers,
+      headers: buildHeaders(),
       body: JSON.stringify({
         url: cleanUrl,
         quality: quality,
@@ -118,7 +136,7 @@ export const downloadFromUrl = async (url, options = {}) => {
       }),
     });
 
-    // --- FIX: Better error handling ---
+    // --- Better error handling ---
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
       try {
