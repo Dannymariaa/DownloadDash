@@ -1,12 +1,8 @@
 {
   "rewrites": [
     {
-      "source": "/api/smd/:platform/download",
-      "destination": "https://api.downloaddash.store/:platform/download"
-    },
-    {
-      "source": "/api/:platform/download",
-      "destination": "https://api.downloaddash.store/:platform/download"
+      "source": "/api/(.*)",
+      "destination": "https://api.downloaddash.store/$1"
     }
   ],
   "env": {
