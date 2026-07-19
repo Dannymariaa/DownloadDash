@@ -1,7 +1,7 @@
 // @ts-nocheck
 // src/api/downloadDashClient.js
 
-const DEFAULT_API_BASE_URL = '/api';  // Changed from '/api/smd'
+const DEFAULT_API_BASE_URL = '/api';
 const PROTECTED_RENDER_API_HOSTS = new Set([
   'api.downloaddash.store',
 ]);
@@ -50,23 +50,57 @@ const absolutizeApiUrl = (url) => {
   return `${getApiBaseUrl()}${url}`;
 };
 
-// --- FIX: Build headers with API key ---
 const buildHeaders = () => {
-  const headers = { 'Content-Type': 'application/json' };
-  
-  // Get API key from environment
-  const apiKey = import.meta.env.DOWNLOADDASH_API_KEY || 
-                 import.meta.env.VITE_DOWNLOADDASH_API_KEY || 
-                 '';
-  
-  if (apiKey && apiKey.trim() !== '') {
-    headers['X-API-Key'] = apiKey.trim();
-    headers['X-DownloadDash-Key'] = apiKey.trim();
-    headers['DOWNLOADDASH_API_KEY'] = apiKey.trim();
-    headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+  return {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+};
+
+const safeHeadersForDiagnostics = (headers) =>
+  Object.fromEntries(
+    Object.entries(headers || {}).map(([key, value]) => [
+      key,
+      /authorization|api[-_]?key|download/i.test(key) ? '[redacted]' : value,
+    ])
+  );
+
+const summarizeResponseBody = (body) => {
+  if (!body) return '';
+  if (typeof body === 'string') return body.slice(0, 1200);
+  try {
+    return JSON.stringify(body).slice(0, 1200);
+  } catch {
+    return String(body).slice(0, 1200);
   }
-  
-  return headers;
+};
+
+const createRequestError = ({ method, url, path, headers, status, statusText, data, fallback }) => {
+  const backendMessage = data?.detail || data?.error || data?.message || fallback;
+  const diagnostics = {
+    method,
+    endpoint: path,
+    url,
+    headers: safeHeadersForDiagnostics(headers),
+    status,
+    statusText,
+    backendMessage,
+    responseBody: summarizeResponseBody(data),
+  };
+
+  const error = new Error(
+    [
+      backendMessage || `DownloadDash API request failed (${status})`,
+      `method=${method}`,
+      `endpoint=${path}`,
+      `url=${url}`,
+      `status=${status}${statusText ? ` ${statusText}` : ''}`,
+      `headers=${JSON.stringify(diagnostics.headers)}`,
+      `response=${diagnostics.responseBody || '[empty]'}`,
+    ].join(' | ')
+  );
+  error.details = diagnostics;
+  return error;
 };
 
 const tryParseJson = async (res) => {
@@ -82,76 +116,148 @@ const getResponseMessage = async (res, fallback) => {
   return data?.detail || data?.error || data?.message || fallback;
 };
 
-// --- FIX: Improved postJson with better error handling ---
 const postJson = async (path, body) => {
   const baseUrl = getApiBaseUrl();
+  const method = 'POST';
+  const url = `${baseUrl}${path}`;
+  const headers = buildHeaders();
+
+  console.log('[DownloadDash API] Request', {
+    method,
+    endpoint: path,
+    url,
+    headers: safeHeadersForDiagnostics(headers),
+    payload: body,
+  });
+
   let res;
   try {
-    res = await fetch(`${baseUrl}${path}`, {
-      method: 'POST',
-      headers: buildHeaders(),
+    res = await fetch(url, {
+      method,
+      headers,
       body: JSON.stringify(body),
     });
   } catch (error) {
-    throw new Error(
-      `Unable to reach the DownloadDash API proxy at ${baseUrl}. ` +
-        `Check that the Vercel deployment is live and that server-side DOWNLOADDASH_API_KEY is configured.`
-    );
+    throw createRequestError({
+      method,
+      url,
+      path,
+      headers,
+      status: 0,
+      statusText: 'NETWORK_ERROR',
+      data: { message: error?.message || 'Network connection failed.' },
+      fallback:
+        `Unable to reach the DownloadDash API proxy at ${baseUrl}. ` +
+        `Check that the Vercel deployment is live and that server-side DOWNLOADDASH_API_KEY is configured.`,
+    });
   }
 
-  // --- FIX: Get response text first to handle empty responses ---
   let responseText;
   try {
     responseText = await res.text();
   } catch {
-    throw new Error('Failed to read response from server');
+    throw createRequestError({
+      method,
+      url,
+      path,
+      headers,
+      status: res.status,
+      statusText: res.statusText,
+      data: { message: 'Failed to read response from server' },
+      fallback: 'Failed to read response from server',
+    });
   }
 
-  // --- FIX: Check for empty response ---
   if (!responseText || responseText.trim() === '') {
-    if (res.status === 404) {
-      throw new Error(`API endpoint not found. Please check your API configuration.`);
-    }
-    throw new Error(`Server returned an empty response (${res.status})`);
+    throw createRequestError({
+      method,
+      url,
+      path,
+      headers,
+      status: res.status,
+      statusText: res.statusText,
+      data: '',
+      fallback:
+        res.status === 404
+          ? 'API endpoint not found. Please check your API configuration.'
+          : `Server returned an empty response (${res.status})`,
+    });
   }
 
-  // --- FIX: Parse JSON with error handling ---
   let data;
   try {
     data = JSON.parse(responseText);
   } catch (parseError) {
-    console.error('JSON Parse Error:', parseError);
-    console.log('Raw response:', responseText.substring(0, 500));
-    throw new Error('Invalid response format from server');
+    console.error('[DownloadDash API] JSON parse error:', parseError);
+    throw createRequestError({
+      method,
+      url,
+      path,
+      headers,
+      status: res.status,
+      statusText: res.statusText,
+      data: responseText,
+      fallback: 'Invalid response format from server',
+    });
   }
+
+  console.log('[DownloadDash API] Response', {
+    method,
+    endpoint: path,
+    url,
+    status: res.status,
+    response: data,
+  });
 
   if (!res.ok) {
     if (res.status === 500 && data?.message?.includes('API key is not configured')) {
-      throw new Error(data.message);
+      throw createRequestError({ method, url, path, headers, status: res.status, statusText: res.statusText, data, fallback: data.message });
     }
     if (res.status === 401 || res.status === 403) {
-      throw new Error(
-        data?.message === 'Unauthorized'
-          ? 'DownloadDash API authentication failed. Check the server-side DOWNLOADDASH_API_KEY in Vercel.'
-          : data?.message || 'DownloadDash API request was forbidden.'
-      );
+      throw createRequestError({
+        method,
+        url,
+        path,
+        headers,
+        status: res.status,
+        statusText: res.statusText,
+        data,
+        fallback:
+          data?.message === 'Unauthorized'
+            ? 'DownloadDash API authentication failed. Check the server-side DOWNLOADDASH_API_KEY in Vercel.'
+            : data?.message || 'DownloadDash API request was forbidden.',
+      });
     }
     if (res.status === 404) {
-      throw new Error(
-        data?.message || `API endpoint not found (${res.status}). Please check your API configuration.`
-      );
+      throw createRequestError({
+        method,
+        url,
+        path,
+        headers,
+        status: res.status,
+        statusText: res.statusText,
+        data,
+        fallback: data?.message || `API endpoint not found (${res.status}). Please check your API configuration.`,
+      });
     }
     if (res.status === 429) {
-      throw new Error(
-        data?.message || 'Rate limit exceeded. Please try again later.'
-      );
+      throw createRequestError({
+        method,
+        url,
+        path,
+        headers,
+        status: res.status,
+        statusText: res.statusText,
+        data,
+        fallback: data?.message || 'Rate limit exceeded. Please try again later.',
+      });
     }
     const message =
       data?.detail ||
       data?.error ||
       data?.message ||
       `Request failed (${res.status})`;
-    throw new Error(message);
+    throw createRequestError({ method, url, path, headers, status: res.status, statusText: res.statusText, data, fallback: message });
   }
   return data;
 };
