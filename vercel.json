@@ -51,8 +51,8 @@
   ],
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "https://api.downloaddash.store/:path*"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

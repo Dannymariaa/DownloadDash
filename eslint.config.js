@@ -12,6 +12,7 @@ export default [
       "downloads/**",
       "mobile/temp/**",
       "node_modules/**",
+      "pages/**",
       "release/**",
       "temp/**",
       "tools/**",
