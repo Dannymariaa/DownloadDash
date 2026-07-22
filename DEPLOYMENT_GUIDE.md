@@ -165,17 +165,20 @@ curl https://api.downloaddash.store/health
 4. Wait 2-3 minutes for the deployment to complete
 5. Check the preview URL to verify it's working
 
-### Via CLI (Optional)
+### Via Vercel CLI (Optional)
+
+The dashboard/GitHub flow above does not require the Vercel CLI. Use this CLI
+path only after installing the `vercel` command and logging in on this machine.
 
 ```bash
-# If you have Vercel CLI installed:
+# Install the Vercel CLI if the vercel command is not already available
 npm install -g vercel
 
 # Login to Vercel
 vercel login
 
-# Deploy
-vercel
+# Deploy to production
+vercel --prod
 ```
 
 ### Environment Variables Check (Vercel)

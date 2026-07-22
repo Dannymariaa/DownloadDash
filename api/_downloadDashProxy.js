@@ -110,6 +110,8 @@ function getApiKey() {
 }
 
 function buildForwardHeaders(req, apiKey) {
+  // Do not forward browser Authorization headers to Render. The proxy is the
+  // trusted server boundary and always authenticates upstream with Vercel's key.
   const headers = {
     Accept: req.headers.accept || "application/json",
     "X-DownloadDash-Key": apiKey,

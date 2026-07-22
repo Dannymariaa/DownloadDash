@@ -117,7 +117,7 @@ test('Vercel SMD proxy preserves every public downloader endpoint path', async (
   }
 });
 
-test('Vercel SMD proxy parses the upstream path from req.url when Vercel leaves req.query.path empty', async () => {
+test('Vercel SMD proxy parses req.url paths and replaces frontend Authorization upstream', async () => {
   const originalFetch = globalThis.fetch;
   const originalBase = process.env.SMD_API_BASE_URL;
   const originalKey = process.env.DOWNLOADDASH_API_KEY;
