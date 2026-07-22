@@ -195,6 +195,28 @@ VITE_MONETAG_ZONE1_ID=246643
 VITE_MONETAG_ZONE2_ID=246109
 ```
 
+### Build Settings Check (Vercel)
+
+Verify these settings in Vercel Project Settings before redeploying:
+
+```
+Framework Preset: Vite
+Root Directory: repository root / empty
+Build Command: npm run build
+Output Directory: dist
+Install Command: npm install
+```
+
+Do not set Root Directory to `dist`, `public`, `src`, or any other subfolder.
+The repository-root `api/` directory must be included in the deployment so
+Vercel can package:
+
+```
+api/[...path].js
+api/smd/[...path].js
+api/_downloadDashProxy.js
+```
+
 ## Step 6: Verify Deployment Success
 
 ### Check Frontend

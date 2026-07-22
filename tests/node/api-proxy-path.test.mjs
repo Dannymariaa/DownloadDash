@@ -258,8 +258,16 @@ test('root /api catch-all proxy forwards /api/youtube/download instead of servin
 
 test('Vercel SPA rewrite excludes API paths so functions can handle POST requests', async () => {
   const config = JSON.parse(await readFile(new URL('../../vercel.json', import.meta.url), 'utf8'));
+  const apiRewrite = config.rewrites.find((rewrite) => rewrite.source === '/api/:path*');
   const spaRewrite = config.rewrites.find((rewrite) => rewrite.destination === '/index.html');
 
+  assert.deepEqual(apiRewrite, {
+    source: '/api/:path*',
+    destination: '/api/:path*',
+  });
+  assert.ok(config.functions['api/**/*.js']);
+  assert.equal(config.framework, 'vite');
+  assert.equal(config.outputDirectory, 'dist');
   assert.ok(spaRewrite);
   assert.match(spaRewrite.source, /\(\?!api\//);
   assert.doesNotMatch(spaRewrite.source, /^\/\(\.\*\)$/);
