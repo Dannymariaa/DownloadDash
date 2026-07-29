@@ -3,6 +3,7 @@ import time
 import uuid
 
 from flask import Flask, Response, g, jsonify, request
+from flask_cors import CORS
 
 from cache import get_cache, redis_health, set_cache
 from config import Config
@@ -14,6 +15,22 @@ from security import SecurityValidationError, validate_public_url
 from utils.logger import logger
 
 app = Flask(__name__)
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    allow_headers=[
+        "Content-Type",
+        "Accept",
+        "Authorization",
+        "X-API-Key",
+        "X-DownloadDash-Key",
+        "DOWNLOADDASH_API_KEY",
+        "X-RapidAPI-Proxy-Secret",
+        "X-Request-ID",
+        "X-Correlation-ID",
+    ],
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
+)
 
 logger.info(
     "startup_proxy_audit endpoint=/api/v1/extract policy=direct_first_proxy_fallback proxy_configured=%s expected_proxy_bandwidth=metadata_head_or_partial_html_only endpoints_never_proxy_media=/api/v1/extract_metadata_only",
