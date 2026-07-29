@@ -1,8 +1,17 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import rootHandler from '../../api/[...path].js';
 import handler from '../../api/smd/[...path].js';
+import youtubeHandler from '../../api/youtube/download.js';
+import instagramHandler from '../../api/instagram/download.js';
+import tiktokHandler from '../../api/tiktok/download.js';
+import facebookHandler from '../../api/facebook/download.js';
+import xHandler from '../../api/x/download.js';
+import redditHandler from '../../api/reddit/download.js';
+import pinterestHandler from '../../api/pinterest/download.js';
+import telegramHandler from '../../api/telegram/download.js';
+import whatsappBusinessHandler from '../../api/whatsapp_business/download.js';
 
 const createResponse = () => {
   const headers = {};
@@ -77,7 +86,17 @@ test('Vercel SMD proxy preserves every public downloader endpoint path', async (
   const originalFetch = globalThis.fetch;
   const originalBase = process.env.SMD_API_BASE_URL;
   const originalKey = process.env.DOWNLOADDASH_API_KEY;
-  const platforms = ['youtube', 'instagram', 'tiktok', 'facebook', 'twitter', 'reddit', 'pinterest'];
+  const platforms = [
+    ['youtube', 'youtube'],
+    ['instagram', 'instagram'],
+    ['tiktok', 'tiktok'],
+    ['facebook', 'facebook'],
+    ['x', 'twitter'],
+    ['reddit', 'reddit'],
+    ['pinterest', 'pinterest'],
+    ['telegram', 'telegram'],
+    ['whatsapp_business', 'whatsapp_business'],
+  ];
   const forwardedUrls = [];
 
   process.env.SMD_API_BASE_URL = 'https://render.example/';
@@ -96,7 +115,7 @@ test('Vercel SMD proxy preserves every public downloader endpoint path', async (
   };
 
   try {
-    for (const platform of platforms) {
+    for (const [platform] of platforms) {
       const req = {
         method: 'POST',
         query: { path: [platform, 'download'] },
@@ -108,8 +127,74 @@ test('Vercel SMD proxy preserves every public downloader endpoint path', async (
 
     assert.deepEqual(
       forwardedUrls,
-      platforms.map((platform) => `https://render.example/${platform}/download`)
+      platforms.map(([, upstreamPlatform]) => `https://render.example/${upstreamPlatform}/download`)
     );
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.SMD_API_BASE_URL = originalBase;
+    process.env.DOWNLOADDASH_API_KEY = originalKey;
+  }
+});
+
+test('explicit Vercel downloader functions delegate to the shared proxy without broken imports', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalBase = process.env.SMD_API_BASE_URL;
+  const originalKey = process.env.DOWNLOADDASH_API_KEY;
+  const endpoints = [
+    ['youtube', youtubeHandler, 'youtube'],
+    ['instagram', instagramHandler, 'instagram'],
+    ['tiktok', tiktokHandler, 'tiktok'],
+    ['facebook', facebookHandler, 'facebook'],
+    ['x', xHandler, 'twitter'],
+    ['reddit', redditHandler, 'reddit'],
+    ['pinterest', pinterestHandler, 'pinterest'],
+    ['telegram', telegramHandler, 'telegram'],
+    ['whatsapp_business', whatsappBusinessHandler, 'whatsapp_business'],
+  ];
+  const forwardedUrls = [];
+  const authHeaders = [];
+
+  process.env.SMD_API_BASE_URL = 'https://render.example';
+  process.env.DOWNLOADDASH_API_KEY = 'test-key';
+
+  globalThis.fetch = async (url, init) => {
+    forwardedUrls.push(url);
+    authHeaders.push(init.headers);
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    for (const [platform, routeHandler] of endpoints) {
+      await routeHandler(
+        {
+          method: 'POST',
+          url: `/api/${platform}/download`,
+          query: {},
+          headers: {
+            accept: 'application/json',
+            authorization: 'Bearer frontend-token',
+            'content-type': 'application/json',
+          },
+          body: { url: `https://example.com/${platform}` },
+        },
+        createResponse()
+      );
+    }
+
+    assert.deepEqual(
+      forwardedUrls,
+      endpoints.map(([, , upstreamPlatform]) => `https://render.example/${upstreamPlatform}/download`)
+    );
+
+    for (const headers of authHeaders) {
+      assert.equal(headers['X-DownloadDash-Key'], 'test-key');
+      assert.equal(headers['X-API-Key'], 'test-key');
+      assert.equal(headers.DOWNLOADDASH_API_KEY, 'test-key');
+      assert.equal(headers.Authorization, 'Bearer test-key');
+    }
   } finally {
     globalThis.fetch = originalFetch;
     process.env.SMD_API_BASE_URL = originalBase;
@@ -271,4 +356,14 @@ test('Vercel SPA rewrite excludes API paths so functions can handle POST request
   assert.ok(spaRewrite);
   assert.match(spaRewrite.source, /\(\?!api\//);
   assert.doesNotMatch(spaRewrite.source, /^\/\(\.\*\)$/);
+});
+
+test('API fallback routes are canonical and not duplicated by optional catch-alls', async () => {
+  const apiEntries = await readdir(new URL('../../api/', import.meta.url));
+  const smdEntries = await readdir(new URL('../../api/smd/', import.meta.url));
+
+  assert.ok(apiEntries.includes('[...path].js'));
+  assert.ok(smdEntries.includes('[...path].js'));
+  assert.equal(apiEntries.includes('[[...path]].js'), false);
+  assert.equal(smdEntries.includes('[[...path]].js'), false);
 });

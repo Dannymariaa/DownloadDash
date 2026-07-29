@@ -1,3 +1,8 @@
+console.log("[DownloadDash Proxy] module loaded", {
+  node: process.version,
+  timestamp: new Date().toISOString(),
+});
+
 const DEFAULT_UPSTREAM_BASE_URL = "https://api.downloaddash.store";
 const REQUEST_TIMEOUT_MS = 55000;
 
@@ -180,6 +185,13 @@ function copyResponseHeaders(upstream, res) {
 }
 
 export default async function handler(req, res) {
+  console.info("[DownloadDash Proxy] incoming request", {
+    method: req.method,
+    url: req.url,
+    query: req.query,
+    contentType: req.headers["content-type"],
+  });
+
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS");
   res.setHeader(
@@ -203,6 +215,7 @@ export default async function handler(req, res) {
   }
 
   const parts = getPathParts(req);
+
   if (!parts.length) {
     return json(res, 404, {
       success: false,
@@ -212,9 +225,18 @@ export default async function handler(req, res) {
   }
 
   const forwardPath = buildForwardPath(parts);
+  console.info("[DownloadDash Proxy] resolved route", {
+    requestPath: `/${parts.join("/")}`,
+    upstreamPath: `/${forwardPath.join("/")}`,
+  });
+
   const baseUrl = normalizeUpstreamBaseUrl(process.env.SMD_API_BASE_URL);
   const target = new URL(`${baseUrl}/${forwardPath.map(encodeURIComponent).join("/")}`);
+
   appendQueryParams(target, req.query);
+  console.info("[DownloadDash Proxy] upstream url", {
+    url: target.toString(),
+  });
 
   console.info("[DownloadDash Proxy] Forwarding request", {
     method: req.method,
@@ -276,10 +298,13 @@ export default async function handler(req, res) {
     return res.end(responseBuffer);
   } catch (error) {
     const timedOut = error?.name === "AbortError";
+    console.error("DOWNLOADDASH PROXY ERROR");
+    console.error(error);
     console.error("[DownloadDash Proxy] Request failed", {
       path: `/${parts.join("/")}`,
       message: error?.message,
       timedOut,
+      stack: error?.stack,
     });
 
     return json(res, 502, {
