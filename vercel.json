@@ -15,7 +15,6 @@
 
   "functions": {
     "api/**/*.js": {
-      "runtime": "nodejs24.x",
       "maxDuration": 60
     }
   },
@@ -68,7 +67,7 @@
 
   "rewrites": [
     {
-      "source": "/((?!api|downloads|sw\\.js$).*)",
+      "source": "/((?!api/|downloads/|sw\\.js$).*)",
       "destination": "/index.html"
     }
   ]
