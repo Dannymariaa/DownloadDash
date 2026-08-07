@@ -416,7 +416,7 @@ export default async function handler(req, res) {
     const ext = extractAudio ? 'mp3' : 'mp4';
     const toProxyUrl = (target, fallbackExt, mimeType) =>
       target
-        ? `/api/rapid-youtube-file?target=${encodeURIComponent(target)}&filename=${encodeURIComponent(
+        ? `/api/smd/rapid-youtube-file?target=${encodeURIComponent(target)}&filename=${encodeURIComponent(
             sanitizeFilename(resolved.title, fallbackExt)
           )}&type=${encodeURIComponent(mimeType)}`
         : undefined;

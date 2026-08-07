@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { test } from 'node:test';
-import rootHandler from '../../api/[...path].js';
 import handler from '../../api/smd/[...path].js';
 
 const createResponse = () => {
@@ -28,7 +27,7 @@ const createResponse = () => {
   };
 };
 
-test('Vercel SMD proxy forwards the catch-all path to the Render backend unchanged', async () => {
+const withProxyEnv = async (callback) => {
   const originalFetch = globalThis.fetch;
   const originalBase = process.env.SMD_API_BASE_URL;
   const originalKey = process.env.DOWNLOADDASH_API_KEY;
@@ -36,20 +35,30 @@ test('Vercel SMD proxy forwards the catch-all path to the Render backend unchang
   process.env.SMD_API_BASE_URL = 'https://render.example';
   process.env.DOWNLOADDASH_API_KEY = 'test-key';
 
-  let forwarded;
-  globalThis.fetch = async (url, init) => {
-    forwarded = { url, init };
-    return new Response(
-      JSON.stringify({
-        success: true,
-        download_url: 'https://cdn.example/video.mp4',
-        downloads: { videoHD: 'https://cdn.example/video.mp4' },
-      }),
-      { status: 200, headers: { 'content-type': 'application/json' } }
-    );
-  };
-
   try {
+    await callback();
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.SMD_API_BASE_URL = originalBase;
+    process.env.DOWNLOADDASH_API_KEY = originalKey;
+  }
+};
+
+test('Vercel SMD proxy forwards the catch-all path to the Render backend unchanged', async () => {
+  await withProxyEnv(async () => {
+    let forwarded;
+    globalThis.fetch = async (url, init) => {
+      forwarded = { url, init };
+      return new Response(
+        JSON.stringify({
+          success: true,
+          download_url: 'https://cdn.example/video.mp4',
+          downloads: { videoHD: 'https://cdn.example/video.mp4' },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      );
+    };
+
     const req = {
       method: 'POST',
       query: { path: ['youtube', 'download'] },
@@ -66,179 +75,47 @@ test('Vercel SMD proxy forwards the catch-all path to the Render backend unchang
     assert.equal(JSON.parse(forwarded.init.body).url, 'https://www.youtube.com/watch?v=abc123');
     assert.equal(res.statusCode, 200);
     assert.match(String(res.body), /videoHD/);
-  } finally {
-    globalThis.fetch = originalFetch;
-    process.env.SMD_API_BASE_URL = originalBase;
-    process.env.DOWNLOADDASH_API_KEY = originalKey;
-  }
+  });
 });
 
-test('Vercel SMD proxy preserves every public downloader endpoint path', async () => {
-  const originalFetch = globalThis.fetch;
-  const originalBase = process.env.SMD_API_BASE_URL;
-  const originalKey = process.env.DOWNLOADDASH_API_KEY;
-  const platforms = [
-    ['youtube', 'youtube'],
-    ['instagram', 'instagram'],
-    ['tiktok', 'tiktok'],
-    ['facebook', 'facebook'],
-    ['x', 'twitter'],
-    ['twitter', 'twitter'],
-    ['reddit', 'reddit'],
-    ['pinterest', 'pinterest'],
-    ['telegram', 'telegram'],
-    ['whatsapp_business', 'whatsapp_business'],
-  ];
-  const forwardedUrls = [];
+test('SMD catch-all handles every public downloader endpoint without platform-specific functions', async () => {
+  await withProxyEnv(async () => {
+    const endpoints = [
+      ['/api/smd/youtube/download', 'youtube'],
+      ['/api/smd/instagram/download', 'instagram'],
+      ['/api/smd/tiktok/download', 'tiktok'],
+      ['/api/smd/facebook/download', 'facebook'],
+      ['/api/smd/x/download', 'twitter'],
+      ['/api/smd/twitter/download', 'twitter'],
+      ['/api/smd/reddit/download', 'reddit'],
+      ['/api/smd/pinterest/download', 'pinterest'],
+      ['/api/smd/telegram/download', 'telegram'],
+      ['/api/smd/whatsapp_business/download', 'whatsapp_business'],
+    ];
+    const forwardedUrls = [];
+    const authHeaders = [];
 
-  process.env.SMD_API_BASE_URL = 'https://render.example/';
-  process.env.DOWNLOADDASH_API_KEY = 'test-key';
+    globalThis.fetch = async (url, init) => {
+      forwardedUrls.push(url);
+      authHeaders.push(init.headers);
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
 
-  globalThis.fetch = async (url) => {
-    forwardedUrls.push(url);
-    return new Response(
-      JSON.stringify({
-        success: true,
-        download_url: 'https://cdn.example/video.mp4',
-        downloads: { videoHD: 'https://cdn.example/video.mp4' },
-      }),
-      { status: 200, headers: { 'content-type': 'application/json' } }
-    );
-  };
-
-  try {
-    for (const [platform] of platforms) {
-      const req = {
-        method: 'POST',
-        query: { path: [platform, 'download'] },
-        headers: { accept: 'application/json', 'content-type': 'application/json' },
-        body: { url: `https://example.com/${platform}` },
-      };
-      await handler(req, createResponse());
-    }
-
-    assert.deepEqual(
-      forwardedUrls,
-      platforms.map(([, upstreamPlatform]) => `https://render.example/${upstreamPlatform}/download`)
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
-    process.env.SMD_API_BASE_URL = originalBase;
-    process.env.DOWNLOADDASH_API_KEY = originalKey;
-  }
-});
-
-test('root catch-all handles every public downloader endpoint without explicit Hobby-plan functions', async () => {
-  const originalFetch = globalThis.fetch;
-  const originalBase = process.env.SMD_API_BASE_URL;
-  const originalKey = process.env.DOWNLOADDASH_API_KEY;
-  const endpoints = [
-    ['youtube', 'youtube'],
-    ['instagram', 'instagram'],
-    ['tiktok', 'tiktok'],
-    ['facebook', 'facebook'],
-    ['x', 'twitter'],
-    ['twitter', 'twitter'],
-    ['reddit', 'reddit'],
-    ['pinterest', 'pinterest'],
-    ['telegram', 'telegram'],
-    ['whatsapp_business', 'whatsapp_business'],
-  ];
-  const forwardedUrls = [];
-  const authHeaders = [];
-
-  process.env.SMD_API_BASE_URL = 'https://render.example';
-  process.env.DOWNLOADDASH_API_KEY = 'test-key';
-
-  globalThis.fetch = async (url, init) => {
-    forwardedUrls.push(url);
-    authHeaders.push(init.headers);
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
-  };
-
-  try {
-    for (const [platform] of endpoints) {
-      await rootHandler(
-        {
-          method: 'POST',
-          url: `/api/${platform}/download`,
-          query: {},
-          headers: {
-            accept: 'application/json',
-            authorization: 'Bearer frontend-token',
-            'content-type': 'application/json',
-          },
-          body: { url: `https://example.com/${platform}` },
-        },
-        createResponse()
-      );
-    }
-
-    assert.deepEqual(
-      forwardedUrls,
-      endpoints.map(([, upstreamPlatform]) => `https://render.example/${upstreamPlatform}/download`)
-    );
-
-    for (const headers of authHeaders) {
-      assert.equal(headers['X-DownloadDash-Key'], 'test-key');
-      assert.equal(headers['X-API-Key'], 'test-key');
-      assert.equal(headers.DOWNLOADDASH_API_KEY, 'test-key');
-      assert.equal(headers.Authorization, 'Bearer test-key');
-    }
-  } finally {
-    globalThis.fetch = originalFetch;
-    process.env.SMD_API_BASE_URL = originalBase;
-    process.env.DOWNLOADDASH_API_KEY = originalKey;
-  }
-});
-
-test('SMD catch-all handles every public downloader endpoint without explicit Hobby-plan functions', async () => {
-  const originalFetch = globalThis.fetch;
-  const originalBase = process.env.SMD_API_BASE_URL;
-  const originalKey = process.env.DOWNLOADDASH_API_KEY;
-  const endpoints = [
-    ['youtube', 'youtube'],
-    ['instagram', 'instagram'],
-    ['tiktok', 'tiktok'],
-    ['facebook', 'facebook'],
-    ['x', 'twitter'],
-    ['twitter', 'twitter'],
-    ['reddit', 'reddit'],
-    ['pinterest', 'pinterest'],
-    ['telegram', 'telegram'],
-    ['whatsapp_business', 'whatsapp_business'],
-  ];
-  const forwardedUrls = [];
-  const authHeaders = [];
-
-  process.env.SMD_API_BASE_URL = 'https://render.example';
-  process.env.DOWNLOADDASH_API_KEY = 'test-key';
-
-  globalThis.fetch = async (url, init) => {
-    forwardedUrls.push(url);
-    authHeaders.push(init.headers);
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
-  };
-
-  try {
-    for (const [platform] of endpoints) {
+    for (const [url] of endpoints) {
       await handler(
         {
           method: 'POST',
-          url: `/api/smd/${platform}/download`,
+          url,
           query: {},
           headers: {
             accept: 'application/json',
             authorization: 'Bearer frontend-token',
             'content-type': 'application/json',
           },
-          body: { url: `https://example.com/${platform}` },
+          body: { url: 'https://example.com/media' },
         },
         createResponse()
       );
@@ -254,90 +131,26 @@ test('SMD catch-all handles every public downloader endpoint without explicit Ho
       assert.equal(headers['X-API-Key'], 'test-key');
       assert.equal(headers.DOWNLOADDASH_API_KEY, 'test-key');
       assert.equal(headers.Authorization, 'Bearer test-key');
+      assert.equal(headers.Authorization.includes('frontend-token'), false);
     }
-  } finally {
-    globalThis.fetch = originalFetch;
-    process.env.SMD_API_BASE_URL = originalBase;
-    process.env.DOWNLOADDASH_API_KEY = originalKey;
-  }
-});
-
-test('Vercel SMD proxy parses req.url paths and replaces frontend Authorization upstream', async () => {
-  const originalFetch = globalThis.fetch;
-  const originalBase = process.env.SMD_API_BASE_URL;
-  const originalKey = process.env.DOWNLOADDASH_API_KEY;
-
-  process.env.SMD_API_BASE_URL = 'https://api.downloaddash.store/api/smd/';
-  process.env.DOWNLOADDASH_API_KEY = 'test-key';
-
-  let forwarded;
-  globalThis.fetch = async (url, init) => {
-    forwarded = { url, init };
-    return new Response(
-      JSON.stringify({
-        success: true,
-        download_url: 'https://cdn.example/video.mp4',
-        downloads: { videoHD: 'https://cdn.example/video.mp4' },
-      }),
-      { status: 200, headers: { 'content-type': 'application/json' } }
-    );
-  };
-
-  try {
-    const req = {
-      method: 'POST',
-      url: '/api/smd/youtube/download',
-      query: {},
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json; charset=utf-8',
-        authorization: 'Bearer frontend-token',
-      },
-      body: { url: 'https://www.youtube.com/watch?v=abc123', quality: 'highest' },
-    };
-    const res = createResponse();
-
-    await handler(req, res);
-
-    assert.equal(forwarded.url, 'https://api.downloaddash.store/youtube/download');
-    assert.equal(forwarded.init.method, 'POST');
-    assert.equal(forwarded.init.headers['Content-Type'], 'application/json; charset=utf-8');
-    assert.equal(forwarded.init.headers.Accept, 'application/json');
-    assert.equal(forwarded.init.headers.Authorization, 'Bearer test-key');
-    assert.equal(forwarded.init.headers.Authorization.includes('frontend-token'), false);
-    assert.equal(forwarded.init.headers['X-API-Key'], 'test-key');
-    assert.equal(forwarded.init.headers.DOWNLOADDASH_API_KEY, 'test-key');
-    assert.equal(forwarded.init.headers['X-DownloadDash-Key'], 'test-key');
-    assert.deepEqual(JSON.parse(forwarded.init.body), {
-      url: 'https://www.youtube.com/watch?v=abc123',
-      quality: 'highest',
-    });
-    assert.equal(res.statusCode, 200);
-  } finally {
-    globalThis.fetch = originalFetch;
-    process.env.SMD_API_BASE_URL = originalBase;
-    process.env.DOWNLOADDASH_API_KEY = originalKey;
-  }
+  });
 });
 
 test('Vercel SMD proxy supports the alternate catch-all query key used by some Vercel adapters', async () => {
-  const originalFetch = globalThis.fetch;
   const originalBase = process.env.SMD_API_BASE_URL;
-  const originalKey = process.env.DOWNLOADDASH_API_KEY;
 
-  process.env.SMD_API_BASE_URL = 'https://api.downloaddash.store/api';
-  process.env.DOWNLOADDASH_API_KEY = 'test-key';
+  await withProxyEnv(async () => {
+    process.env.SMD_API_BASE_URL = 'https://api.downloaddash.store/api';
 
-  let forwardedUrl;
-  globalThis.fetch = async (url) => {
-    forwardedUrl = url;
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
-  };
+    let forwardedUrl;
+    globalThis.fetch = async (url) => {
+      forwardedUrl = url;
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
 
-  try {
     await handler(
       {
         method: 'POST',
@@ -349,67 +162,52 @@ test('Vercel SMD proxy supports the alternate catch-all query key used by some V
     );
 
     assert.equal(forwardedUrl, 'https://api.downloaddash.store/youtube/download');
-  } finally {
-    globalThis.fetch = originalFetch;
-    process.env.SMD_API_BASE_URL = originalBase;
-    process.env.DOWNLOADDASH_API_KEY = originalKey;
-  }
+  });
+
+  process.env.SMD_API_BASE_URL = originalBase;
 });
 
-test('root /api catch-all proxy forwards /api/youtube/download instead of serving the SPA', async () => {
-  const originalFetch = globalThis.fetch;
-  const originalBase = process.env.SMD_API_BASE_URL;
-  const originalKey = process.env.DOWNLOADDASH_API_KEY;
-
-  process.env.SMD_API_BASE_URL = 'https://api.downloaddash.store';
-  process.env.DOWNLOADDASH_API_KEY = 'test-key';
-
-  let forwarded;
-  globalThis.fetch = async (url, init) => {
-    forwarded = { url, init };
-    return new Response(
-      JSON.stringify({
-        success: true,
-        download_url: 'https://cdn.example/video.mp4',
-        downloads: { videoHD: 'https://cdn.example/video.mp4' },
-      }),
-      { status: 200, headers: { 'content-type': 'application/json' } }
-    );
-  };
-
-  try {
-    const req = {
-      method: 'POST',
-      url: '/api/youtube/download',
-      query: {},
-      headers: { accept: 'application/json', 'content-type': 'application/json' },
-      body: { url: 'https://www.youtube.com/watch?v=abc123' },
+test('root /api URLs are not accepted by the SMD proxy URL parser', async () => {
+  await withProxyEnv(async () => {
+    let fetchCalled = false;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
     };
+
     const res = createResponse();
+    await handler(
+      {
+        method: 'POST',
+        url: '/api/youtube/download',
+        query: {},
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: { url: 'https://www.youtube.com/watch?v=abc123' },
+      },
+      res
+    );
 
-    await rootHandler(req, res);
-
-    assert.equal(forwarded.url, 'https://api.downloaddash.store/youtube/download');
-    assert.equal(forwarded.init.method, 'POST');
-    assert.equal(JSON.parse(forwarded.init.body).url, 'https://www.youtube.com/watch?v=abc123');
-    assert.equal(res.statusCode, 200);
-    assert.notEqual(res.headers['content-type'], 'text/html');
-  } finally {
-    globalThis.fetch = originalFetch;
-    process.env.SMD_API_BASE_URL = originalBase;
-    process.env.DOWNLOADDASH_API_KEY = originalKey;
-  }
+    assert.equal(fetchCalled, false);
+    assert.equal(res.statusCode, 404);
+    assert.match(String(res.body), /PROXY_PATH_MISSING/);
+  });
 });
 
-test('Vercel SPA rewrite excludes API paths so functions can handle POST requests', async () => {
+test('frontend API client defaults to the /api/smd namespace', async () => {
+  const client = await readFile(new URL('../../src/api/downloadDashClient.js', import.meta.url), 'utf8');
+
+  assert.match(client, /const DEFAULT_API_BASE_URL = '\/api\/smd';/);
+  assert.doesNotMatch(client, /const DEFAULT_API_BASE_URL = '\/api';/);
+});
+
+test('Vercel SPA rewrite excludes API paths so functions can handle requests', async () => {
   const config = JSON.parse(await readFile(new URL('../../vercel.json', import.meta.url), 'utf8'));
-  const apiRewrite = config.rewrites.find((rewrite) => rewrite.source === '/api/:path*');
   const spaRewrite = config.rewrites.find((rewrite) => rewrite.destination === '/index.html');
 
-  assert.deepEqual(apiRewrite, {
-    source: '/api/:path*',
-    destination: '/api/:path*',
-  });
+  assert.equal(config.rewrites.some((rewrite) => rewrite.source === '/api/:path*'), false);
   assert.ok(config.functions['api/**/*.js']);
   assert.equal(config.framework, 'vite');
   assert.equal(config.outputDirectory, 'dist');
@@ -418,25 +216,82 @@ test('Vercel SPA rewrite excludes API paths so functions can handle POST request
   assert.doesNotMatch(spaRewrite.source, /^\/\(\.\*\)$/);
 });
 
-test('API fallback routes are canonical and not duplicated by optional catch-alls', async () => {
+test('API fallback route is canonical and not duplicated by optional catch-alls', async () => {
   const apiEntries = await readdir(new URL('../../api/', import.meta.url));
   const smdEntries = await readdir(new URL('../../api/smd/', import.meta.url));
 
-  assert.ok(apiEntries.includes('[...path].js'));
+  assert.ok(apiEntries.includes('_downloadDashProxy.js'));
+  assert.equal(apiEntries.includes('[...path].js'), false);
+  assert.equal(apiEntries.includes('rapid-youtube.js'), false);
+  assert.equal(apiEntries.includes('rapid-youtube-file.js'), false);
   assert.ok(smdEntries.includes('[...path].js'));
-  assert.equal(apiEntries.includes('[[...path]].js'), false);
+  assert.ok(smdEntries.includes('rapid-youtube.js'));
+  assert.ok(smdEntries.includes('rapid-youtube-file.js'));
   assert.equal(smdEntries.includes('[[...path]].js'), false);
 });
 
-test('Vercel Hobby deployment stays below the 12 function limit', async () => {
+test('required physical SMD platform routes delegate directly to the shared proxy', async () => {
+  const platforms = [
+    'youtube',
+    'instagram',
+    'tiktok',
+    'facebook',
+    'x',
+    'twitter',
+    'reddit',
+    'pinterest',
+    'telegram',
+    'whatsapp_business',
+  ];
+  const expected = 'import handler from "../../_downloadDashProxy.js";\n\nexport default handler;';
+
+  for (const platform of platforms) {
+    const route = await readFile(
+      new URL(`../../api/smd/${platform}/download.js`, import.meta.url),
+      'utf8'
+    );
+
+    assert.equal(route.trim(), expected);
+  }
+});
+
+test('RapidAPI endpoints are restored under the /api/smd namespace', async () => {
+  const rapidYoutube = await readFile(new URL('../../api/smd/rapid-youtube.js', import.meta.url), 'utf8');
+  const rapidYoutubeFile = await readFile(
+    new URL('../../api/smd/rapid-youtube-file.js', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(rapidYoutube, /RAPIDAPI_YOUTUBE_HOST/);
+  assert.match(rapidYoutube, /\/api\/smd\/rapid-youtube-file\?/);
+  assert.doesNotMatch(rapidYoutube, /\/api\/rapid-youtube-file\?/);
+  assert.match(rapidYoutubeFile, /RapidAPI file download failed/);
+});
+
+test('physical API file inventory reflects the requested SMD routes', async () => {
   const apiEntries = await readdir(new URL('../../api/', import.meta.url), { withFileTypes: true });
   const smdEntries = await readdir(new URL('../../api/smd/', import.meta.url), { withFileTypes: true });
   const rootFunctions = apiEntries.filter((entry) => entry.isFile() && entry.name.endsWith('.js'));
   const smdFunctions = smdEntries.filter((entry) => entry.isFile() && entry.name.endsWith('.js'));
+  const smdDirectories = smdEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
 
-  assert.equal(rootFunctions.some((entry) => entry.name === '[...path].js'), true);
-  assert.equal(smdFunctions.some((entry) => entry.name === '[...path].js'), true);
-  assert.equal(apiEntries.some((entry) => entry.isDirectory() && entry.name === 'youtube'), false);
-  assert.equal(smdEntries.some((entry) => entry.isDirectory() && entry.name === 'youtube'), false);
-  assert.ok(rootFunctions.length + smdFunctions.length <= 12);
+  assert.deepEqual(rootFunctions.map((entry) => entry.name).sort(), ['_downloadDashProxy.js']);
+  assert.deepEqual(smdFunctions.map((entry) => entry.name).sort(), [
+    '[...path].js',
+    'rapid-youtube-file.js',
+    'rapid-youtube.js',
+  ]);
+  assert.deepEqual(smdDirectories, [
+    'facebook',
+    'instagram',
+    'pinterest',
+    'reddit',
+    'telegram',
+    'tiktok',
+    'twitter',
+    'whatsapp_business',
+    'x',
+    'youtube',
+  ]);
+  assert.equal(apiEntries.some((entry) => entry.isDirectory() && entry.name !== 'smd'), false);
 });

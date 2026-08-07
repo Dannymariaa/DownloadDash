@@ -67,7 +67,7 @@ function pathPartsFromUrl(req) {
   if (!requestUrl) return [];
 
   const parsed = new URL(requestUrl, "https://downloaddash.local");
-  const match = parsed.pathname.match(/^\/api(?:\/smd)?\/?(.*)$/);
+  const match = parsed.pathname.match(/^\/api\/smd\/?(.*)$/);
 
   if (!match || !match[1]) return [];
   return asPathParts(match[1]);
@@ -186,9 +186,12 @@ function copyResponseHeaders(upstream, res) {
 }
 
 export default async function handler(req, res) {
+  const parts = getPathParts(req);
+
   console.info("[DownloadDash Proxy] incoming request", {
     method: req.method,
     url: req.url,
+    parsedPath: `/${parts.join("/")}`,
     query: req.query,
     contentType: req.headers["content-type"],
   });
@@ -215,8 +218,6 @@ export default async function handler(req, res) {
     });
   }
 
-  const parts = getPathParts(req);
-
   if (!parts.length) {
     return json(res, 404, {
       success: false,
@@ -227,8 +228,8 @@ export default async function handler(req, res) {
 
   const forwardPath = buildForwardPath(parts);
   console.info("[DownloadDash Proxy] resolved route", {
-    requestPath: `/${parts.join("/")}`,
-    upstreamPath: `/${forwardPath.join("/")}`,
+    parsedPath: `/${parts.join("/")}`,
+    forwardedPath: `/${forwardPath.join("/")}`,
   });
 
   const baseUrl = normalizeUpstreamBaseUrl(process.env.SMD_API_BASE_URL);
@@ -236,7 +237,7 @@ export default async function handler(req, res) {
 
   appendQueryParams(target, req.query);
   console.info("[DownloadDash Proxy] upstream url", {
-    url: target.toString(),
+    upstreamUrl: target.toString(),
   });
 
   console.info("[DownloadDash Proxy] Forwarding request", {
@@ -265,7 +266,8 @@ export default async function handler(req, res) {
     const contentType = upstream.headers.get("content-type") || "application/octet-stream";
 
     console.info("[DownloadDash Proxy] Upstream response", {
-      upstreamPath: `/${forwardPath.join("/")}`,
+      forwardedPath: `/${forwardPath.join("/")}`,
+      upstreamUrl: target.toString(),
       status: upstream.status,
       contentType,
     });
@@ -300,9 +302,11 @@ export default async function handler(req, res) {
   } catch (error) {
     const timedOut = error?.name === "AbortError";
     console.error("DOWNLOADDASH PROXY ERROR");
-    console.error(error);
+    console.error(error?.stack || error);
     console.error("[DownloadDash Proxy] Request failed", {
       path: `/${parts.join("/")}`,
+      forwardedPath: `/${forwardPath.join("/")}`,
+      upstreamUrl: target.toString(),
       message: error?.message,
       timedOut,
       stack: error?.stack,

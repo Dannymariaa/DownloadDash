@@ -1,7 +1,7 @@
 // @ts-nocheck
 // src/api/downloadDashClient.js
 
-const DEFAULT_API_BASE_URL = '/api';
+const DEFAULT_API_BASE_URL = '/api/smd';
 const PROTECTED_RENDER_API_HOSTS = new Set([
   'api.downloaddash.store',
 ]);
@@ -25,7 +25,7 @@ const getApiBaseUrl = () => {
   const raw = import.meta.env.VITE_SMD_API_BASE_URL || DEFAULT_API_BASE_URL;
   const normalized = String(raw).replace(/\/+$/, '') || DEFAULT_API_BASE_URL;
 
-  if (normalized === '/api') return DEFAULT_API_BASE_URL;
+  if (normalized === '/api' || normalized === '/api/smd') return DEFAULT_API_BASE_URL;
 
   try {
     const parsed = new URL(normalized);
