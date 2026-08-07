@@ -240,8 +240,6 @@ test('required physical SMD platform routes delegate directly to the shared prox
     'twitter',
     'reddit',
     'pinterest',
-    'telegram',
-    'whatsapp_business',
   ];
   const expected = 'import handler from "../../_downloadDashProxy.js";\n\nexport default handler;';
 
@@ -286,10 +284,8 @@ test('physical API file inventory reflects the requested SMD routes', async () =
     'instagram',
     'pinterest',
     'reddit',
-    'telegram',
     'tiktok',
     'twitter',
-    'whatsapp_business',
     'x',
     'youtube',
   ]);
