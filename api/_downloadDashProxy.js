@@ -27,9 +27,6 @@ const PLATFORM_MAP = {
   reddit: "reddit",
   x: "twitter",
   twitter: "twitter",
-  telegram: "telegram",
-  whatsappbusiness: "whatsapp_business",
-  whatsapp_business: "whatsapp_business",
 };
 
 function json(res, status, body) {
@@ -147,7 +144,8 @@ function buildForwardPath(parts) {
   const second = parts[1] ? decodeURIComponent(parts[1]).toLowerCase() : "";
 
   if (parts.length >= 2 && second === "download") {
-    return [PLATFORM_MAP[first] || first, "download"];
+    if (!PLATFORM_MAP[first]) return null;
+    return [PLATFORM_MAP[first], "download"];
   }
 
   if (first === "download" && parts[1] === "file") {
@@ -227,6 +225,14 @@ export default async function handler(req, res) {
   }
 
   const forwardPath = buildForwardPath(parts);
+  if (!forwardPath) {
+    return json(res, 404, {
+      success: false,
+      message: "Downloader platform is not supported.",
+      error: "PLATFORM_NOT_SUPPORTED",
+    });
+  }
+
   console.info("[DownloadDash Proxy] resolved route", {
     parsedPath: `/${parts.join("/")}`,
     forwardedPath: `/${forwardPath.join("/")}`,

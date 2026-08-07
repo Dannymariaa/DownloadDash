@@ -89,8 +89,6 @@ test('SMD catch-all handles every public downloader endpoint without platform-sp
       ['/api/smd/twitter/download', 'twitter'],
       ['/api/smd/reddit/download', 'reddit'],
       ['/api/smd/pinterest/download', 'pinterest'],
-      ['/api/smd/telegram/download', 'telegram'],
-      ['/api/smd/whatsapp_business/download', 'whatsapp_business'],
     ];
     const forwardedUrls = [];
     const authHeaders = [];
