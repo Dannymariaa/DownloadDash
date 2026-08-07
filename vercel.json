@@ -57,7 +57,11 @@
 
   "rewrites": [
     {
-      "source": "/((?!api|downloads|sw\\.js$).*)",
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    },
+    {
+      "source": "/((?!api(?:/|$)|downloads/|sw\\.js$).*)",
       "destination": "/index.html"
     }
   ]

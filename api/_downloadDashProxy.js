@@ -1,3 +1,4 @@
+console.log("DOWNLOADDASH PROXY LOADED");
 console.log("[DownloadDash Proxy] module loaded", {
   node: process.version,
   timestamp: new Date().toISOString(),
