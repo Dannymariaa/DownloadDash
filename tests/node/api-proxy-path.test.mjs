@@ -3,26 +3,6 @@ import { readdir, readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import rootHandler from '../../api/[...path].js';
 import handler from '../../api/smd/[...path].js';
-import youtubeHandler from '../../api/youtube/download.js';
-import instagramHandler from '../../api/instagram/download.js';
-import tiktokHandler from '../../api/tiktok/download.js';
-import facebookHandler from '../../api/facebook/download.js';
-import xHandler from '../../api/x/download.js';
-import twitterHandler from '../../api/twitter/download.js';
-import redditHandler from '../../api/reddit/download.js';
-import pinterestHandler from '../../api/pinterest/download.js';
-import telegramHandler from '../../api/telegram/download.js';
-import whatsappBusinessHandler from '../../api/whatsapp_business/download.js';
-import smdYoutubeHandler from '../../api/smd/youtube/download.js';
-import smdInstagramHandler from '../../api/smd/instagram/download.js';
-import smdTiktokHandler from '../../api/smd/tiktok/download.js';
-import smdFacebookHandler from '../../api/smd/facebook/download.js';
-import smdXHandler from '../../api/smd/x/download.js';
-import smdTwitterHandler from '../../api/smd/twitter/download.js';
-import smdRedditHandler from '../../api/smd/reddit/download.js';
-import smdPinterestHandler from '../../api/smd/pinterest/download.js';
-import smdTelegramHandler from '../../api/smd/telegram/download.js';
-import smdWhatsappBusinessHandler from '../../api/smd/whatsapp_business/download.js';
 
 const createResponse = () => {
   const headers = {};
@@ -148,21 +128,21 @@ test('Vercel SMD proxy preserves every public downloader endpoint path', async (
   }
 });
 
-test('explicit Vercel downloader functions delegate to the shared proxy without broken imports', async () => {
+test('root catch-all handles every public downloader endpoint without explicit Hobby-plan functions', async () => {
   const originalFetch = globalThis.fetch;
   const originalBase = process.env.SMD_API_BASE_URL;
   const originalKey = process.env.DOWNLOADDASH_API_KEY;
   const endpoints = [
-    ['youtube', youtubeHandler, 'youtube'],
-    ['instagram', instagramHandler, 'instagram'],
-    ['tiktok', tiktokHandler, 'tiktok'],
-    ['facebook', facebookHandler, 'facebook'],
-    ['x', xHandler, 'twitter'],
-    ['twitter', twitterHandler, 'twitter'],
-    ['reddit', redditHandler, 'reddit'],
-    ['pinterest', pinterestHandler, 'pinterest'],
-    ['telegram', telegramHandler, 'telegram'],
-    ['whatsapp_business', whatsappBusinessHandler, 'whatsapp_business'],
+    ['youtube', 'youtube'],
+    ['instagram', 'instagram'],
+    ['tiktok', 'tiktok'],
+    ['facebook', 'facebook'],
+    ['x', 'twitter'],
+    ['twitter', 'twitter'],
+    ['reddit', 'reddit'],
+    ['pinterest', 'pinterest'],
+    ['telegram', 'telegram'],
+    ['whatsapp_business', 'whatsapp_business'],
   ];
   const forwardedUrls = [];
   const authHeaders = [];
@@ -180,8 +160,8 @@ test('explicit Vercel downloader functions delegate to the shared proxy without 
   };
 
   try {
-    for (const [platform, routeHandler] of endpoints) {
-      await routeHandler(
+    for (const [platform] of endpoints) {
+      await rootHandler(
         {
           method: 'POST',
           url: `/api/${platform}/download`,
@@ -199,7 +179,7 @@ test('explicit Vercel downloader functions delegate to the shared proxy without 
 
     assert.deepEqual(
       forwardedUrls,
-      endpoints.map(([, , upstreamPlatform]) => `https://render.example/${upstreamPlatform}/download`)
+      endpoints.map(([, upstreamPlatform]) => `https://render.example/${upstreamPlatform}/download`)
     );
 
     for (const headers of authHeaders) {
@@ -215,21 +195,21 @@ test('explicit Vercel downloader functions delegate to the shared proxy without 
   }
 });
 
-test('explicit Vercel SMD downloader functions delegate to the shared proxy without broken imports', async () => {
+test('SMD catch-all handles every public downloader endpoint without explicit Hobby-plan functions', async () => {
   const originalFetch = globalThis.fetch;
   const originalBase = process.env.SMD_API_BASE_URL;
   const originalKey = process.env.DOWNLOADDASH_API_KEY;
   const endpoints = [
-    ['youtube', smdYoutubeHandler, 'youtube'],
-    ['instagram', smdInstagramHandler, 'instagram'],
-    ['tiktok', smdTiktokHandler, 'tiktok'],
-    ['facebook', smdFacebookHandler, 'facebook'],
-    ['x', smdXHandler, 'twitter'],
-    ['twitter', smdTwitterHandler, 'twitter'],
-    ['reddit', smdRedditHandler, 'reddit'],
-    ['pinterest', smdPinterestHandler, 'pinterest'],
-    ['telegram', smdTelegramHandler, 'telegram'],
-    ['whatsapp_business', smdWhatsappBusinessHandler, 'whatsapp_business'],
+    ['youtube', 'youtube'],
+    ['instagram', 'instagram'],
+    ['tiktok', 'tiktok'],
+    ['facebook', 'facebook'],
+    ['x', 'twitter'],
+    ['twitter', 'twitter'],
+    ['reddit', 'reddit'],
+    ['pinterest', 'pinterest'],
+    ['telegram', 'telegram'],
+    ['whatsapp_business', 'whatsapp_business'],
   ];
   const forwardedUrls = [];
   const authHeaders = [];
@@ -247,8 +227,8 @@ test('explicit Vercel SMD downloader functions delegate to the shared proxy with
   };
 
   try {
-    for (const [platform, routeHandler] of endpoints) {
-      await routeHandler(
+    for (const [platform] of endpoints) {
+      await handler(
         {
           method: 'POST',
           url: `/api/smd/${platform}/download`,
@@ -266,7 +246,7 @@ test('explicit Vercel SMD downloader functions delegate to the shared proxy with
 
     assert.deepEqual(
       forwardedUrls,
-      endpoints.map(([, , upstreamPlatform]) => `https://render.example/${upstreamPlatform}/download`)
+      endpoints.map(([, upstreamPlatform]) => `https://render.example/${upstreamPlatform}/download`)
     );
 
     for (const headers of authHeaders) {
@@ -446,4 +426,17 @@ test('API fallback routes are canonical and not duplicated by optional catch-all
   assert.ok(smdEntries.includes('[...path].js'));
   assert.equal(apiEntries.includes('[[...path]].js'), false);
   assert.equal(smdEntries.includes('[[...path]].js'), false);
+});
+
+test('Vercel Hobby deployment stays below the 12 function limit', async () => {
+  const apiEntries = await readdir(new URL('../../api/', import.meta.url), { withFileTypes: true });
+  const smdEntries = await readdir(new URL('../../api/smd/', import.meta.url), { withFileTypes: true });
+  const rootFunctions = apiEntries.filter((entry) => entry.isFile() && entry.name.endsWith('.js'));
+  const smdFunctions = smdEntries.filter((entry) => entry.isFile() && entry.name.endsWith('.js'));
+
+  assert.equal(rootFunctions.some((entry) => entry.name === '[...path].js'), true);
+  assert.equal(smdFunctions.some((entry) => entry.name === '[...path].js'), true);
+  assert.equal(apiEntries.some((entry) => entry.isDirectory() && entry.name === 'youtube'), false);
+  assert.equal(smdEntries.some((entry) => entry.isDirectory() && entry.name === 'youtube'), false);
+  assert.ok(rootFunctions.length + smdFunctions.length <= 12);
 });
