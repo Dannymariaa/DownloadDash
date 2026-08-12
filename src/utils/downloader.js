@@ -53,20 +53,19 @@ export const downloadFromUrl = async (url, options = {}) => {
     let normalizedPlatform = platform.toLowerCase();
     if (normalizedPlatform === 'x') normalizedPlatform = 'twitter';
 
-    // Build optimized GET query strings to perfectly match app.py expected arguments
-    const queryParams = new URLSearchParams({
-      url: cleanUrl,
-      platform: normalizedPlatform,
-      quality: quality,
-      extractAudio: extractAudio ? 'true' : 'false'
-    });
-
-    // Invoke the unified /api/smd/extract routing path matching the backend architecture
-    const response = await fetch(`/api/smd/api/v1/extract?${queryParams.toString()}`, {
-      method: 'GET',
+    const response = await fetch(`/api/smd/${normalizedPlatform}/download`, {
+      method: 'POST',
       headers: {
-        'Accept': 'application/json'
-      }
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: cleanUrl,
+        platform: normalizedPlatform,
+        quality,
+        extract_audio: !!extractAudio,
+        include_metadata: true,
+      }),
     });
 
     const result = await response.json();

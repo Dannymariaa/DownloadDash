@@ -17,9 +17,35 @@ const json = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
+const normalizeUpstreamBaseUrl = (value) => {
+  let normalized = String(value || DEFAULT_UPSTREAM_BASE_URL).trim().replace(/\/+$/, '');
+  normalized = normalized.replace(/\/api\/smd$/i, '');
+  normalized = normalized.replace(/\/api$/i, '');
+  normalized = normalized.replace(/\/smd$/i, '');
+  return normalized || DEFAULT_UPSTREAM_BASE_URL;
+};
+
+const asPathParts = (value) => {
+  if (!value) return [];
+  const values = Array.isArray(value) ? value : [value];
+  return values
+    .flatMap((part) => String(part).split('/'))
+    .filter(Boolean)
+    .map((part) => encodeURIComponent(decodeURIComponent(part)));
+};
+
+const pathPartsFromUrl = (req) => {
+  const requestUrl = req.url || req.originalUrl;
+  if (!requestUrl) return [];
+  const parsed = new URL(requestUrl, 'https://downloaddash.local');
+  const match = parsed.pathname.match(/^\/api\/smd\/?(.*)$/);
+  if (!match?.[1]) return [];
+  return asPathParts(match[1]);
+};
+
 const appendQueryParams = (target, query = {}) => {
   Object.entries(query).forEach(([key, value]) => {
-    if (key === 'path') return;
+    if (key === 'path' || key === '...path') return;
     const values = Array.isArray(value) ? value : [value];
     values.forEach((entry) => {
       if (entry !== undefined && entry !== null) {
@@ -36,6 +62,30 @@ const getRequestBody = (req) => {
   return JSON.stringify(req.body);
 };
 
+const buildForwardHeaders = (req, apiKey) => {
+  const headers = {
+    Accept: req.headers.accept || 'application/json',
+    'X-DownloadDash-Key': apiKey,
+  };
+
+  const contentType = req.headers['content-type'];
+  if (contentType) {
+    headers['Content-Type'] = contentType;
+  } else if (req.method !== 'GET' && req.method !== 'HEAD') {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (req.headers.authorization) {
+    headers.Authorization = req.headers.authorization;
+  }
+
+  if (req.headers['x-rapidapi-proxy-secret']) {
+    headers['X-RapidAPI-Proxy-Secret'] = req.headers['x-rapidapi-proxy-secret'];
+  }
+
+  return headers;
+};
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,HEAD,OPTIONS');
@@ -49,7 +99,7 @@ export default async function handler(req, res) {
   }
 
   const apiKey = String(process.env.DOWNLOADDASH_API_KEY || '').trim();
-  const baseUrl = String(process.env.SMD_API_BASE_URL || DEFAULT_UPSTREAM_BASE_URL).replace(/\/+$/, '');
+  const baseUrl = normalizeUpstreamBaseUrl(process.env.SMD_API_BASE_URL || DEFAULT_UPSTREAM_BASE_URL);
 
   if (!apiKey) {
     return json(res, 500, {
@@ -58,11 +108,12 @@ export default async function handler(req, res) {
     });
   }
 
-  const rawPath = req.query?.path;
-  const parts = (Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [])
-    .flatMap((part) => String(part).split('/'))
-    .filter(Boolean)
-    .map((part) => encodeURIComponent(decodeURIComponent(part)));
+  const parts =
+    asPathParts(req.query?.path).length
+      ? asPathParts(req.query.path)
+      : asPathParts(req.query?.['...path']).length
+        ? asPathParts(req.query['...path'])
+        : pathPartsFromUrl(req);
 
   if (!parts.length) {
     return json(res, 404, { success: false, message: 'API proxy path is missing.' });
@@ -74,15 +125,13 @@ export default async function handler(req, res) {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
+    console.info('[DownloadDash SMD proxy] upstream_url=%s method=%s', target.toString(), req.method);
+
     const upstream = await fetch(target.toString(), {
       method: req.method,
       body: getRequestBody(req),
       signal: controller.signal,
-      headers: {
-        Accept: req.headers.accept || 'application/json',
-        'Content-Type': req.headers['content-type'] || 'application/json',
-        'X-DownloadDash-Key': apiKey,
-      },
+      headers: buildForwardHeaders(req, apiKey),
     });
 
     upstream.headers.forEach((value, key) => {

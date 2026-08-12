@@ -114,3 +114,94 @@ test('Vercel SMD proxy preserves every public downloader endpoint path', async (
     process.env.DOWNLOADDASH_API_KEY = originalKey;
   }
 });
+
+test('Vercel SMD proxy parses the upstream path from req.url when Vercel leaves req.query.path empty', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalBase = process.env.SMD_API_BASE_URL;
+  const originalKey = process.env.DOWNLOADDASH_API_KEY;
+
+  process.env.SMD_API_BASE_URL = 'https://api.downloaddash.store/api/smd/';
+  process.env.DOWNLOADDASH_API_KEY = 'test-key';
+
+  let forwarded;
+  globalThis.fetch = async (url, init) => {
+    forwarded = { url, init };
+    return new Response(
+      JSON.stringify({
+        success: true,
+        download_url: 'https://cdn.example/video.mp4',
+        downloads: { videoHD: 'https://cdn.example/video.mp4' },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } }
+    );
+  };
+
+  try {
+    const req = {
+      method: 'POST',
+      url: '/api/smd/youtube/download',
+      query: {},
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json; charset=utf-8',
+        authorization: 'Bearer frontend-token',
+      },
+      body: { url: 'https://www.youtube.com/watch?v=abc123', quality: 'highest' },
+    };
+    const res = createResponse();
+
+    await handler(req, res);
+
+    assert.equal(forwarded.url, 'https://api.downloaddash.store/youtube/download');
+    assert.equal(forwarded.init.method, 'POST');
+    assert.equal(forwarded.init.headers['Content-Type'], 'application/json; charset=utf-8');
+    assert.equal(forwarded.init.headers.Accept, 'application/json');
+    assert.equal(forwarded.init.headers.Authorization, 'Bearer frontend-token');
+    assert.equal(forwarded.init.headers['X-DownloadDash-Key'], 'test-key');
+    assert.deepEqual(JSON.parse(forwarded.init.body), {
+      url: 'https://www.youtube.com/watch?v=abc123',
+      quality: 'highest',
+    });
+    assert.equal(res.statusCode, 200);
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.SMD_API_BASE_URL = originalBase;
+    process.env.DOWNLOADDASH_API_KEY = originalKey;
+  }
+});
+
+test('Vercel SMD proxy supports the alternate catch-all query key used by some Vercel adapters', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalBase = process.env.SMD_API_BASE_URL;
+  const originalKey = process.env.DOWNLOADDASH_API_KEY;
+
+  process.env.SMD_API_BASE_URL = 'https://api.downloaddash.store/api';
+  process.env.DOWNLOADDASH_API_KEY = 'test-key';
+
+  let forwardedUrl;
+  globalThis.fetch = async (url) => {
+    forwardedUrl = url;
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+
+  try {
+    await handler(
+      {
+        method: 'POST',
+        query: { '...path': ['youtube', 'download'] },
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: { url: 'https://www.youtube.com/watch?v=abc123' },
+      },
+      createResponse()
+    );
+
+    assert.equal(forwardedUrl, 'https://api.downloaddash.store/youtube/download');
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.SMD_API_BASE_URL = originalBase;
+    process.env.DOWNLOADDASH_API_KEY = originalKey;
+  }
+});
