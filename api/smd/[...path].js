@@ -1,4 +1,5 @@
 const DEFAULT_UPSTREAM_BASE_URL = 'https://api.downloaddash.store';
+const REQUEST_TIMEOUT_MS = 55000;
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -16,87 +17,101 @@ const json = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
+const appendQueryParams = (target, query = {}) => {
+  Object.entries(query).forEach(([key, value]) => {
+    if (key === 'path') return;
+    const values = Array.isArray(value) ? value : [value];
+    values.forEach((entry) => {
+      if (entry !== undefined && entry !== null) {
+        target.searchParams.append(key, String(entry));
+      }
+    });
+  });
+};
+
+const getRequestBody = (req) => {
+  if (req.method === 'GET' || req.method === 'HEAD') return undefined;
+  if (req.body === undefined || req.body === null) return undefined;
+  if (Buffer.isBuffer(req.body) || typeof req.body === 'string') return req.body;
+  return JSON.stringify(req.body);
+};
+
 export default async function handler(req, res) {
-  // Handle CORS Preflight Options
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-DownloadDash-Key');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,HEAD,OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Accept, Authorization, X-DownloadDash-Key, X-RapidAPI-Proxy-Secret'
+  );
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
   const apiKey = String(process.env.DOWNLOADDASH_API_KEY || '').trim();
-  const baseUrl = String(process.env.SMD_API_BASE_URL || process.env.VITE_SMD_API_BASE_URL || DEFAULT_UPSTREAM_BASE_URL).replace(/\/+$/, '');
+  const baseUrl = String(process.env.SMD_API_BASE_URL || DEFAULT_UPSTREAM_BASE_URL).replace(/\/+$/, '');
 
-  let mediaUrl = '';
-  
-  // Safely capture payload URL from POST body
-  if (req.body) {
-    try {
-      const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      mediaUrl = payload.url || '';
-    } catch (e) {
-      mediaUrl = '';
-    }
+  if (!apiKey) {
+    return json(res, 500, {
+      success: false,
+      message: 'DOWNLOADDASH_API_KEY is not configured on the Vercel serverless proxy.',
+    });
   }
 
-  // Fallback to query parameter if body wasn't fully read
-  if (!mediaUrl && req.query.url) {
-    mediaUrl = req.query.url;
-  }
-
-  if (!mediaUrl) {
-    return json(res, 400, { success: false, message: 'No media URL provided.' });
-  }
-
-  // Deduce platform from path parts
   const rawPath = req.query?.path;
-  const parts = Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [];
-  const inferredPlatform = parts[0] || 'instagram';
+  const parts = (Array.isArray(rawPath) ? rawPath : rawPath ? [rawPath] : [])
+    .flatMap((part) => String(part).split('/'))
+    .filter(Boolean)
+    .map((part) => encodeURIComponent(decodeURIComponent(part)));
 
-  // --- MAP TO EXACT FLASK ROUTE ---
-  // Transforms /api/smd/youtube/download POST -> /api/v1/extract?url=...&platform=... GET
-  const target = new URL(`${baseUrl}/api/v1/extract`);
-  target.searchParams.append('url', mediaUrl.trim());
-  target.searchParams.append('platform', inferredPlatform.toLowerCase());
+  if (!parts.length) {
+    return json(res, 404, { success: false, message: 'API proxy path is missing.' });
+  }
+
+  const target = new URL(`${baseUrl}/${parts.join('/')}`);
+  appendQueryParams(target, req.query);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
     const upstream = await fetch(target.toString(), {
-      method: 'GET', // Matches app.py @app.route("/api/v1/extract", methods=["GET"])
+      method: req.method,
+      body: getRequestBody(req),
+      signal: controller.signal,
       headers: {
-        'Accept': 'application/json',
+        Accept: req.headers.accept || 'application/json',
+        'Content-Type': req.headers['content-type'] || 'application/json',
         'X-DownloadDash-Key': apiKey,
-      }
+      },
     });
 
-    if (!upstream.ok) {
-      const errorText = await upstream.text();
-      try {
-        const errorJson = JSON.parse(errorText);
-        return json(res, upstream.status, errorJson);
-      } catch {
-        return json(res, upstream.status, { success: false, error: 'Upstream server error', detail: errorText });
-      }
-    }
-
-    const data = await upstream.json();
-    
-    // Forward response headers while dropping hop-by-hop restrictions
     upstream.headers.forEach((value, key) => {
       const lowerKey = key.toLowerCase();
-      if (!HOP_BY_HOP_HEADERS.has(lowerKey) && lowerKey !== 'content-encoding') {
+      if (
+        !HOP_BY_HOP_HEADERS.has(lowerKey) &&
+        !['content-encoding', 'content-length', 'access-control-allow-origin'].includes(lowerKey)
+      ) {
         res.setHeader(key, value);
       }
     });
 
-    return res.status(upstream.status).json(data);
-
+    const contentType = upstream.headers.get('content-type') || '';
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    res.status(upstream.status);
+    if (!res.getHeader('Content-Type')) {
+      res.setHeader('Content-Type', contentType || 'application/octet-stream');
+    }
+    return res.end(buffer);
   } catch (error) {
+    const timedOut = error?.name === 'AbortError';
     return json(res, 502, {
       success: false,
-      message: 'The downloading engine took too long to return data. Please try again.',
-      detail: error?.message || 'Network fetch connection timeout.'
+      message: timedOut
+        ? 'The downloading engine took too long to return data. Please try again.'
+        : 'The DownloadDash API proxy could not reach the Render backend.',
+      detail: error?.message || 'Network fetch connection failed.',
     });
+  } finally {
+    clearTimeout(timeout);
   }
 }

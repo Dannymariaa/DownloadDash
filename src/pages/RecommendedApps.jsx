@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { motion } from 'framer-motion';
-import { BookOpen, Compass, FileText, Shield, Wrench, ArrowRight, Sparkles } from 'lucide-react';
+import { BookOpen, Compass, Shield, Wrench, ArrowRight, Sparkles } from 'lucide-react';
 
 const guidePillars = [
   {

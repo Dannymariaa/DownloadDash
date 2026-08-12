@@ -18,12 +18,13 @@ export default defineConfig({
     proxy: {
       // Catch frontend calls to /api/smd/... and cleanly route them locally
       '/api/smd': {
-        // Change port to 5000 if your Flask app uses the default 5000 from your README
-        target: 'http://127.0.0.1:5000', 
+        target: process.env.SMD_API_BASE_URL || 'https://api.downloaddash.store',
         changeOrigin: true,
         secure: false,
-        // Strip out the '/api/smd' part so your local Flask app receives plain endpoints (e.g., /youtube/download)
         rewrite: (path) => path.replace(/^\/api\/smd/, ''),
+        headers: process.env.DOWNLOADDASH_API_KEY
+          ? { 'X-DownloadDash-Key': process.env.DOWNLOADDASH_API_KEY }
+          : {},
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
             console.log('[Vite Proxy Error]:', err.message);
