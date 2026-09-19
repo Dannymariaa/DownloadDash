@@ -81,7 +81,7 @@ class Config:
     )
 
     DOWNLOADDASH_API_KEY = os.getenv("DOWNLOADDASH_API_KEY", "").strip()
-    API_KEY_HEADER = "X-Downloaddash-Key"
+    API_KEY_HEADER = "X-DownloadDash-Key"
 
     @classmethod
     def validate(cls):
@@ -118,4 +118,3 @@ class Config:
 
 
 Config.validate()
-

@@ -148,7 +148,7 @@ const postJson = async (path, body) => {
       data: { message: error?.message || 'Network connection failed.' },
       fallback:
         `Unable to reach the DownloadDash API proxy at ${baseUrl}. ` +
-        `Check that the Vercel deployment is live and that server-side DOWNLOADDASH_API_KEY is configured.`,
+        'The download service may be temporarily unavailable.',
     });
   }
 
@@ -210,7 +210,7 @@ const postJson = async (path, body) => {
   });
 
   if (!res.ok) {
-    if (res.status === 500 && data?.message?.includes('API key is not configured')) {
+    if (res.status === 503 && data?.error?.code === 'SERVICE_CONFIGURATION_ERROR') {
       throw createRequestError({ method, url, path, headers, status: res.status, statusText: res.statusText, data, fallback: data.message });
     }
     if (res.status === 401 || res.status === 403) {
@@ -224,7 +224,7 @@ const postJson = async (path, body) => {
         data,
         fallback:
           data?.message === 'Unauthorized'
-            ? 'DownloadDash API authentication failed. Check the server-side DOWNLOADDASH_API_KEY in Vercel.'
+            ? 'The download service is temporarily unavailable.'
             : data?.message || 'DownloadDash API request was forbidden.',
       });
     }

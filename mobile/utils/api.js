@@ -28,29 +28,10 @@ export const getApiBaseUrl = () => {
   }
 };
 
-const getApiHeaders = () => {
-  try {
-    const extra = Constants.expoConfig?.extra || Constants.manifest?.extra || {};
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-
-    if (extra.requireApiKey && extra.apiKey && extra.apiKey !== 'your_api_key_here') {
-      const apiKey = String(extra.apiKey).trim();
-      headers['X-API-Key'] = apiKey;
-      headers['X-DownloadDash-Key'] = apiKey;
-      headers['Authorization'] = `Bearer ${apiKey}`;
-    }
-
-    return headers;
-  } catch {
-    return {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-  }
-};
+const getApiHeaders = () => ({
+  'Content-Type': 'application/json',
+  'Accept': 'application/json',
+});
 
 const absolutizeUrl = (value) => {
   if (!value || typeof value !== 'string') return null;

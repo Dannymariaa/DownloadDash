@@ -32,9 +32,6 @@ export default defineConfig(({ mode }) => {
   const apiKeyHeaders = apiKey
     ? {
         'X-DownloadDash-Key': apiKey,
-        'X-API-Key': apiKey,
-        DOWNLOADDASH_API_KEY: apiKey,
-        Authorization: `Bearer ${apiKey}`,
       }
     : {}
 

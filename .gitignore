@@ -1,6 +1,7 @@
 #env
 .env
 .env.*
+!.env.example
 !tools/ai-email-responder/.env.example
 
 # Logs
@@ -15,6 +16,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+__pycache__/
+*.pyc
 *.local
 .codex-import
 

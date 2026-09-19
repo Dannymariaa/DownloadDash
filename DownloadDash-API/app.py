@@ -1,14 +1,13 @@
-import os
+﻿import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# --- HARDCODE THE API KEY FOR TESTING ---
-EXPECTED_API_KEY = "sk_prod_vnZgbbIjmt3yOfy6A0rSpkwnqRAYEnnRjksvFnsc0U"
+EXPECTED_API_KEY = os.getenv("DOWNLOADDASH_API_KEY", "").strip()
 
-# --- Authentication with hardcoded key ---
+# --- Authentication ---
 @app.before_request
 def check_auth():
     """Verify authentication for all protected endpoints"""
@@ -21,41 +20,30 @@ def check_auth():
     if request.method == 'OPTIONS':
         return
     
-    # Get API key from headers
-    api_key = request.headers.get('DOWNLOADDASH_API_KEY', '').strip()
+    if not EXPECTED_API_KEY:
+        return jsonify({
+            "success": False,
+            "message": "Download service is temporarily unavailable.",
+            "error": "SERVICE_CONFIGURATION_ERROR"
+        }), 503
+
+    api_key = request.headers.get('X-DownloadDash-Key', '').strip()
     
-    # Try Authorization header as fallback
-    if not api_key:
-        auth_header = request.headers.get('Authorization', '').strip()
-        if auth_header.startswith('Bearer '):
-            api_key = auth_header[7:].strip()
-    
-    # Debug logging
-    print("=" * 60)
-    print("🔐 AUTHENTICATION DEBUG")
-    print("=" * 60)
-    print(f"📥 Received API Key: '{api_key}'")
-    print(f"📥 Received Key Length: {len(api_key) if api_key else 0}")
-    print(f"📤 Expected API Key: '{EXPECTED_API_KEY}'")
-    print(f"📤 Expected Key Length: {len(EXPECTED_API_KEY)}")
-    print(f"🔑 Keys Match: {api_key == EXPECTED_API_KEY}")
-    print("=" * 60)
     
     if not api_key:
         return jsonify({
             "success": False,
-            "message": "Missing DOWNLOADDASH_API_KEY header",
+            "message": "Unauthorized",
             "error": "AUTH_FAILED"
         }), 403
     
     if api_key != EXPECTED_API_KEY:
         return jsonify({
             "success": False,
-            "message": "Invalid DOWNLOADDASH_API_KEY",
+            "message": "Unauthorized",
             "error": "AUTH_FAILED"
         }), 403
     
-    print("✅ Authentication successful!")
     return
 
 # --- CORS headers ---
@@ -63,7 +51,7 @@ def check_auth():
 def add_cors_headers(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, DOWNLOADDASH_API_KEY'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Accept'
     return response
 
 # --- Routes ---

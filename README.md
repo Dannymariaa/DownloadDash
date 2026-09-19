@@ -6,14 +6,16 @@
 `ash
 npm install
 ``n
-2. Add your API key to .env.local:
-`ash
-DOWNLOADDASH_API_KEY=your_api_key_here
-``n
+2. Add your API key to `.env.local` for local Vercel/API development:
+```bash
+DOWNLOADDASH_API_KEY=
+```
+
+For Vercel deployments, create the same `DOWNLOADDASH_API_KEY` variable in the Vercel project environment. Configure Production for the live site, and Preview/Development for deployments that should use the downloader.
 3. Run the development server:
-`ash
+```bash
 npm run dev
-``n
+```
 ## API Routes
 
 - /api/smd/youtube/download - YouTube downloads

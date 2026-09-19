@@ -3,7 +3,7 @@ from fastapi.security import APIKeyHeader
 
 from app.config import settings
 
-api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+api_key_header = APIKeyHeader(name="X-DownloadDash-Key", auto_error=False)
 
 
 def require_api_key(api_key: str | None = Depends(api_key_header)) -> None:
@@ -12,7 +12,7 @@ def require_api_key(api_key: str | None = Depends(api_key_header)) -> None:
 
     Enable by setting:
       - SMD_REQUIRE_API_KEY=true
-      - SMD_API_KEY=your_key
+      - SMD_API_KEY=<server-side key>
     """
     if not settings.REQUIRE_API_KEY:
         return
@@ -22,4 +22,3 @@ def require_api_key(api_key: str | None = Depends(api_key_header)) -> None:
 
     if api_key != settings.API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API key")
-

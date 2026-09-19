@@ -93,6 +93,6 @@ def require_api_key(f):
                     request.headers.get("X-Forwarded-For", request.remote_addr),
                     request.headers.get("User-Agent", "-"),
                 )
-                return jsonify({"success": False, "error": "Unauthorized - Missing or Invalid API Key", "code": "unauthorized"}), 401
+                return jsonify({"success": False, "error": "Unauthorized", "code": "unauthorized"}), 401
         return f(*args, **kwargs)
     return decorated_function

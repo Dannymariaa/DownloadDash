@@ -21,11 +21,6 @@ CORS(
     allow_headers=[
         "Content-Type",
         "Accept",
-        "Authorization",
-        "X-API-Key",
-        "X-DownloadDash-Key",
-        "DOWNLOADDASH_API_KEY",
-        "X-RapidAPI-Proxy-Secret",
         "X-Request-ID",
         "X-Correlation-ID",
     ],

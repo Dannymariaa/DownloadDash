@@ -1,0 +1,310 @@
+import assert from 'node:assert/strict';
+import { readdir, readFile } from 'node:fs/promises';
+import { test } from 'node:test';
+import handler from '../../api/smd/[...path].js';
+
+const createResponse = () => {
+  const headers = {};
+  return {
+    statusCode: 200,
+    body: null,
+    headers,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    setHeader(key, value) {
+      headers[key.toLowerCase()] = value;
+      return this;
+    },
+    getHeader(key) {
+      return headers[key.toLowerCase()];
+    },
+    end(body = '') {
+      this.body = body;
+      return this;
+    },
+  };
+};
+
+const readJson = (res) => JSON.parse(String(res.body || '{}'));
+
+const withProxyEnv = async (callback, overrides = {}) => {
+  const originalFetch = globalThis.fetch;
+  const originalBase = process.env.SMD_API_BASE_URL;
+  const originalKey = process.env.DOWNLOADDASH_API_KEY;
+
+  process.env.SMD_API_BASE_URL = overrides.baseUrl ?? 'https://render.example';
+  if (overrides.apiKey === null) {
+    delete process.env.DOWNLOADDASH_API_KEY;
+  } else {
+    process.env.DOWNLOADDASH_API_KEY = overrides.apiKey ?? 'test-key';
+  }
+
+  try {
+    await callback();
+  } finally {
+    globalThis.fetch = originalFetch;
+    process.env.SMD_API_BASE_URL = originalBase;
+    if (originalKey === undefined) {
+      delete process.env.DOWNLOADDASH_API_KEY;
+    } else {
+      process.env.DOWNLOADDASH_API_KEY = originalKey;
+    }
+  }
+};
+
+const request = async ({ path, body, method = 'POST', headers = {}, query = {} }) => {
+  const res = createResponse();
+  await handler(
+    {
+      method,
+      url: `/api/smd/${path}`,
+      query,
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        ...headers,
+      },
+      body,
+      socket: { remoteAddress: '198.51.100.10' },
+    },
+    res
+  );
+  return res;
+};
+
+const validUrls = {
+  tiktok: 'https://www.tiktok.com/@creator/video/123',
+  instagram: 'https://www.instagram.com/reel/ABC123/',
+  facebook: 'https://www.facebook.com/watch/?v=123',
+  pinterest: 'https://www.pinterest.com/pin/123/',
+  youtube: 'https://www.youtube.com/watch?v=abc123',
+  reddit: 'https://www.reddit.com/r/test/comments/abc/title/',
+  x: 'https://x.com/user/status/123',
+  twitter: 'https://twitter.com/user/status/123',
+};
+
+const upstreamSuccess = {
+  success: true,
+  media_info: {
+    title: 'Example media',
+    author_username: 'creator',
+    thumbnail_url: 'https://cdn.example/thumb.jpg',
+  },
+  downloads: {
+    videoHD: 'https://cdn.example/video.mp4',
+  },
+};
+
+test('all public SMD platform routes validate input, authenticate server-side, and normalize success responses', async () => {
+  await withProxyEnv(async () => {
+    const forwarded = [];
+    globalThis.fetch = async (url, init) => {
+      forwarded.push({ url, init });
+      return new Response(JSON.stringify(upstreamSuccess), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    for (const [platform, url] of Object.entries(validUrls)) {
+      const res = await request({ path: `${platform}/download`, body: { url } });
+      const body = readJson(res);
+      const upstreamPlatform = platform === 'x' || platform === 'twitter' ? 'twitter' : platform;
+
+      assert.equal(res.statusCode, 200);
+      assert.equal(body.success, true);
+      assert.equal(body.platform, platform === 'twitter' ? 'x' : platform);
+      assert.equal(body.data.title, 'Example media');
+      assert.deepEqual(body.data.media, [
+        {
+          type: 'video',
+          url: 'https://cdn.example/video.mp4',
+          quality: 'hd',
+          format: 'mp4',
+        },
+      ]);
+      assert.equal(forwarded.at(-1).url, `https://render.example/${upstreamPlatform}/download`);
+      assert.equal(forwarded.at(-1).init.headers['X-DownloadDash-Key'], 'test-key');
+      assert.equal(forwarded.at(-1).init.headers.Authorization, undefined);
+      assert.equal(forwarded.at(-1).init.headers.DOWNLOADDASH_API_KEY, undefined);
+    }
+  });
+});
+
+test('browser-facing CORS does not invite clients to send private key headers', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify(upstreamSuccess), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({
+      path: 'tiktok/download',
+      body: { url: validUrls.tiktok },
+      headers: {
+        'x-downloaddash-key': 'browser-key',
+        authorization: 'Bearer browser-token',
+      },
+    });
+
+    const allowHeaders = res.getHeader('Access-Control-Allow-Headers');
+    assert.equal(res.statusCode, 200);
+    assert.doesNotMatch(allowHeaders, /X-DownloadDash-Key/i);
+    assert.doesNotMatch(allowHeaders, /DOWNLOADDASH_API_KEY/i);
+    assert.doesNotMatch(allowHeaders, /Authorization/i);
+  });
+});
+
+test('request validation rejects missing URL, malformed JSON, invalid URL, unsupported protocols, and wrong platform domains', async () => {
+  await withProxyEnv(async () => {
+    let fetchCalled = false;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return new Response(JSON.stringify(upstreamSuccess), { status: 200 });
+    };
+
+    const cases = [
+      [{ path: 'tiktok/download', body: {} }, 400, 'URL_REQUIRED'],
+      [{ path: 'tiktok/download', body: '{"url":' }, 400, 'INVALID_JSON'],
+      [{ path: 'tiktok/download', body: { url: 'not-a-url' } }, 400, 'INVALID_URL'],
+      [{ path: 'tiktok/download', body: { url: 'file:///etc/passwd' } }, 400, 'UNSUPPORTED_PROTOCOL'],
+      [{ path: 'youtube/download', body: { url: validUrls.tiktok } }, 400, 'UNSUPPORTED_DOMAIN'],
+      [{ path: 'youtube/download', body: { url: 'http://127.0.0.1/admin' } }, 400, 'BLOCKED_HOST'],
+    ];
+
+    for (const [req, status, code] of cases) {
+      const res = await request(req);
+      assert.equal(res.statusCode, status);
+      assert.equal(readJson(res).error.code, code);
+    }
+
+    assert.equal(fetchCalled, false);
+  });
+});
+
+test('missing server API key returns a production-safe service configuration error', async () => {
+  await withProxyEnv(async () => {
+    const res = await request({ path: 'tiktok/download', body: { url: validUrls.tiktok } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 503);
+    assert.equal(body.success, false);
+    assert.equal(body.error.code, 'SERVICE_CONFIGURATION_ERROR');
+    assert.doesNotMatch(JSON.stringify(body), /DOWNLOADDASH_API_KEY/);
+  }, { apiKey: null });
+});
+
+test('upstream status codes map to normalized downloader errors', async () => {
+  const cases = [
+    [401, 502, 'UPSTREAM_AUTH_FAILED'],
+    [403, 403, 'PRIVATE_MEDIA'],
+    [404, 404, 'MEDIA_NOT_FOUND'],
+    [429, 429, 'UPSTREAM_RATE_LIMITED'],
+    [500, 503, 'UPSTREAM_UNAVAILABLE'],
+  ];
+
+  for (const [upstreamStatus, expectedStatus, expectedCode] of cases) {
+    await withProxyEnv(async () => {
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({ success: false, error: 'provider failed' }), {
+          status: upstreamStatus,
+          headers: { 'content-type': 'application/json' },
+        });
+
+      const res = await request({ path: 'instagram/download', body: { url: validUrls.instagram } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, expectedStatus);
+      assert.equal(body.success, false);
+      assert.equal(body.error.code, expectedCode);
+      assert.doesNotMatch(JSON.stringify(body), /provider failed/);
+    });
+  }
+});
+
+test('upstream timeout and malformed JSON responses are normalized safely', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () => {
+      throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+    };
+
+    const res = await request({ path: 'reddit/download', body: { url: validUrls.reddit } });
+    assert.equal(res.statusCode, 504);
+    assert.equal(readJson(res).error.code, 'UPSTREAM_TIMEOUT');
+  });
+
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response('not-json', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'reddit/download', body: { url: validUrls.reddit } });
+    assert.equal(res.statusCode, 502);
+    assert.equal(readJson(res).error.code, 'UPSTREAM_INVALID_RESPONSE');
+  });
+});
+
+test('successful upstream responses without media are treated as unsupported media', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ success: true, title: 'Metadata only' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'pinterest/download', body: { url: validUrls.pinterest } });
+    assert.equal(res.statusCode, 422);
+    assert.equal(readJson(res).error.code, 'UNSUPPORTED_MEDIA');
+  });
+});
+
+test('fallback route inventory preserves all platform endpoints and the Twitter alias', async () => {
+  const apiEntries = await readdir(new URL('../../api/', import.meta.url), { withFileTypes: true });
+  const smdEntries = await readdir(new URL('../../api/smd/', import.meta.url), { withFileTypes: true });
+  const smdDirectories = smdEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+
+  assert.deepEqual(apiEntries.filter((entry) => entry.isFile()).map((entry) => entry.name).sort(), [
+    '_downloadDashProxy.js',
+  ]);
+  assert.deepEqual(smdDirectories, [
+    'facebook',
+    'instagram',
+    'lib',
+    'pinterest',
+    'reddit',
+    'tiktok',
+    'twitter',
+    'x',
+    'youtube',
+  ]);
+
+  for (const platform of ['youtube', 'instagram', 'tiktok', 'facebook', 'x', 'twitter', 'reddit', 'pinterest']) {
+    const route = await readFile(new URL(`../../api/smd/${platform}/download.js`, import.meta.url), 'utf8');
+    assert.equal(route.trim(), 'import handler from "../../_downloadDashProxy.js";\n\nexport default handler;');
+  }
+});
+
+test('frontend clients keep DownloadDash secrets out of browser requests', async () => {
+  const webClient = await readFile(new URL('../../src/api/downloadDashClient.js', import.meta.url), 'utf8');
+  const mobileClient = await readFile(new URL('../../mobile/utils/api.js', import.meta.url), 'utf8');
+
+  assert.match(webClient, /const DEFAULT_API_BASE_URL = '\/api\/smd';/);
+  assert.doesNotMatch(webClient, /X-DownloadDash-Key|DOWNLOADDASH_API_KEY|Authorization.*Bearer/);
+  assert.doesNotMatch(mobileClient, /X-DownloadDash-Key|X-API-Key|Authorization.*Bearer|apiKey/);
+});
+
+test('Vercel SPA rewrite excludes API paths so functions can handle requests', async () => {
+  const config = JSON.parse(await readFile(new URL('../../vercel.json', import.meta.url), 'utf8'));
+  const spaRewrite = config.rewrites.find((rewrite) => rewrite.destination === '/index.html');
+
+  assert.ok(config.functions['api/**/*.js']);
+  assert.equal(config.framework, 'vite');
+  assert.equal(config.outputDirectory, 'dist');
+  assert.ok(spaRewrite);
+  assert.match(spaRewrite.source, /\(\?!api/);
+});

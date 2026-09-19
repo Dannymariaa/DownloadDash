@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SOCIAL_DOWNLOADER_API_BASE_URL") ||
       "https://api.downloaddash.store";
     const apiBaseUrl = apiBaseUrlRaw.replace(/\/+$/, "");
-    const apiKey = Deno.env.get("SMD_API_KEY") || Deno.env.get("SOCIAL_DOWNLOADER_API_KEY") || "";
+    const apiKey = Deno.env.get("DOWNLOADDASH_API_KEY") || "";
     const normalizedPlatform =
       platform === "whatsappbusiness"
         ? "whatsapp_business"
@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(apiKey ? { "X-API-Key": apiKey } : {}),
+        ...(apiKey ? { "X-DownloadDash-Key": apiKey } : {}),
       },
       body: JSON.stringify({
         url,

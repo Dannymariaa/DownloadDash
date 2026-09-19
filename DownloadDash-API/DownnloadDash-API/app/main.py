@@ -95,7 +95,7 @@ app.add_middleware(
     allow_origin_regex=getattr(settings, "BACKEND_CORS_ORIGIN_REGEX", None),
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Content-Type", "Accept"],
 )
 
 
