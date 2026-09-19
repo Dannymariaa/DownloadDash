@@ -3,6 +3,37 @@ import { readdir, readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import handler from '../../api/smd/[...path].js';
 
+const intendedApiEntrypoints = [
+  '_downloadDashProxy.js',
+  'smd/[...path].js',
+  'smd/facebook/download.js',
+  'smd/instagram/download.js',
+  'smd/pinterest/download.js',
+  'smd/rapid-youtube-file.js',
+  'smd/rapid-youtube.js',
+  'smd/reddit/download.js',
+  'smd/tiktok/download.js',
+  'smd/twitter/download.js',
+  'smd/x/download.js',
+  'smd/youtube/download.js',
+];
+
+const listJsFiles = async (rootUrl, prefix = '') => {
+  const entries = await readdir(rootUrl, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      files.push(...await listJsFiles(new URL(`${entry.name}/`, rootUrl), relativePath));
+    } else if (entry.name.endsWith('.js')) {
+      files.push(relativePath);
+    }
+  }
+
+  return files.sort();
+};
+
 const createResponse = () => {
   const headers = {};
   return {
@@ -274,7 +305,6 @@ test('fallback route inventory preserves all platform endpoints and the Twitter 
   assert.deepEqual(smdDirectories, [
     'facebook',
     'instagram',
-    'lib',
     'pinterest',
     'reddit',
     'tiktok',
@@ -283,10 +313,60 @@ test('fallback route inventory preserves all platform endpoints and the Twitter 
     'youtube',
   ]);
 
+  const fallbackRoute = await readFile(new URL('../../api/smd/[...path].js', import.meta.url), 'utf8');
+  assert.match(fallbackRoute, /import handler from "\.\.\/_downloadDashProxy\.js";/);
+  assert.match(fallbackRoute, /export default handler;/);
+
   for (const platform of ['youtube', 'instagram', 'tiktok', 'facebook', 'x', 'twitter', 'reddit', 'pinterest']) {
     const route = await readFile(new URL(`../../api/smd/${platform}/download.js`, import.meta.url), 'utf8');
     assert.equal(route.trim(), 'import handler from "../../_downloadDashProxy.js";\n\nexport default handler;');
   }
+});
+
+test('shared proxy entrypoint imports server implementation and can load without server env', async () => {
+  const originalKey = process.env.DOWNLOADDASH_API_KEY;
+  delete process.env.DOWNLOADDASH_API_KEY;
+
+  try {
+    const proxySource = await readFile(new URL('../../api/_downloadDashProxy.js', import.meta.url), 'utf8');
+    const proxyModule = await import(`../../api/_downloadDashProxy.js?test=${Date.now()}`);
+
+    assert.match(proxySource, /import \{ handleSmdRequest \} from "\.\.\/server\/smd\/handler\.js";/);
+    assert.equal(typeof proxyModule.default, 'function');
+  } finally {
+    if (originalKey === undefined) {
+      delete process.env.DOWNLOADDASH_API_KEY;
+    } else {
+      process.env.DOWNLOADDASH_API_KEY = originalKey;
+    }
+  }
+});
+
+test('SMD server helper modules live outside the public API tree', async () => {
+  const serverEntries = await readdir(new URL('../../server/smd/', import.meta.url));
+  const smdEntries = await readdir(new URL('../../api/smd/', import.meta.url), { withFileTypes: true });
+  const smdDirectories = smdEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+
+  assert.deepEqual(
+    serverEntries.sort(),
+    [
+      'client.js',
+      'env.js',
+      'errors.js',
+      'handler.js',
+      'normalize.js',
+      'platforms.js',
+      'rate-limit.js',
+      'validation.js',
+    ]
+  );
+  assert.equal(smdDirectories.includes('lib'), false);
+});
+
+test('API tree contains only intended JavaScript serverless entrypoints', async () => {
+  const apiFiles = await listJsFiles(new URL('../../api/', import.meta.url));
+
+  assert.deepEqual(apiFiles, intendedApiEntrypoints);
 });
 
 test('frontend clients keep DownloadDash secrets out of browser requests', async () => {

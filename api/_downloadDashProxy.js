@@ -1,3 +1,3 @@
-import { handleSmdRequest } from "./smd/lib/handler.js";
+import { handleSmdRequest } from "../server/smd/handler.js";
 
 export default handleSmdRequest;
