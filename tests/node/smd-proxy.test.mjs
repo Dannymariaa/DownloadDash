@@ -7,6 +7,7 @@ const intendedApiEntrypoints = [
   '_downloadDashProxy.js',
   'smd/[...path].js',
   'smd/facebook/download.js',
+  'smd/health.js',
   'smd/instagram/download.js',
   'smd/pinterest/download.js',
   'smd/rapid-youtube-file.js',
@@ -218,6 +219,12 @@ test('request validation rejects missing URL, malformed JSON, invalid URL, unsup
 
 test('missing server API key returns a production-safe service configuration error', async () => {
   await withProxyEnv(async () => {
+    let fetchCalled = false;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return new Response(JSON.stringify(upstreamSuccess), { status: 200 });
+    };
+
     const res = await request({ path: 'tiktok/download', body: { url: validUrls.tiktok } });
     const body = readJson(res);
 
@@ -225,7 +232,73 @@ test('missing server API key returns a production-safe service configuration err
     assert.equal(body.success, false);
     assert.equal(body.error.code, 'SERVICE_CONFIGURATION_ERROR');
     assert.doesNotMatch(JSON.stringify(body), /DOWNLOADDASH_API_KEY/);
+    assert.equal(fetchCalled, false);
   }, { apiKey: null });
+});
+
+test('health route reports safe proxy configuration status without exposing secrets', async () => {
+  await withProxyEnv(async () => {
+    const res = await request({ path: 'health', method: 'GET' });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.service, 'smd-proxy');
+    assert.equal(body.configured, true);
+    assert.equal(body.proxyConfigured, true);
+    assert.equal(body.upstreamHost, 'render.example');
+    assert.equal(body.apiKeyLength, undefined);
+    assert.doesNotMatch(JSON.stringify(body), /test-key|DOWNLOADDASH_API_KEY|X-DownloadDash-Key/);
+  });
+
+  await withProxyEnv(async () => {
+    const res = await request({ path: 'health', method: 'GET' });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 503);
+    assert.equal(body.success, false);
+    assert.equal(body.service, 'smd-proxy');
+    assert.equal(body.configured, false);
+    assert.equal(body.proxyConfigured, false);
+    assert.equal(body.upstreamHost, 'render.example');
+    assert.equal(body.apiKeyLength, undefined);
+    assert.doesNotMatch(JSON.stringify(body), /DOWNLOADDASH_API_KEY|X-DownloadDash-Key/);
+  }, { apiKey: null });
+});
+
+test('health route can safely probe upstream reachability on request', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async (url) => {
+      assert.equal(url, 'https://render.example/health');
+      return new Response(JSON.stringify({ status: 'healthy' }), { status: 200 });
+    };
+
+    const res = await request({ path: 'health', method: 'GET', query: { upstream: '1' } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.proxyConfigured, true);
+    assert.equal(body.upstreamReachable, true);
+    assert.equal(body.upstreamStatus, 200);
+    assert.doesNotMatch(JSON.stringify(body), /test-key|DOWNLOADDASH_API_KEY|X-DownloadDash-Key/);
+  });
+
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () => {
+      throw new TypeError('connect failed');
+    };
+
+    const res = await request({ path: 'health', method: 'GET', query: { upstream: '1' } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.proxyConfigured, true);
+    assert.equal(body.upstreamReachable, false);
+    assert.equal(body.upstreamStatus, null);
+    assert.doesNotMatch(JSON.stringify(body), /connect failed|test-key|DOWNLOADDASH_API_KEY/);
+  });
 });
 
 test('upstream status codes map to normalized downloader errors', async () => {
@@ -235,6 +308,7 @@ test('upstream status codes map to normalized downloader errors', async () => {
     [404, 404, 'MEDIA_NOT_FOUND'],
     [429, 429, 'UPSTREAM_RATE_LIMITED'],
     [500, 503, 'UPSTREAM_UNAVAILABLE'],
+    [503, 503, 'UPSTREAM_UNAVAILABLE'],
   ];
 
   for (const [upstreamStatus, expectedStatus, expectedCode] of cases) {
@@ -254,6 +328,69 @@ test('upstream status codes map to normalized downloader errors', async () => {
       assert.doesNotMatch(JSON.stringify(body), /provider failed/);
     });
   }
+});
+
+test('transient upstream failures are retried briefly for read-only extraction requests', async () => {
+  await withProxyEnv(async () => {
+    let attempts = 0;
+    globalThis.fetch = async () => {
+      attempts += 1;
+      if (attempts < 3) {
+        return new Response(JSON.stringify({ success: false, error: 'temporarily unavailable' }), {
+          status: 503,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify(upstreamSuccess), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const res = await request({ path: 'youtube/download', body: { url: validUrls.youtube } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.success, true);
+    assert.equal(attempts, 3);
+  });
+});
+
+test('authentication failures are not retried', async () => {
+  await withProxyEnv(async () => {
+    let attempts = 0;
+    globalThis.fetch = async () => {
+      attempts += 1;
+      return new Response(JSON.stringify({ success: false, error: 'bad key' }), {
+        status: 401,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const res = await request({ path: 'instagram/download', body: { url: validUrls.instagram } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 502);
+    assert.equal(body.error.code, 'UPSTREAM_AUTH_FAILED');
+    assert.equal(attempts, 1);
+  });
+});
+
+test('network failures are normalized as upstream unavailable', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () => {
+      throw new TypeError('fetch failed');
+    };
+
+    const res = await request({ path: 'facebook/download', body: { url: validUrls.facebook } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 503);
+    assert.equal(body.success, false);
+    assert.equal(body.error.code, 'UPSTREAM_UNAVAILABLE');
+    assert.doesNotMatch(JSON.stringify(body), /fetch failed/);
+  });
 });
 
 test('upstream timeout and malformed JSON responses are normalized safely', async () => {

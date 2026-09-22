@@ -109,6 +109,10 @@ export function parseRoute(parts) {
   const first = decodeURIComponent(parts[0]).toLowerCase();
   const second = parts[1] ? decodeURIComponent(parts[1]).toLowerCase() : "";
 
+  if (first === "health" && !second) {
+    return { kind: "health" };
+  }
+
   if (first === "download" && second === "file") {
     return { kind: "file", forwardPath: ["download", "file"] };
   }

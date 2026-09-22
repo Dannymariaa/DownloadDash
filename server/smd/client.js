@@ -3,6 +3,8 @@ import { normalizeDownloadResponse } from "./normalize.js";
 import { upstreamPlatform } from "./platforms.js";
 
 const REQUEST_TIMEOUT_MS = 55_000;
+const MAX_TRANSIENT_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 40;
 
 function buildHeaders(apiKey) {
   return {
@@ -21,57 +23,100 @@ function mapUpstreamError(status) {
   return publicError("UPSTREAM_UNAVAILABLE", 502, `upstream returned ${status}`);
 }
 
+function isTransientStatus(status) {
+  return status === 502 || status === 503 || status === 504 || status >= 500;
+}
+
+function retryDelay(attempt) {
+  const jitter = Math.floor(Math.random() * 20);
+  return RETRY_BASE_DELAY_MS * 2 ** (attempt - 1) + jitter;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export async function downloadMedia({ env, platform, payload, requestId }) {
   const upstreamName = upstreamPlatform(platform);
   const target = `${env.upstreamBaseUrl}/${encodeURIComponent(upstreamName)}/download`;
   const startedAt = Date.now();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  try {
-    const upstream = await fetch(target, {
-      method: "POST",
-      headers: buildHeaders(env.apiKey),
-      body: JSON.stringify({
-        ...payload,
-        platform: upstreamName,
-      }),
-      signal: controller.signal,
-    });
+  for (let attempt = 1; attempt <= MAX_TRANSIENT_RETRIES + 1; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-    const responseText = await upstream.text();
-    const latencyMs = Date.now() - startedAt;
+    try {
+      const upstream = await fetch(target, {
+        method: "POST",
+        headers: buildHeaders(env.apiKey),
+        body: JSON.stringify({
+          ...payload,
+          platform: upstreamName,
+        }),
+        signal: controller.signal,
+      });
 
-    console.info("[DownloadDash SMD] upstream response", {
-      requestId,
-      platform,
-      upstreamPlatform: upstreamName,
-      status: upstream.status,
-      latencyMs,
-    });
+      const responseText = await upstream.text();
+      const latencyMs = Date.now() - startedAt;
 
-    let data = null;
-    if (responseText.trim()) {
-      try {
-        data = JSON.parse(responseText);
-      } catch {
-        throw publicError("UPSTREAM_INVALID_RESPONSE", 502, "upstream returned malformed JSON");
+      console.info("[DownloadDash SMD] upstream response", {
+        requestId,
+        platform,
+        upstreamPlatform: upstreamName,
+        status: upstream.status,
+        latencyMs,
+        attempt,
+      });
+
+      if (!upstream.ok && isTransientStatus(upstream.status) && attempt <= MAX_TRANSIENT_RETRIES) {
+        await wait(retryDelay(attempt));
+        continue;
       }
-    }
 
-    if (!upstream.ok) {
-      throw mapUpstreamError(upstream.status);
-    }
+      let data = null;
+      if (responseText.trim()) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw publicError("UPSTREAM_INVALID_RESPONSE", 502, "upstream returned malformed JSON");
+        }
+      }
 
-    return normalizeDownloadResponse(platform, data);
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw publicError("UPSTREAM_TIMEOUT", 504, "upstream request timed out");
+      if (!upstream.ok) {
+        throw mapUpstreamError(upstream.status);
+      }
+
+      return normalizeDownloadResponse(platform, data);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw publicError("UPSTREAM_TIMEOUT", 504, "upstream request timed out");
+      }
+
+      if (!error?.code && attempt <= MAX_TRANSIENT_RETRIES) {
+        console.warn("[DownloadDash SMD] upstream network retry", {
+          requestId,
+          platform,
+          upstreamPlatform: upstreamName,
+          attempt,
+          message: error?.message,
+        });
+        await wait(retryDelay(attempt));
+        continue;
+      }
+
+      if (!error?.code) {
+        throw publicError("UPSTREAM_UNAVAILABLE", 503, error?.message || "upstream network request failed");
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-    throw error;
-  } finally {
-    clearTimeout(timeout);
   }
+
+  throw publicError("UPSTREAM_UNAVAILABLE", 503, "upstream retry attempts exhausted");
 }
 
 export async function proxyFileRequest({ env, forwardPath, payload, method, query, requestId, res }) {
