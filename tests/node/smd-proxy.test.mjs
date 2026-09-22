@@ -129,6 +129,17 @@ const upstreamSuccess = {
   },
 };
 
+const wrongDomainUrl = {
+  tiktok: validUrls.instagram,
+  instagram: validUrls.tiktok,
+  facebook: validUrls.youtube,
+  pinterest: validUrls.reddit,
+  youtube: validUrls.tiktok,
+  reddit: validUrls.facebook,
+  x: validUrls.youtube,
+  twitter: validUrls.youtube,
+};
+
 test('all public SMD platform routes validate input, authenticate server-side, and normalize success responses', async () => {
   await withProxyEnv(async () => {
     const forwarded = [];
@@ -162,6 +173,32 @@ test('all public SMD platform routes validate input, authenticate server-side, a
       assert.equal(forwarded.at(-1).init.headers.Authorization, undefined);
       assert.equal(forwarded.at(-1).init.headers.DOWNLOADDASH_API_KEY, undefined);
     }
+  });
+});
+
+test('all platform routes reject missing URL, malformed URL, and wrong domains before upstream fetch', async () => {
+  await withProxyEnv(async () => {
+    let fetchCalled = false;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return new Response(JSON.stringify(upstreamSuccess), { status: 200 });
+    };
+
+    for (const platform of Object.keys(validUrls)) {
+      for (const [body, expectedCode] of [
+        [{}, 'URL_REQUIRED'],
+        [{ url: 'not-a-url' }, 'INVALID_URL'],
+        [{ url: wrongDomainUrl[platform] }, 'UNSUPPORTED_DOMAIN'],
+      ]) {
+        const res = await request({ path: `${platform}/download`, body });
+        const responseBody = readJson(res);
+
+        assert.equal(res.statusCode, 400, `${platform} ${expectedCode}`);
+        assert.equal(responseBody.error.code, expectedCode, platform);
+      }
+    }
+
+    assert.equal(fetchCalled, false);
   });
 });
 
@@ -217,7 +254,7 @@ test('request validation rejects missing URL, malformed JSON, invalid URL, unsup
   });
 });
 
-test('missing server API key returns a production-safe service configuration error', async () => {
+test('missing server API key returns a production-safe service configuration error before upstream fetch for every platform', async () => {
   await withProxyEnv(async () => {
     let fetchCalled = false;
     globalThis.fetch = async () => {
@@ -225,13 +262,33 @@ test('missing server API key returns a production-safe service configuration err
       return new Response(JSON.stringify(upstreamSuccess), { status: 200 });
     };
 
-    const res = await request({ path: 'tiktok/download', body: { url: validUrls.tiktok } });
+    for (const [platform, url] of Object.entries(validUrls)) {
+      const res = await request({ path: `${platform}/download`, body: { url } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, 503);
+      assert.equal(body.success, false);
+      assert.equal(body.error.code, 'SERVICE_CONFIGURATION_ERROR');
+      assert.doesNotMatch(JSON.stringify(body), /DOWNLOADDASH_API_KEY/);
+    }
+
+    assert.equal(fetchCalled, false);
+  }, { apiKey: null });
+});
+
+test('request validation runs before server environment loading', async () => {
+  await withProxyEnv(async () => {
+    let fetchCalled = false;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return new Response(JSON.stringify(upstreamSuccess), { status: 200 });
+    };
+
+    const res = await request({ path: 'tiktok/download', body: { url: 'not-a-url' } });
     const body = readJson(res);
 
-    assert.equal(res.statusCode, 503);
-    assert.equal(body.success, false);
-    assert.equal(body.error.code, 'SERVICE_CONFIGURATION_ERROR');
-    assert.doesNotMatch(JSON.stringify(body), /DOWNLOADDASH_API_KEY/);
+    assert.equal(res.statusCode, 400);
+    assert.equal(body.error.code, 'INVALID_URL');
     assert.equal(fetchCalled, false);
   }, { apiKey: null });
 });
@@ -304,7 +361,6 @@ test('health route can safely probe upstream reachability on request', async () 
 test('upstream status codes map to normalized downloader errors', async () => {
   const cases = [
     [401, 502, 'UPSTREAM_AUTH_FAILED'],
-    [403, 403, 'PRIVATE_MEDIA'],
     [404, 404, 'MEDIA_NOT_FOUND'],
     [429, 429, 'UPSTREAM_RATE_LIMITED'],
     [500, 503, 'UPSTREAM_UNAVAILABLE'],
@@ -326,6 +382,33 @@ test('upstream status codes map to normalized downloader errors', async () => {
       assert.equal(body.success, false);
       assert.equal(body.error.code, expectedCode);
       assert.doesNotMatch(JSON.stringify(body), /provider failed/);
+    });
+  }
+});
+
+test('upstream 403 Unauthorized maps to upstream auth failure, while non-auth 403 maps to private media', async () => {
+  for (const [payload, expectedStatus, expectedCode] of [
+    [{ success: false, message: 'Unauthorized' }, 502, 'UPSTREAM_AUTH_FAILED'],
+    [{ success: false, error: 'AUTH_FAILED' }, 502, 'UPSTREAM_AUTH_FAILED'],
+    [{ success: false, message: 'Private media' }, 403, 'PRIVATE_MEDIA'],
+  ]) {
+    await withProxyEnv(async () => {
+      let attempts = 0;
+      globalThis.fetch = async () => {
+        attempts += 1;
+        return new Response(JSON.stringify(payload), {
+          status: 403,
+          headers: { 'content-type': 'application/json' },
+        });
+      };
+
+      const res = await request({ path: 'instagram/download', body: { url: validUrls.instagram } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, expectedStatus);
+      assert.equal(body.success, false);
+      assert.equal(body.error.code, expectedCode);
+      assert.equal(attempts, 1);
     });
   }
 });
@@ -511,6 +594,8 @@ test('frontend clients keep DownloadDash secrets out of browser requests', async
   const mobileClient = await readFile(new URL('../../mobile/utils/api.js', import.meta.url), 'utf8');
 
   assert.match(webClient, /const DEFAULT_API_BASE_URL = '\/api\/smd';/);
+  assert.match(webClient, /'x': 'x'/);
+  assert.match(webClient, /data\?\.data\?\.media/);
   assert.doesNotMatch(webClient, /X-DownloadDash-Key|DOWNLOADDASH_API_KEY|Authorization.*Bearer/);
   assert.doesNotMatch(mobileClient, /X-DownloadDash-Key|X-API-Key|Authorization.*Bearer|apiKey/);
 });

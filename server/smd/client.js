@@ -14,8 +14,22 @@ function buildHeaders(apiKey) {
   };
 }
 
-function mapUpstreamError(status) {
-  if (status === 401) return publicError("UPSTREAM_AUTH_FAILED", 502, "upstream rejected server API key");
+function isAuthFailure(status, data) {
+  if (status === 401) return true;
+  if (status !== 403) return false;
+
+  const values = [
+    data?.error,
+    data?.code,
+    data?.message,
+    data?.detail,
+  ].map((value) => String(value || "").toLowerCase());
+
+  return values.some((value) => value === "auth_failed" || value.includes("unauthorized"));
+}
+
+function mapUpstreamError(status, data) {
+  if (isAuthFailure(status, data)) return publicError("UPSTREAM_AUTH_FAILED", 502, "upstream rejected server API key");
   if (status === 403) return publicError("PRIVATE_MEDIA", 403, "upstream returned forbidden");
   if (status === 404) return publicError("MEDIA_NOT_FOUND", 404, "upstream returned not found");
   if (status === 429) return publicError("UPSTREAM_RATE_LIMITED", 429, "upstream rate limited");
@@ -48,6 +62,14 @@ export async function downloadMedia({ env, platform, payload, requestId }) {
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
     try {
+      console.info("[DownloadDash SMD] upstream request starting", {
+        requestId,
+        platform,
+        upstreamPlatform: upstreamName,
+        upstreamHost: env.upstreamHost,
+        attempt,
+      });
+
       const upstream = await fetch(target, {
         method: "POST",
         headers: buildHeaders(env.apiKey),
@@ -85,7 +107,7 @@ export async function downloadMedia({ env, platform, payload, requestId }) {
       }
 
       if (!upstream.ok) {
-        throw mapUpstreamError(upstream.status);
+        throw mapUpstreamError(upstream.status, data);
       }
 
       return normalizeDownloadResponse(platform, data);

@@ -14,7 +14,7 @@ const PLATFORM_MAP = {
   'facebook': 'facebook',
   'pinterest': 'pinterest',
   'reddit': 'reddit',
-  'x': 'twitter',  // Map x to twitter for backend
+  'x': 'x',
   'twitter': 'twitter',
   'telegram': 'telegram',
   'whatsappbusiness': 'whatsapp_business',
@@ -75,8 +75,37 @@ const summarizeResponseBody = (body) => {
   }
 };
 
+const USER_SAFE_ERROR_MESSAGES = {
+  SERVICE_CONFIGURATION_ERROR: 'The download service is temporarily unavailable. Please try again shortly.',
+  UPSTREAM_UNAVAILABLE: 'The download service is temporarily unavailable. Please try again shortly.',
+  UPSTREAM_TIMEOUT: 'The download service is temporarily unavailable. Please try again shortly.',
+  UPSTREAM_AUTH_FAILED: 'The download service is temporarily unavailable. Please try again shortly.',
+  INVALID_URL: 'Enter a valid link for this downloader.',
+  URL_REQUIRED: 'Paste a link to download.',
+  UNSUPPORTED_DOMAIN: 'Paste a link from the selected platform.',
+  UNSUPPORTED_PROTOCOL: 'Only HTTP and HTTPS links are supported.',
+  BLOCKED_HOST: 'Paste a public platform link.',
+  MEDIA_NOT_FOUND: 'Media was not found or is no longer available.',
+  PRIVATE_MEDIA: 'This media is private, restricted, or unavailable.',
+  UNSUPPORTED_MEDIA: 'This media is not supported for download.',
+  UPSTREAM_RATE_LIMITED: 'Too many requests. Please try again later.',
+};
+
+const responseErrorCode = (data) => {
+  if (typeof data?.error === 'string') return data.error;
+  return data?.error?.code || data?.code || null;
+};
+
+const responseErrorMessage = (data, fallback) => {
+  const code = responseErrorCode(data);
+  if (code && USER_SAFE_ERROR_MESSAGES[code]) return USER_SAFE_ERROR_MESSAGES[code];
+  if (typeof data?.error === 'object' && data.error?.message) return data.error.message;
+  if (typeof data?.error === 'string') return data.error;
+  return data?.detail || data?.message || fallback;
+};
+
 const createRequestError = ({ method, url, path, headers, status, statusText, data, fallback }) => {
-  const backendMessage = data?.detail || data?.error || data?.message || fallback;
+  const backendMessage = responseErrorMessage(data, fallback);
   const diagnostics = {
     method,
     endpoint: path,
@@ -113,7 +142,7 @@ const tryParseJson = async (res) => {
 
 const getResponseMessage = async (res, fallback) => {
   const data = await tryParseJson(res);
-  return data?.detail || data?.error || data?.message || fallback;
+  return responseErrorMessage(data, fallback);
 };
 
 const postJson = async (path, body) => {
@@ -210,7 +239,9 @@ const postJson = async (path, body) => {
   });
 
   if (!res.ok) {
-    if (res.status === 503 && data?.error?.code === 'SERVICE_CONFIGURATION_ERROR') {
+    const code = responseErrorCode(data);
+
+    if (code && USER_SAFE_ERROR_MESSAGES[code]) {
       throw createRequestError({ method, url, path, headers, status: res.status, statusText: res.statusText, data, fallback: data.message });
     }
     if (res.status === 401 || res.status === 403) {
@@ -253,10 +284,7 @@ const postJson = async (path, body) => {
       });
     }
     const message =
-      data?.detail ||
-      data?.error ||
-      data?.message ||
-      `Request failed (${res.status})`;
+      responseErrorMessage(data, `Request failed (${res.status})`);
     throw createRequestError({ method, url, path, headers, status: res.status, statusText: res.statusText, data, fallback: message });
   }
   return data;
@@ -587,6 +615,53 @@ const saveToHistory = async (entry) => {
   }
 };
 
+const normalizeSharedProxyResponse = (data) => {
+  const proxyData = data?.data;
+  const proxyMedia = data?.data?.media;
+  if (!proxyData || !Array.isArray(proxyMedia)) return data;
+
+  const downloads = {};
+  const items = [];
+
+  proxyMedia.forEach((item, index) => {
+    const normalized = normalizeMediaItem(item, index, item?.type || 'video');
+    if (normalized) items.push(normalized);
+
+    const mediaUrl = item?.url;
+    if (!mediaUrl) return;
+
+    const type = String(item.type || inferMediaTypeFromUrl(mediaUrl) || 'video').toLowerCase();
+    const quality = String(item.quality || '').toLowerCase();
+
+    if (type === 'audio' && !downloads.audio) downloads.audio = mediaUrl;
+    if (type === 'image' && !downloads.image) downloads.image = mediaUrl;
+    if (type === 'video') {
+      if (quality.includes('hd') && !downloads.videoHD) downloads.videoHD = mediaUrl;
+      if (quality.includes('sd') && !downloads.videoSD) downloads.videoSD = mediaUrl;
+      if (!downloads.video) downloads.video = mediaUrl;
+    }
+  });
+
+  if (items.length) downloads.items = items;
+  if (!downloads.videoHD && downloads.video) downloads.videoHD = downloads.video;
+  if (!downloads.videoSD && downloads.video) downloads.videoSD = downloads.video;
+
+  return {
+    ...data,
+    title: proxyData.title,
+    thumbnail: proxyData.thumbnail,
+    author_username: proxyData.author,
+    media_info: {
+      ...(data.media_info || {}),
+      title: proxyData.title,
+      thumbnail_url: proxyData.thumbnail,
+      author_username: proxyData.author,
+      platform: data.platform,
+    },
+    downloads,
+  };
+};
+
 // --- FIX: Improved resolveViaApi with better error handling and platform mapping ---
 const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   if (platform === 'youtube' && useRapidApiForYoutube()) {
@@ -618,7 +693,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
 
   let data;
   try {
-    data = await postJson(apiPath, payload);
+    data = normalizeSharedProxyResponse(await postJson(apiPath, payload));
   } catch (error) {
     // --- FIX: Provide better error messages ---
     if (error.message.includes('404')) {

@@ -42,6 +42,10 @@ function applyCors(res) {
   res.setHeader("Access-Control-Expose-Headers", "X-Request-ID");
 }
 
+function logStage(stage, details) {
+  console.info(`[DownloadDash SMD] ${stage}`, details);
+}
+
 function wantsUpstreamHealth(req) {
   const value = req.query?.upstream ?? req.query?.checkUpstream;
   return value === "1" || value === "true" || value === true;
@@ -77,8 +81,20 @@ async function checkUpstreamHealth(upstreamBaseUrl) {
 
 export async function handleSmdRequest(req, res) {
   const requestId = req.headers["x-request-id"] || randomUUID();
+  const startedAt = Date.now();
+  const context = {
+    platform: null,
+    kind: null,
+    path: null,
+  };
   applyCors(res);
   res.setHeader("X-Request-ID", requestId);
+
+  logStage("request received", {
+    requestId,
+    method: req.method,
+    url: req.url || req.originalUrl,
+  });
 
   if (req.method === "OPTIONS") {
     return res.status(204).end();
@@ -90,17 +106,24 @@ export async function handleSmdRequest(req, res) {
     const parts = getPathParts(req);
     const route = parseRoute(parts);
     const diagnostics = getServerEnvDiagnostics();
+    context.platform = route.platform || null;
+    context.kind = route.kind;
+    context.path = `/${parts.join("/")}`;
 
-    console.info("[DownloadDash SMD] request", {
+    logStage("route resolved", {
       requestId,
       method: req.method,
-      path: `/${parts.join("/")}`,
+      path: context.path,
       kind: route.kind,
+      platform: route.platform,
+    });
+
+    logStage("configuration checked", {
+      requestId,
       platform: route.platform,
       hasDownloadDashApiKey: diagnostics.hasDownloadDashApiKey,
       apiKeyLength: diagnostics.apiKeyLength,
       hasUpstreamBaseUrl: diagnostics.hasUpstreamBaseUrl,
-      upstreamHost: diagnostics.upstreamHost,
     });
 
     if (route.kind === "health") {
@@ -123,10 +146,19 @@ export async function handleSmdRequest(req, res) {
       });
     }
 
-    const env = getServerEnv();
-
     if (route.kind === "file") {
       const payload = validateFileProxyRequest(req);
+      logStage("validation passed", {
+        requestId,
+        kind: route.kind,
+        path: `/${route.forwardPath.join("/")}`,
+      });
+      const env = getServerEnv();
+      logStage("environment loaded", {
+        requestId,
+        platform: route.platform,
+        upstreamHost: env.upstreamHost,
+      });
       return proxyFileRequest({
         env,
         forwardPath: route.forwardPath,
@@ -143,14 +175,34 @@ export async function handleSmdRequest(req, res) {
     }
 
     const payload = validateDownloadRequest(route.platform, req);
+    logStage("validation passed", {
+      requestId,
+      kind: route.kind,
+      platform: route.platform,
+    });
+    const env = getServerEnv();
+    logStage("environment loaded", {
+      requestId,
+      platform: route.platform,
+      upstreamHost: env.upstreamHost,
+    });
     const result = await downloadMedia({ env, platform: route.platform, payload, requestId });
+    logStage("response normalized", {
+      requestId,
+      platform: route.platform,
+      latencyMs: Date.now() - startedAt,
+    });
     return json(res, 200, { ...result, requestId });
   } catch (error) {
     const code = error?.code || "INTERNAL_ERROR";
     console.error("[DownloadDash SMD] request failed", {
       requestId,
+      platform: context.platform,
+      kind: context.kind,
+      path: context.path,
       code,
       status: error?.status || 500,
+      latencyMs: Date.now() - startedAt,
       message: error?.logMessage || error?.message,
     });
     return sendError(res, error, requestId);
