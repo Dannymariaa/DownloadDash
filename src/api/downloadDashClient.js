@@ -80,6 +80,8 @@ const USER_SAFE_ERROR_MESSAGES = {
   UPSTREAM_UNAVAILABLE: 'The download service is temporarily unavailable. Please try again shortly.',
   UPSTREAM_TIMEOUT: 'The download service is temporarily unavailable. Please try again shortly.',
   UPSTREAM_AUTH_FAILED: 'The download service is temporarily unavailable. Please try again shortly.',
+  UPSTREAM_PROXY_FAILED: 'The download service is temporarily unavailable. Please try again shortly.',
+  UPSTREAM_ROUTE_NOT_FOUND: 'The download service is temporarily unavailable. Please try again shortly.',
   INVALID_URL: 'Enter a valid link for this downloader.',
   URL_REQUIRED: 'Paste a link to download.',
   UNSUPPORTED_DOMAIN: 'Paste a link from the selected platform.',
@@ -208,7 +210,7 @@ const postJson = async (path, body) => {
       data: '',
       fallback:
         res.status === 404
-          ? 'API endpoint not found. Please check your API configuration.'
+          ? 'The download service is temporarily unavailable. Please try again shortly.'
           : `Server returned an empty response (${res.status})`,
     });
   }
@@ -268,7 +270,7 @@ const postJson = async (path, body) => {
         status: res.status,
         statusText: res.statusText,
         data,
-        fallback: data?.message || `API endpoint not found (${res.status}). Please check your API configuration.`,
+        fallback: data?.message || 'The download service is temporarily unavailable. Please try again shortly.',
       });
     }
     if (res.status === 429) {
@@ -695,10 +697,6 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   try {
     data = normalizeSharedProxyResponse(await postJson(apiPath, payload));
   } catch (error) {
-    // --- FIX: Provide better error messages ---
-    if (error.message.includes('404')) {
-      throw new Error(`Platform "${platform}" endpoint not found. Please check your API configuration.`);
-    }
     if (error.message.includes('empty response')) {
       throw new Error('Server returned an empty response. Please try again.');
     }

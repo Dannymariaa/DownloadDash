@@ -28,10 +28,104 @@ function isAuthFailure(status, data) {
   return values.some((value) => value === "auth_failed" || value.includes("unauthorized"));
 }
 
-function mapUpstreamError(status, data) {
+function upstreamTextValues(data, responseText = "") {
+  return [
+    responseText,
+    data?.error,
+    data?.code,
+    data?.message,
+    data?.detail,
+  ].map((value) => String(value || "").trim().toLowerCase());
+}
+
+function isFrameworkNotFound(status, data, responseText = "") {
+  if (status !== 404) return false;
+  const values = upstreamTextValues(data, responseText);
+  return values.some((value) => (
+    value === "not found" ||
+    value === "404 not found" ||
+    value === "page not found" ||
+    value === "cannot post" ||
+    value === "cannot get" ||
+    value === "endpoint not found" ||
+    value.includes("route not found")
+  ));
+}
+
+function isMediaNotFound(status, data, responseText = "") {
+  if (status !== 404) return false;
+  const values = upstreamTextValues(data, responseText);
+  return values.some((value) => (
+    value.includes("media not found") ||
+    value.includes("post not found") ||
+    value.includes("video not found") ||
+    value.includes("content not found") ||
+    value.includes("no media") ||
+    value.includes("does not exist") ||
+    value.includes("no longer available")
+  ));
+}
+
+function upstreamFailureText(data) {
+  return upstreamTextValues(data, [
+    data?.error,
+    data?.message,
+    data?.detail,
+    ...(Array.isArray(data?.warnings) ? data.warnings : []),
+  ].filter(Boolean).join(" "));
+}
+
+function mapSuccessfulUpstreamFailure(data) {
+  const values = upstreamFailureText(data);
+  const text = values.join(" ");
+
+  if (values.some((value) => value === "auth_failed" || value.includes("unauthorized"))) {
+    return publicError("UPSTREAM_AUTH_FAILED", 502, "upstream resolver reported auth failure");
+  }
+
+  if (
+    text.includes("proxy") ||
+    text.includes("tunnel connection failed") ||
+    text.includes("407") ||
+    text.includes("quota") ||
+    text.includes("bandwidth")
+  ) {
+    return publicError("UPSTREAM_PROXY_FAILED", 502, "upstream resolver reported proxy failure");
+  }
+
+  if (
+    text.includes("private") ||
+    text.includes("login") ||
+    text.includes("cookies") ||
+    text.includes("forbidden") ||
+    text.includes("restricted")
+  ) {
+    return publicError("PRIVATE_MEDIA", 403, "upstream resolver reported private or restricted media");
+  }
+
+  if (
+    text.includes("not found") ||
+    text.includes("no media") ||
+    text.includes("does not exist") ||
+    text.includes("no longer available") ||
+    text.includes("resolve failed") ||
+    text.includes("no media resolver returned a result")
+  ) {
+    return publicError("MEDIA_NOT_FOUND", 404, "upstream resolver reported media not found");
+  }
+
+  return publicError("UNSUPPORTED_MEDIA", 422, "upstream resolver returned success=false");
+}
+
+function mapUpstreamError(status, data, responseText = "") {
   if (isAuthFailure(status, data)) return publicError("UPSTREAM_AUTH_FAILED", 502, "upstream rejected server API key");
   if (status === 403) return publicError("PRIVATE_MEDIA", 403, "upstream returned forbidden");
-  if (status === 404) return publicError("MEDIA_NOT_FOUND", 404, "upstream returned not found");
+  if (isFrameworkNotFound(status, data, responseText)) {
+    return publicError("UPSTREAM_ROUTE_NOT_FOUND", 502, "upstream route returned framework not found");
+  }
+  if (status === 404 || isMediaNotFound(status, data, responseText)) {
+    return publicError("MEDIA_NOT_FOUND", 404, "upstream returned media not found");
+  }
   if (status === 429) return publicError("UPSTREAM_RATE_LIMITED", 429, "upstream rate limited");
   if (status >= 500) return publicError("UPSTREAM_UNAVAILABLE", 503, `upstream returned ${status}`);
   return publicError("UPSTREAM_UNAVAILABLE", 502, `upstream returned ${status}`);
@@ -102,12 +196,26 @@ export async function downloadMedia({ env, platform, payload, requestId }) {
         try {
           data = JSON.parse(responseText);
         } catch {
-          throw publicError("UPSTREAM_INVALID_RESPONSE", 502, "upstream returned malformed JSON");
+          if (upstream.ok) {
+            throw publicError("UPSTREAM_INVALID_RESPONSE", 502, "upstream returned malformed JSON");
+          }
         }
       }
 
       if (!upstream.ok) {
-        throw mapUpstreamError(upstream.status, data);
+        throw mapUpstreamError(upstream.status, data, responseText);
+      }
+
+      if (data?.success === false) {
+        const error = mapSuccessfulUpstreamFailure(data);
+        console.warn("[DownloadDash SMD] upstream resolver failed", {
+          requestId,
+          platform,
+          upstreamPlatform: upstreamName,
+          status: upstream.status,
+          code: error.code,
+        });
+        throw error;
       }
 
       return normalizeDownloadResponse(platform, data);

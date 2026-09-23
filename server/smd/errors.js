@@ -21,6 +21,8 @@ export const ERROR_MESSAGES = {
   UPSTREAM_TIMEOUT: "Download service timed out. Please try again.",
   UPSTREAM_UNAVAILABLE: "Download service is temporarily unavailable.",
   UPSTREAM_AUTH_FAILED: "Download service is temporarily unavailable.",
+  UPSTREAM_PROXY_FAILED: "Download service is temporarily unavailable.",
+  UPSTREAM_ROUTE_NOT_FOUND: "Download service is temporarily unavailable.",
   UPSTREAM_RATE_LIMITED: "Too many requests. Please try again later.",
   UPSTREAM_INVALID_RESPONSE: "Download service returned an invalid response.",
   MEDIA_NOT_FOUND: "Media was not found or is no longer available.",

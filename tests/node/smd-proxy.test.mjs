@@ -361,7 +361,6 @@ test('health route can safely probe upstream reachability on request', async () 
 test('upstream status codes map to normalized downloader errors', async () => {
   const cases = [
     [401, 502, 'UPSTREAM_AUTH_FAILED'],
-    [404, 404, 'MEDIA_NOT_FOUND'],
     [429, 429, 'UPSTREAM_RATE_LIMITED'],
     [500, 503, 'UPSTREAM_UNAVAILABLE'],
     [503, 503, 'UPSTREAM_UNAVAILABLE'],
@@ -382,6 +381,94 @@ test('upstream status codes map to normalized downloader errors', async () => {
       assert.equal(body.success, false);
       assert.equal(body.error.code, expectedCode);
       assert.doesNotMatch(JSON.stringify(body), /provider failed/);
+    });
+  }
+});
+
+test('upstream framework-level 404 is reported as an upstream route problem', async () => {
+  for (const payload of [
+    { detail: 'Not Found' },
+    { message: '404 Not Found' },
+    'Not Found',
+  ]) {
+    await withProxyEnv(async () => {
+      globalThis.fetch = async () =>
+        new Response(typeof payload === 'string' ? payload : JSON.stringify(payload), {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        });
+
+      const res = await request({ path: 'tiktok/download', body: { url: validUrls.tiktok } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, 502);
+      assert.equal(body.success, false);
+      assert.equal(body.error.code, 'UPSTREAM_ROUTE_NOT_FOUND');
+    });
+  }
+});
+
+test('upstream media-level 404 remains media not found', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({ success: false, error: 'Media not found' }), {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'instagram/download', body: { url: validUrls.instagram } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 404);
+    assert.equal(body.success, false);
+    assert.equal(body.error.code, 'MEDIA_NOT_FOUND');
+  });
+});
+
+test('upstream success=false media resolver failure remains media not found', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({
+        success: false,
+        message: 'Resolve failed',
+        error: 'No media resolver returned a result',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'tiktok/download', body: { url: validUrls.tiktok } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 404);
+    assert.equal(body.success, false);
+    assert.equal(body.error.code, 'MEDIA_NOT_FOUND');
+  });
+});
+
+test('upstream success=false proxy-shaped resolver failure is reported separately', async () => {
+  for (const errorText of [
+    'The configured YouTube proxy could not complete the download.',
+    'Tunnel connection failed: 407 Proxy Authentication Required',
+    'proxy bandwidth quota exhausted',
+  ]) {
+    await withProxyEnv(async () => {
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({
+          success: false,
+          message: 'Resolve failed',
+          error: errorText,
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+      const res = await request({ path: 'youtube/download', body: { url: validUrls.youtube } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, 502);
+      assert.equal(body.success, false);
+      assert.equal(body.error.code, 'UPSTREAM_PROXY_FAILED');
     });
   }
 });
@@ -596,6 +683,8 @@ test('frontend clients keep DownloadDash secrets out of browser requests', async
   assert.match(webClient, /const DEFAULT_API_BASE_URL = '\/api\/smd';/);
   assert.match(webClient, /'x': 'x'/);
   assert.match(webClient, /data\?\.data\?\.media/);
+  assert.match(webClient, /UPSTREAM_ROUTE_NOT_FOUND/);
+  assert.doesNotMatch(webClient, /endpoint not found\. Please check your API configuration/);
   assert.doesNotMatch(webClient, /X-DownloadDash-Key|DOWNLOADDASH_API_KEY|Authorization.*Bearer/);
   assert.doesNotMatch(mobileClient, /X-DownloadDash-Key|X-API-Key|Authorization.*Bearer|apiKey/);
 });

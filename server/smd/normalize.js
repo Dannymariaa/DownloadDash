@@ -80,10 +80,6 @@ export function normalizeDownloadResponse(platform, upstreamData) {
     throw publicError("UPSTREAM_INVALID_RESPONSE", 502, "upstream JSON was not an object");
   }
 
-  if (upstreamData.success === false) {
-    throw publicError("UNSUPPORTED_MEDIA", 422, "upstream returned success=false");
-  }
-
   const media = collectMedia(upstreamData);
   if (!media.length) {
     throw publicError("UNSUPPORTED_MEDIA", 422, "upstream response contained no media URLs");
