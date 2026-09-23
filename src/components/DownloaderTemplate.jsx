@@ -350,6 +350,7 @@ export default function DownloaderTemplate({
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [adGate, setAdGate] = useState(null);
+  const [selectedMediaIndexes, setSelectedMediaIndexes] = useState([]);
   const platformIconNode = React.isValidElement(platformIcon)
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
     : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
@@ -360,6 +361,7 @@ export default function DownloaderTemplate({
     setIsLoading(true);
     setError('');
     setResult(null);
+    setSelectedMediaIndexes([]);
     setProgress(0);
 
     // Simulate progress
@@ -373,6 +375,10 @@ export default function DownloaderTemplate({
       setProgress(100);
       if (!response.success) throw new Error(response.error || t('errors.processFailed'));
       setResult(response);
+      const returnedItems = Array.isArray(response.downloads?.items)
+        ? response.downloads.items.filter((item) => item?.url && item.type !== 'unknown')
+        : [];
+      setSelectedMediaIndexes(returnedItems.map((_, index) => index));
       if (user?.email) {
         await downloadDash.entities.DownloadHistory.create({
           user_email: user.email,
@@ -400,7 +406,7 @@ export default function DownloaderTemplate({
     const match = cleanUrl.match(/\.([a-z0-9]{2,5})$/);
     if (match) return match[1];
     if (type === 'audio') return 'mp3';
-    if (type === 'image' || type === 'album') return 'jpg';
+    if (type === 'image' || type === 'album' || type === 'zip') return 'jpg';
     return 'mp4';
   };
 
@@ -409,7 +415,7 @@ export default function DownloaderTemplate({
       const extension = String(item.filename).split('.').pop();
       if (extension && extension.length <= 5) return item.filename;
     }
-    const extension = item?.extension || getDownloadExtension(type, item?.url);
+    const extension = item?.format || item?.extension || getDownloadExtension(type, item?.url);
     return `DownloadDash-${platform}-${String(index + 1).padStart(2, '0')}.${extension}`;
   };
 
@@ -476,10 +482,11 @@ export default function DownloaderTemplate({
       const files = [];
       for (let index = 0; index < items.length; index += 1) {
         const item = items[index];
-        const blob = await downloadDash.fetchMediaBlob(item.url, result?.original_url || url, 'image');
+        const itemType = item.type === 'video' ? 'video' : item.type === 'audio' ? 'audio' : 'image';
+        const blob = await downloadDash.fetchMediaBlob(item.url, result?.original_url || url, itemType);
         const bytes = new Uint8Array(await blob.arrayBuffer());
         files.push({
-          name: filenameFromItem(item, 'image', index),
+          name: filenameFromItem(item, itemType, index),
           bytes,
         });
       }
@@ -488,7 +495,7 @@ export default function DownloaderTemplate({
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = objectUrl;
-      link.download = `DownloadDash-${platform}-images.zip`;
+      link.download = `DownloadDash-${platform}-media.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -552,6 +559,8 @@ export default function DownloaderTemplate({
     ? result.downloads.items.filter((item) => item?.url)
     : [];
   const hasAlbumItems = albumItems.length > 1;
+  const selectableMediaItems = albumItems.filter((item) => item.type !== 'unknown');
+  const selectedMediaItems = selectableMediaItems.filter((_, index) => selectedMediaIndexes.includes(index));
   
   // Separate album items by type
   const photoItems = albumItems.filter((item) => {
@@ -576,6 +585,21 @@ export default function DownloaderTemplate({
   const photoDownloadUrl = hasAlbumItems ? photoItems[0]?.url : result?.downloads?.image;
   const hasMultiplePhotos = photoItems.length > 1;
   const hasVideoOrAudio = hasVideoHD || hasVideoSD || effectiveHasAudio;
+  const toggleMediaSelection = (index) => {
+    setSelectedMediaIndexes((current) =>
+      current.includes(index)
+        ? current.filter((itemIndex) => itemIndex !== index)
+        : [...current, index].sort((a, b) => a - b)
+    );
+  };
+  const selectAllMedia = () => setSelectedMediaIndexes(selectableMediaItems.map((_, index) => index));
+  const clearMediaSelection = () => setSelectedMediaIndexes([]);
+  const mediaLabel = (item, index) => {
+    const type = item.type === 'video' ? 'Video' : item.type === 'audio' ? 'Audio' : 'Photo';
+    const parts = [item.quality, item.width && item.height ? `${item.width}x${item.height}` : '', item.format || item.extension || '', item.hasAudio ? 'audio' : '']
+      .filter(Boolean);
+    return `${type} ${index + 1}${parts.length ? ` - ${parts.join(' - ')}` : ''}`;
+  };
   const pageContent = platformPageContent[platform] || {
     intro:
       `${platformName} links can return different media options depending on privacy, source availability, and platform changes. Use public links, keep creator context, and save only media you are allowed to keep.`,
@@ -802,6 +826,84 @@ export default function DownloaderTemplate({
                   initial="hidden"
                   animate="visible"
                 >
+                  {selectableMediaItems.length > 1 && (
+                    <motion.div
+                      variants={downloadOptionVariants}
+                      className="rounded-2xl border border-white/10 bg-gray-950/80 p-4"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+                        <div>
+                          <p className="font-bold text-white">Media in this post</p>
+                          <p className="text-xs text-gray-400">{selectedMediaItems.length} of {selectableMediaItems.length} selected</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="ghost" size="sm" onClick={selectAllMedia} className="text-purple-200 hover:text-white">
+                            Select all
+                          </Button>
+                          <Button type="button" variant="ghost" size="sm" onClick={clearMediaSelection} className="text-gray-300 hover:text-white">
+                            Clear selection
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3">
+                        {selectableMediaItems.map((item, index) => {
+                          const checked = selectedMediaIndexes.includes(index);
+                          const itemType = item.type === 'video' ? 'video' : item.type === 'audio' ? 'audio' : 'image';
+                          return (
+                            <label
+                              key={`${item.url}-${index}`}
+                              className="grid grid-cols-[auto_72px_1fr] gap-3 items-center rounded-xl border border-gray-800 bg-black/30 p-3 hover:border-purple-500/50"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleMediaSelection(index)}
+                                className="h-5 w-5 accent-purple-500"
+                              />
+                              <div className="h-16 w-[72px] overflow-hidden rounded-lg bg-gray-900 flex items-center justify-center">
+                                {itemType === 'video' ? (
+                                  <video src={item.url} poster={item.thumbnail} className="h-full w-full object-cover" muted preload="metadata" />
+                                ) : itemType === 'image' ? (
+                                  <img src={item.thumbnail || item.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                ) : (
+                                  <Volume2 className="h-6 w-6 text-green-300" />
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-white truncate">{mediaLabel(item, index)}</p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {(item.format || item.extension || getDownloadExtension(itemType, item.url)).toUpperCase()}
+                                  {item.mimeType ? ` - ${item.mimeType}` : ''}
+                                </p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                        <Button
+                          type="button"
+                          disabled={!selectedMediaItems.length}
+                          onClick={() => requestDownload(selectedMediaItems[0]?.url, 'zip', `Download Selected (${selectedMediaItems.length})`, selectedMediaItems)}
+                          className="bg-purple-600 hover:bg-purple-500 text-white"
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Download selected
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => requestDownload(selectableMediaItems[0]?.url, 'zip', `Download All (${selectableMediaItems.length})`, selectableMediaItems)}
+                          className="bg-sky-600 hover:bg-sky-500 text-white"
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Download all
+                        </Button>
+                      </div>
+                    </motion.div>
+                  )}
+
                   {hasVideoOrAudio && (
                     <>
                       {/* HD Video */}
@@ -877,7 +979,7 @@ export default function DownloaderTemplate({
                     </>
                   )}
 
-                  {hasPhotoDownload && (
+                  {hasPhotoDownload && !hasAlbumItems && (
                     <>
                     {/* Image download gate */}
                     <motion.button

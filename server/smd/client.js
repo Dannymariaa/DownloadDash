@@ -6,6 +6,14 @@ const REQUEST_TIMEOUT_MS = 55_000;
 const MAX_TRANSIENT_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 40;
 
+function sanitizeFilename(name) {
+  return String(name || "download")
+    .replace(/[\\/:*?"<>|]+/g, "_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160) || "download";
+}
+
 function buildHeaders(apiKey) {
   return {
     Accept: "application/json",
@@ -309,8 +317,11 @@ export async function proxyFileRequest({ env, forwardPath, payload, method, quer
       latencyMs: Date.now() - startedAt,
     });
 
+    const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+    const disposition = upstream.headers.get("content-disposition");
     res.status(upstream.status);
-    res.setHeader("Content-Type", upstream.headers.get("content-type") || "application/octet-stream");
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", disposition || `attachment; filename="${sanitizeFilename(payload?.filename)}"`);
     return res.end(buffer);
   } catch (error) {
     if (error?.name === "AbortError") {

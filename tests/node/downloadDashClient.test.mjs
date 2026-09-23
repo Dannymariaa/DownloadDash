@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { inferMediaTypeFromUrl, normalizeMediaItem } from '../../src/api/downloadDashClient.js';
+
+test('client media type inference does not treat extensionless signed URLs as video', () => {
+  assert.equal(inferMediaTypeFromUrl('https://cdn.example/photo?expires=1&sig=abc'), '');
+  assert.equal(inferMediaTypeFromUrl('https://cdn.example/photo.jpg?expires=1'), 'image');
+  assert.equal(inferMediaTypeFromUrl('https://cdn.example/video.mp4?expires=1'), 'video');
+});
+
+test('client normalizes extensionless image and video items from explicit metadata', () => {
+  const image = normalizeMediaItem({
+    type: 'image',
+    url: 'https://cdn.example/signed-image?sig=abc',
+    mimeType: 'image/jpeg',
+    width: 1080,
+    height: 1350,
+  }, 0);
+
+  const video = normalizeMediaItem({
+    is_video: true,
+    video_url: 'https://cdn.example/signed-video?sig=abc',
+    display_url: 'https://cdn.example/video-thumb.jpg',
+    contentType: 'video/mp4',
+    has_audio: true,
+    audio_url: 'https://cdn.example/audio.m4a',
+  }, 1);
+
+  assert.equal(image.type, 'image');
+  assert.equal(image.format, 'jpg');
+  assert.equal(image.thumbnail, image.url);
+  assert.equal(video.type, 'video');
+  assert.equal(video.url, 'https://cdn.example/signed-video?sig=abc');
+  assert.equal(video.thumbnail, 'https://cdn.example/video-thumb.jpg');
+  assert.equal(video.hasAudio, true);
+  assert.equal(video.audioUrl, 'https://cdn.example/audio.m4a');
+});
+
+test('client leaves unknown signed media unknown and does not use thumbnails as primary media', () => {
+  const unknown = normalizeMediaItem({
+    url: 'https://cdn.example/opaque?sig=abc',
+    thumbnail: 'https://cdn.example/thumb.jpg',
+  }, 0);
+
+  const video = normalizeMediaItem({
+    type: 'video',
+    videoUrl: 'https://cdn.example/video?sig=abc',
+    thumbnail: 'https://cdn.example/thumb.jpg',
+  }, 1);
+
+  assert.equal(unknown.type, 'unknown');
+  assert.equal(unknown.url, 'https://cdn.example/opaque?sig=abc');
+  assert.equal(video.type, 'video');
+  assert.equal(video.url, 'https://cdn.example/video?sig=abc');
+  assert.notEqual(video.url, video.thumbnail);
+});

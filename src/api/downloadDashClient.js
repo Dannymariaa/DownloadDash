@@ -22,7 +22,7 @@ const PLATFORM_MAP = {
 };
 
 const getApiBaseUrl = () => {
-  const raw = import.meta.env.VITE_SMD_API_BASE_URL || DEFAULT_API_BASE_URL;
+  const raw = import.meta.env?.VITE_SMD_API_BASE_URL || DEFAULT_API_BASE_URL;
   const normalized = String(raw).replace(/\/+$/, '') || DEFAULT_API_BASE_URL;
 
   if (normalized === '/api' || normalized === '/api/smd') return DEFAULT_API_BASE_URL;
@@ -40,7 +40,7 @@ const getApiBaseUrl = () => {
 };
 
 const useRapidApiForYoutube = () => {
-  const flag = String(import.meta.env.VITE_USE_RAPIDAPI_YOUTUBE || '').toLowerCase();
+  const flag = String(import.meta.env?.VITE_USE_RAPIDAPI_YOUTUBE || '').toLowerCase();
   return flag === '1' || flag === 'true' || flag === 'yes';
 };
 
@@ -333,12 +333,37 @@ const isTikTokMediaUrl = (fileUrl, sourceUrl = '') => {
   );
 };
 
-const inferMediaTypeFromUrl = (url = '') => {
+export const inferMediaTypeFromUrl = (url = '') => {
   const cleanUrl = String(url || '').split('?')[0].toLowerCase();
   if (/\.(mp3|m4a|aac|wav|ogg|opus)$/.test(cleanUrl)) return 'audio';
   if (/\.(mp4|webm|mov|mkv|m3u8)$/.test(cleanUrl)) return 'video';
   if (/\.(jpg|jpeg|png|webp|gif|avif)$/.test(cleanUrl)) return 'image';
   return '';
+};
+
+const normalizeMediaType = (value = '') => {
+  const normalized = String(value || '').toLowerCase();
+  if (['image', 'photo', 'picture', 'img'].includes(normalized)) return 'image';
+  if (['video', 'movie'].includes(normalized)) return 'video';
+  if (['audio', 'music', 'sound'].includes(normalized)) return 'audio';
+  return '';
+};
+
+const inferMediaTypeFromMime = (mimeType = '') => {
+  const normalized = String(mimeType || '').toLowerCase().split(';')[0].trim();
+  if (normalized.startsWith('image/')) return 'image';
+  if (normalized.startsWith('video/') || normalized === 'application/vnd.apple.mpegurl') return 'video';
+  if (normalized.startsWith('audio/')) return 'audio';
+  return '';
+};
+
+const formatFromMime = (mimeType = '') => {
+  const normalized = String(mimeType || '').toLowerCase().split(';')[0].trim();
+  const subtype = normalized.split('/')[1];
+  if (!subtype) return '';
+  if (subtype === 'jpeg') return 'jpg';
+  if (subtype === 'mpegurl' || normalized === 'application/vnd.apple.mpegurl') return 'm3u8';
+  return subtype.replace(/^x-/, '');
 };
 
 const firstValue = (entry, keys) => {
@@ -392,46 +417,104 @@ const collectNestedMediaCollections = (source, depth = 0) => {
   return collections;
 };
 
-const normalizeMediaItem = (item, index, fallbackType = 'image') => {
-  const entry = item?.node ? item.node : item;
-  if (!entry) return null;
+const primaryMediaUrl = (entry, key = '') => {
+  const explicitType = normalizeMediaType(entry.type || entry.media_type || entry.mediaType || entry.kind);
+  const keyType = normalizeMediaType(key);
 
-  if (typeof entry === 'string') {
-    return {
-      url: absolutizeApiUrl(entry),
-      type: inferMediaTypeFromUrl(entry) || fallbackType,
-      thumbnail: absolutizeApiUrl(entry),
-      index,
-    };
+  if (explicitType === 'video' || entry.is_video === true || entry.isVideo === true) {
+    return firstValue(entry, [
+      'video_url',
+      'videoUrl',
+      'video',
+      'url',
+      'download_url',
+      'downloadUrl',
+      'media_url',
+      'mediaUrl',
+      'play_url',
+      'playUrl',
+      'src',
+    ]);
   }
 
-  const url = firstValue(entry, [
+  if (explicitType === 'image' || keyType === 'image' || entry.is_video === false || entry.isVideo === false) {
+    return firstValue(entry, [
+      'image_url',
+      'imageUrl',
+      'display_url',
+      'displayUrl',
+      'url',
+      'download_url',
+      'downloadUrl',
+      'media_url',
+      'mediaUrl',
+      'src',
+    ]);
+  }
+
+  if (explicitType === 'audio' || keyType === 'audio') {
+    return firstValue(entry, [
+      'audio_url',
+      'audioUrl',
+      'music_url',
+      'musicUrl',
+      'sound_url',
+      'soundUrl',
+      'audio',
+      'url',
+      'download_url',
+      'downloadUrl',
+      'media_url',
+      'mediaUrl',
+      'src',
+    ]);
+  }
+
+  return firstValue(entry, [
     'url',
     'download_url',
     'downloadUrl',
     'media_url',
     'mediaUrl',
-    'display_url',
-    'displayUrl',
-    'image_url',
-    'imageUrl',
     'video_url',
     'videoUrl',
+    'image_url',
+    'imageUrl',
+    'display_url',
+    'displayUrl',
     'play_url',
     'playUrl',
     'src',
   ]);
+};
+
+export const normalizeMediaItem = (item, index, fallbackType = 'unknown', key = '') => {
+  const entry = item?.node ? item.node : item;
+  if (!entry) return null;
+
+  if (typeof entry === 'string') {
+    const type = inferMediaTypeFromUrl(entry) || normalizeMediaType(fallbackType) || 'unknown';
+    return {
+      url: absolutizeApiUrl(entry),
+      type,
+      thumbnail: type === 'image' ? absolutizeApiUrl(entry) : undefined,
+      index,
+    };
+  }
+
+  const url = primaryMediaUrl(entry, key || fallbackType);
 
   if (!url) return null;
 
+  const mimeType = firstValue(entry, ['mimeType', 'mime_type', 'contentType', 'content_type', 'mimetype']);
   const inferredType = inferMediaTypeFromUrl(url);
   const type =
-    entry.type ||
-    entry.media_type ||
-    entry.mediaType ||
+    normalizeMediaType(entry.type || entry.media_type || entry.mediaType || entry.kind) ||
+    inferMediaTypeFromMime(mimeType) ||
     (entry.is_video || entry.isVideo ? 'video' : '') ||
     inferredType ||
-    fallbackType;
+    normalizeMediaType(fallbackType) ||
+    'unknown';
 
   const thumbnail = firstValue(entry, [
     'thumbnail',
@@ -445,12 +528,17 @@ const normalizeMediaItem = (item, index, fallbackType = 'image') => {
 
   return {
     url: absolutizeApiUrl(url),
-    type: String(type).toLowerCase(),
+    type,
     filename: entry.filename || entry.file_name,
-    extension: entry.extension,
+    extension: entry.extension || entry.format || formatFromMime(mimeType) || undefined,
+    format: entry.format || entry.extension || formatFromMime(mimeType) || undefined,
+    mimeType: mimeType || undefined,
     width: entry.width,
     height: entry.height,
-    thumbnail: absolutizeApiUrl(thumbnail || url),
+    quality: entry.quality,
+    hasAudio: entry.hasAudio ?? entry.has_audio,
+    audioUrl: absolutizeApiUrl(entry.audioUrl || entry.audio_url),
+    thumbnail: absolutizeApiUrl(thumbnail || (type === 'image' ? url : undefined)),
     index,
   };
 };
@@ -488,10 +576,11 @@ const collectMediaItems = (data, downloads) => {
 
   const seen = new Set();
   return candidates
-    .map((item, index) => normalizeMediaItem(item, index))
+    .map((item, index) => normalizeMediaItem(item, index, 'unknown'))
     .filter((item) => {
-      if (!item?.url || seen.has(item.url)) return false;
-      seen.add(item.url);
+      const identity = `${item?.url || ''}`;
+      if (!item?.url || seen.has(identity)) return false;
+      seen.add(identity);
       return true;
     })
     .map((item, index) => ({ ...item, index }));
@@ -626,13 +715,13 @@ const normalizeSharedProxyResponse = (data) => {
   const items = [];
 
   proxyMedia.forEach((item, index) => {
-    const normalized = normalizeMediaItem(item, index, item?.type || 'video');
+    const normalized = normalizeMediaItem(item, index, item?.type || 'unknown');
     if (normalized) items.push(normalized);
 
     const mediaUrl = item?.url;
     if (!mediaUrl) return;
 
-    const type = String(item.type || inferMediaTypeFromUrl(mediaUrl) || 'video').toLowerCase();
+    const type = normalizeMediaType(item.type) || inferMediaTypeFromMime(item.mimeType || item.mime_type || item.contentType || item.content_type) || inferMediaTypeFromUrl(mediaUrl) || 'unknown';
     const quality = String(item.quality || '').toLowerCase();
 
     if (type === 'audio' && !downloads.audio) downloads.audio = mediaUrl;
@@ -748,7 +837,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   }
   
   // --- FIX: Determine media type ---
-  const mediaType = data?.media_type || data?.media_info?.media_type || null;
+  const mediaType = normalizeMediaType(data?.media_type || data?.media_info?.media_type) || null;
   
   // --- FIX: Get primary download URL ---
   const downloadUrl =
@@ -787,7 +876,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
       ? 'video'
       : hasAudio && !hasImage
         ? 'audio'
-        : (mediaType || 'video');
+        : (mediaType || 'unknown');
 
   if (kind === 'photo' || kind === 'image') kind = 'image';
   if (kind === 'album' || kind === 'carousel') kind = 'album';
@@ -807,7 +896,7 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   // --- FIX: Handle album items ---
   const albumItems = Array.isArray(downloads.items)
     ? downloads.items
-        .map((item, index) => normalizeMediaItem(item, index))
+        .map((item, index) => normalizeMediaItem(item, index, item?.type || 'unknown'))
         .filter((item) => item?.url)
     : null;
 

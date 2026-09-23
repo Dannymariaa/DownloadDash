@@ -1,5 +1,5 @@
 import { publicError } from "./errors.js";
-import { isPlatformHost, normalizePlatform } from "./platforms.js";
+import { PLATFORM_HOSTS, isPlatformHost, normalizePlatform } from "./platforms.js";
 
 const MAX_BODY_BYTES = 20_000;
 const PRIVATE_HOSTS = new Set(["localhost", "metadata.google.internal"]);
@@ -98,7 +98,13 @@ export function validateDownloadRequest(platform, req) {
 export function validateFileProxyRequest(req) {
   const body = parseBody(req);
   const url = validatePublicUrl(body?.url);
-  return { ...body, url };
+  const sourceUrl = validatePublicUrl(body?.sourceUrl);
+  const source = new URL(sourceUrl);
+  const trustedSource = Object.keys(PLATFORM_HOSTS).some((platform) => isPlatformHost(platform, source.hostname));
+  if (!trustedSource) {
+    throw publicError("UNSUPPORTED_DOMAIN", 400, `unsupported media source ${source.hostname}`);
+  }
+  return { ...body, url, sourceUrl };
 }
 
 export function parseRoute(parts) {

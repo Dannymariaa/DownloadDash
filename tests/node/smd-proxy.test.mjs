@@ -162,6 +162,7 @@ test('all public SMD platform routes validate input, authenticate server-side, a
       assert.equal(body.data.title, 'Example media');
       assert.deepEqual(body.data.media, [
         {
+          index: 0,
           type: 'video',
           url: 'https://cdn.example/video.mp4',
           quality: 'hd',
@@ -173,6 +174,156 @@ test('all public SMD platform routes validate input, authenticate server-side, a
       assert.equal(forwarded.at(-1).init.headers.Authorization, undefined);
       assert.equal(forwarded.at(-1).init.headers.DOWNLOADDASH_API_KEY, undefined);
     }
+  });
+});
+
+test('normalization keeps signed extensionless image metadata as image', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({
+        success: true,
+        media: [
+          {
+            type: 'image',
+            url: 'https://cdn.instagram.example/media?sig=abc',
+            mimeType: 'image/jpeg',
+            width: 1080,
+            height: 1350,
+          },
+        ],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'instagram/download', body: { url: validUrls.instagram } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.data.media, [
+      {
+        index: 0,
+        type: 'image',
+        url: 'https://cdn.instagram.example/media?sig=abc',
+        mimeType: 'image/jpeg',
+        format: 'jpg',
+        width: 1080,
+        height: 1350,
+      },
+    ]);
+  });
+});
+
+test('normalization infers extensionless media from MIME and leaves unknown media unknown', async () => {
+  const cases = [
+    [{ url: 'https://cdn.example/image?id=1', contentType: 'image/jpeg' }, 'image', 'jpg'],
+    [{ url: 'https://cdn.example/video?id=1', contentType: 'video/mp4' }, 'video', 'mp4'],
+    [{ url: 'https://cdn.example/opaque?id=1' }, 'unknown', undefined],
+  ];
+
+  for (const [item, expectedType, expectedFormat] of cases) {
+    await withProxyEnv(async () => {
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({ success: true, media: [item] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+      const res = await request({ path: 'instagram/download', body: { url: validUrls.instagram } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, 200);
+      assert.equal(body.data.media[0].type, expectedType);
+      assert.equal(body.data.media[0].format, expectedFormat);
+    });
+  }
+});
+
+test('normalization preserves single image, five-image carousel, and mixed carousel ordering', async () => {
+  const fiveImages = Array.from({ length: 5 }, (_, index) => ({
+    id: `image-${index + 1}`,
+    image_url: `https://cdn.instagram.example/${index + 1}?sig=abc`,
+    contentType: 'image/jpeg',
+  }));
+
+  const cases = [
+    [[fiveImages[0]], ['image']],
+    [fiveImages, ['image', 'image', 'image', 'image', 'image']],
+    [[
+      { id: 'one', image_url: 'https://cdn.instagram.example/one?sig=abc', contentType: 'image/jpeg' },
+      { id: 'two', image_url: 'https://cdn.instagram.example/two?sig=abc', contentType: 'image/jpeg' },
+      { id: 'three', is_video: true, video_url: 'https://cdn.instagram.example/three?sig=abc', contentType: 'video/mp4', has_audio: true },
+      { id: 'four', image_url: 'https://cdn.instagram.example/four?sig=abc', contentType: 'image/jpeg' },
+    ], ['image', 'image', 'video', 'image']],
+  ];
+
+  for (const [media, expectedTypes] of cases) {
+    await withProxyEnv(async () => {
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({ success: true, media }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+      const res = await request({ path: 'instagram/download', body: { url: validUrls.instagram } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, 200);
+      assert.deepEqual(body.data.media.map((item) => item.type), expectedTypes);
+      assert.deepEqual(body.data.media.map((item) => item.index), expectedTypes.map((_, index) => index));
+    });
+  }
+});
+
+test('normalization deduplicates nested provider duplicates without turning thumbnails into media', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({
+        success: true,
+        thumbnail: 'https://cdn.instagram.example/thumb.jpg',
+        media: [
+          {
+            id: 'carousel-1',
+            is_video: true,
+            video_url: 'https://cdn.instagram.example/video?sig=abc',
+            display_url: 'https://cdn.instagram.example/thumb.jpg',
+            contentType: 'video/mp4',
+            thumbnail: 'https://cdn.instagram.example/thumb.jpg',
+            has_audio: true,
+            audio_url: 'https://cdn.instagram.example/audio.m4a',
+          },
+        ],
+        media_info: {
+          edge_sidecar_to_children: {
+            edges: [
+              {
+                node: {
+                  id: 'carousel-1',
+                  is_video: true,
+                  video_url: 'https://cdn.instagram.example/video?sig=abc',
+                  display_url: 'https://cdn.instagram.example/thumb.jpg',
+                  contentType: 'video/mp4',
+                  thumbnail: 'https://cdn.instagram.example/thumb.jpg',
+                },
+              },
+            ],
+          },
+        },
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'instagram/download', body: { url: validUrls.instagram } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.data.media.length, 1);
+    assert.equal(body.data.media[0].type, 'video');
+    assert.equal(body.data.media[0].url, 'https://cdn.instagram.example/video?sig=abc');
+    assert.equal(body.data.media[0].thumbnail, 'https://cdn.instagram.example/thumb.jpg');
+    assert.equal(body.data.media[0].hasAudio, true);
+    assert.equal(body.data.media[0].audioUrl, 'https://cdn.instagram.example/audio.m4a');
   });
 });
 
@@ -650,6 +801,56 @@ test('upstream timeout and malformed JSON responses are normalized safely', asyn
     const res = await request({ path: 'reddit/download', body: { url: validUrls.reddit } });
     assert.equal(res.statusCode, 502);
     assert.equal(readJson(res).error.code, 'UPSTREAM_INVALID_RESPONSE');
+  });
+});
+
+test('file proxy requires a trusted platform source URL and preserves file headers', async () => {
+  await withProxyEnv(async () => {
+    let forwardedBody = null;
+    globalThis.fetch = async (_url, init) => {
+      forwardedBody = JSON.parse(init.body);
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'content-type': 'image/jpeg' },
+      });
+    };
+
+    const res = await request({
+      path: 'download/file',
+      body: {
+        url: 'https://cdn.example/signed-image?sig=abc',
+        sourceUrl: validUrls.instagram,
+        filename: 'photo.jpg',
+        mediaType: 'image',
+      },
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.getHeader('Content-Type'), 'image/jpeg');
+    assert.equal(res.getHeader('Content-Disposition'), 'attachment; filename="photo.jpg"');
+    assert.equal(forwardedBody.url, 'https://cdn.example/signed-image?sig=abc');
+    assert.equal(forwardedBody.sourceUrl, validUrls.instagram);
+  });
+
+  await withProxyEnv(async () => {
+    let fetchCalled = false;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return new Response('', { status: 200 });
+    };
+
+    const res = await request({
+      path: 'download/file',
+      body: {
+        url: 'https://cdn.example/signed-image?sig=abc',
+        sourceUrl: 'https://example.com/post/123',
+        filename: 'photo.jpg',
+      },
+    });
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(readJson(res).error.code, 'UNSUPPORTED_DOMAIN');
+    assert.equal(fetchCalled, false);
   });
 });
 
