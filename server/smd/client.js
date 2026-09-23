@@ -69,13 +69,37 @@ function isMediaNotFound(status, data, responseText = "") {
 function upstreamFailureText(data) {
   return upstreamTextValues(data, [
     data?.error,
+    data?.error_code,
     data?.message,
     data?.detail,
     ...(Array.isArray(data?.warnings) ? data.warnings : []),
   ].filter(Boolean).join(" "));
 }
 
+const PROVIDER_ERROR_STATUS = {
+  PROXY_AUTH_FAILED: 502,
+  PROXY_QUOTA_EXHAUSTED: 502,
+  PROXY_UNREACHABLE: 502,
+  PLATFORM_BLOCKED_PROXY: 502,
+  COOKIE_REQUIRED: 401,
+  COOKIE_EXPIRED: 401,
+  RATE_LIMITED: 429,
+  MEDIA_NOT_FOUND: 404,
+  PRIVATE_MEDIA: 403,
+  EXTRACTOR_FAILED: 502,
+};
+
+function mapProviderErrorCode(data) {
+  const rawCode = String(data?.error_code || data?.code || data?.error || "").trim().toUpperCase();
+  const status = PROVIDER_ERROR_STATUS[rawCode];
+  if (!status) return null;
+  return publicError(rawCode, status, `upstream resolver reported ${rawCode}`);
+}
+
 function mapSuccessfulUpstreamFailure(data) {
+  const structuredError = mapProviderErrorCode(data);
+  if (structuredError) return structuredError;
+
   const values = upstreamFailureText(data);
   const text = values.join(" ");
 
@@ -118,6 +142,8 @@ function mapSuccessfulUpstreamFailure(data) {
 }
 
 function mapUpstreamError(status, data, responseText = "") {
+  const structuredError = mapProviderErrorCode(data);
+  if (structuredError) return structuredError;
   if (isAuthFailure(status, data)) return publicError("UPSTREAM_AUTH_FAILED", 502, "upstream rejected server API key");
   if (status === 403) return publicError("PRIVATE_MEDIA", 403, "upstream returned forbidden");
   if (isFrameworkNotFound(status, data, responseText)) {

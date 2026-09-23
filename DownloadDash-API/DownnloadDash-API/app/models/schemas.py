@@ -173,6 +173,7 @@ class DownloadResponse(BaseModel):
     downloads: Optional[Dict[str, Any]] = None  # Changed to Any to handle complex objects
     expires_at: Optional[datetime] = None
     error: Optional[str] = None
+    error_code: Optional[str] = None
     warnings: List[str] = []
     
     class Config:

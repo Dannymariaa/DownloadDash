@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import BackgroundTasks, HTTPException
 
+from app.api.resolver_errors import classify_resolver_error, sanitize_provider_error
 from app.config import settings
 from app.models.schemas import (
     DownloadRequest,
@@ -224,11 +225,20 @@ async def download_public(
         _set_resolve_cache(cache_key, result)
 
     if not result:
+        raw_error = str(resolve_error) if resolve_error else "No media resolver returned a result"
+        error_code = classify_resolver_error(platform, raw_error)
+        sanitized_error = sanitize_provider_error(raw_error)
+        print(
+            "Warning: resolver_failed "
+            f"platform={platform.value} error_code={error_code} "
+            f"raw_error={sanitized_error[:500]}"
+        )
         return DownloadResponse(
             success=False,
             message="Resolve failed",
             status=DownloadStatus.FAILED,
-            error=str(resolve_error) if resolve_error else "No media resolver returned a result",
+            error=error_code,
+            error_code=error_code,
             warnings=[],
         )
 

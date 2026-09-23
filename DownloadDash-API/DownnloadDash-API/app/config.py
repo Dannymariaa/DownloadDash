@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     YTDLP_PROXY_REDDIT: Optional[str] = None
     YTDLP_PROXY_TIKTOK: Optional[str] = None
     YTDLP_PROXY_X: Optional[str] = None
+    YTDLP_PROXY_TWITTER: Optional[str] = None
     YTDLP_PROXY_YOUTUBE: Optional[str] = None
 
     # gallery-dl (optional cookies help for stories/status/private-session media)
@@ -79,6 +80,7 @@ class Settings(BaseSettings):
     GALLERY_DL_PROXY_REDDIT: Optional[str] = None
     GALLERY_DL_PROXY_TIKTOK: Optional[str] = None
     GALLERY_DL_PROXY_X: Optional[str] = None
+    GALLERY_DL_PROXY_TWITTER: Optional[str] = None
     GALLERY_DL_TIMEOUT_SECONDS: int = 300
     
     # Platform API Keys

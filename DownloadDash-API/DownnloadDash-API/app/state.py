@@ -113,8 +113,8 @@ yt_dlp_proxy_urls = {
     "instagram": settings.YTDLP_PROXY_INSTAGRAM or outbound_proxy,
     "reddit": settings.YTDLP_PROXY_REDDIT or outbound_proxy,
     "tiktok": settings.YTDLP_PROXY_TIKTOK or outbound_proxy,
-    "x": settings.YTDLP_PROXY_X or outbound_proxy,
-    "twitter": settings.YTDLP_PROXY_X or outbound_proxy,
+    "x": settings.YTDLP_PROXY_X or settings.YTDLP_PROXY_TWITTER or outbound_proxy,
+    "twitter": settings.YTDLP_PROXY_TWITTER or settings.YTDLP_PROXY_X or outbound_proxy,
     "youtube": youtube_proxy,
 }
 
@@ -190,8 +190,8 @@ gallery_proxy_urls = {
     "pinterest": settings.GALLERY_DL_PROXY_PINTEREST or gallery_proxy,
     "reddit": settings.GALLERY_DL_PROXY_REDDIT or gallery_proxy,
     "tiktok": settings.GALLERY_DL_PROXY_TIKTOK or gallery_proxy,
-    "x": settings.GALLERY_DL_PROXY_X or gallery_proxy,
-    "twitter": settings.GALLERY_DL_PROXY_X or gallery_proxy,
+    "x": settings.GALLERY_DL_PROXY_X or settings.GALLERY_DL_PROXY_TWITTER or gallery_proxy,
+    "twitter": settings.GALLERY_DL_PROXY_TWITTER or settings.GALLERY_DL_PROXY_X or gallery_proxy,
 }
 gallery_downloader = GalleryDLDownloader(
     download_path=settings.DOWNLOAD_PATH,

@@ -446,6 +446,69 @@ test('upstream success=false media resolver failure remains media not found', as
   });
 });
 
+test('upstream success=false login, antibot, and extractor failures keep precise resolver codes', async () => {
+  const cases = [
+    ['instagram', validUrls.instagram, 'COOKIE_REQUIRED', 401],
+    ['facebook', validUrls.facebook, 'PLATFORM_BLOCKED_PROXY', 502],
+    ['twitter', validUrls.twitter, 'EXTRACTOR_FAILED', 502],
+    ['x', validUrls.x, 'RATE_LIMITED', 429],
+  ];
+
+  for (const [platform, url, resolverCode, expectedStatus] of cases) {
+    await withProxyEnv(async () => {
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({
+          success: false,
+          message: 'Resolve failed',
+          error: 'raw provider details are intentionally not exposed',
+          error_code: resolverCode,
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+      const res = await request({ path: `${platform}/download`, body: { url } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, expectedStatus);
+      assert.equal(body.success, false);
+      assert.equal(body.error.code, resolverCode);
+      assert.notEqual(body.error.code, 'MEDIA_NOT_FOUND');
+      assert.notEqual(body.error.code, 'PRIVATE_MEDIA');
+      assert.doesNotMatch(JSON.stringify(body), /raw provider details/);
+    });
+  }
+});
+
+test('working platform resolver failures are protected from affected platform reclassification changes', async () => {
+  const cases = [
+    ['tiktok', validUrls.tiktok],
+    ['pinterest', validUrls.pinterest],
+    ['youtube', validUrls.youtube],
+    ['reddit', validUrls.reddit],
+  ];
+
+  for (const [platform, url] of cases) {
+    await withProxyEnv(async () => {
+      globalThis.fetch = async (target) => {
+        const upstreamPlatform = platform === 'youtube' ? 'youtube' : platform;
+        assert.equal(target, `https://render.example/${upstreamPlatform}/download`);
+        return new Response(JSON.stringify(upstreamSuccess), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      };
+
+      const res = await request({ path: `${platform}/download`, body: { url } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, 200);
+      assert.equal(body.success, true);
+      assert.equal(body.data.media[0].url, 'https://cdn.example/video.mp4');
+    });
+  }
+});
+
 test('upstream success=false proxy-shaped resolver failure is reported separately', async () => {
   for (const errorText of [
     'The configured YouTube proxy could not complete the download.',
