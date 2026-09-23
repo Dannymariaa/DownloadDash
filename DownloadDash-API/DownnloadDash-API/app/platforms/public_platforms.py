@@ -1183,6 +1183,60 @@ class PublicPlatformDownloader:
 
         return None
 
+    async def _facebook_html_diagnostic(self, url: str) -> str:
+        cookiefile = self._cookiefile_for_url(url)
+        cookie_ok = bool(cookiefile and os.path.exists(cookiefile))
+        proxy_url = self._proxy_for_url(url)
+        status = "not_verified"
+        html_kind = "not_verified"
+
+        try:
+            client_kwargs = self._httpx_client_kwargs(
+                timeout=20.0,
+                follow_redirects=True,
+                headers=self._build_http_headers(url),
+                cookies=self._load_cookiefile(url),
+            )
+            if proxy_url:
+                client_kwargs["proxy"] = proxy_url
+            async with httpx.AsyncClient(**client_kwargs) as client:
+                resp = await client.get(url)
+                status = str(resp.status_code)
+                lowered = (resp.text or "").lower()
+        except httpx.ProxyError as exc:
+            return (
+                "Facebook HTML diagnostic: provider=yt-dlp extractor=FacebookIE "
+                f"facebook_http_status={status} html_kind=proxy_error "
+                f"cookiefile_applied={cookie_ok} proxy_applied={bool(proxy_url)} "
+                f"proxy_error={type(exc).__name__}"
+            )
+        except Exception as exc:
+            return (
+                "Facebook HTML diagnostic: provider=yt-dlp extractor=FacebookIE "
+                f"facebook_http_status={status} html_kind=request_error "
+                f"cookiefile_applied={cookie_ok} proxy_applied={bool(proxy_url)} "
+                f"request_error={type(exc).__name__}"
+            )
+
+        if any(token in lowered for token in ("checkpoint", "captcha", "security check", "challenge")):
+            html_kind = "challenge"
+        elif any(token in lowered for token in ("login_form", "loginform", "log in to facebook", "you must log in", "login.php")):
+            html_kind = "login"
+        elif status in {"401", "403"}:
+            html_kind = "blocked"
+        elif any(token in lowered for token in ("playable_url", "browser_native_hd_url", "browser_native_sd_url", "og:video")):
+            html_kind = "media_html"
+        elif "<html" in lowered:
+            html_kind = "html"
+        else:
+            html_kind = "non_html"
+
+        return (
+            "Facebook HTML diagnostic: provider=yt-dlp extractor=FacebookIE "
+            f"facebook_http_status={status} html_kind={html_kind} "
+            f"cookiefile_applied={cookie_ok} proxy_applied={bool(proxy_url)}"
+        )
+
     def facebook_fallback_urls(self, url: str) -> list[str]:
         urls = [url]
         if "www.facebook.com" in url:

@@ -450,7 +450,10 @@ test('upstream success=false login, antibot, and extractor failures keep precise
   const cases = [
     ['instagram', validUrls.instagram, 'COOKIE_REQUIRED', 401],
     ['facebook', validUrls.facebook, 'PLATFORM_BLOCKED_PROXY', 502],
+    ['facebook', validUrls.facebook, 'ANTI_BOT_CHALLENGE', 403],
+    ['facebook', validUrls.facebook, 'EXTRACTOR_OUTDATED', 502],
     ['twitter', validUrls.twitter, 'EXTRACTOR_FAILED', 502],
+    ['twitter', validUrls.twitter, 'COOKIE_REQUIRED', 401],
     ['x', validUrls.x, 'RATE_LIMITED', 429],
   ];
 

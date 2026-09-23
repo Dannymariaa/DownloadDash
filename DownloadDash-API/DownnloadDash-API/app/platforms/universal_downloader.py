@@ -560,6 +560,7 @@ class UniversalMediaDownloader:
             return await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
         except Exception as primary_error:
             fallback_urls = self.public_downloader.facebook_fallback_urls(url)  # type: ignore[attr-defined]
+            html_diagnostics = []
 
             for fallback_url in fallback_urls:
                 try:
@@ -572,6 +573,12 @@ class UniversalMediaDownloader:
                         "Resolved Facebook media with HTML fallback. Stories require fresh Facebook cookies when private, expired, or login-gated."
                     )
                     return fallback
+                try:
+                    html_diagnostics.append(
+                        await self.public_downloader._facebook_html_diagnostic(fallback_url)  # type: ignore[attr-defined]
+                    )
+                except Exception as diagnostic_error:
+                    html_diagnostics.append(f"Facebook HTML diagnostic unavailable: {type(diagnostic_error).__name__}")
 
             cookie_names = self.public_downloader._cookie_names_for_url(url)  # type: ignore[attr-defined]
             cookie_hint = (
@@ -579,8 +586,10 @@ class UniversalMediaDownloader:
                 if cookie_names
                 else "facebook_cookie_count=0"
             )
+            diagnostic_hint = " | ".join(dict.fromkeys(html_diagnostics[-3:]))
             raise Exception(
-                f"{primary_error}. Facebook stories are login-gated and expire quickly. "
-                f"{cookie_hint}. Add fresh Netscape-format SMD_YTDLP_COOKIE_DATA_FACEBOOK cookies "
-                "from an account that can view this exact story, then redeploy Render."
+                f"{primary_error}. {cookie_hint}. {diagnostic_hint}. "
+                "If Facebook returns login/challenge HTML for a public URL from Render, "
+                "configure fresh Netscape-format SMD_YTDLP_COOKIE_DATA_FACEBOOK cookies "
+                "from a legitimate server-side session that can view that public media."
             )

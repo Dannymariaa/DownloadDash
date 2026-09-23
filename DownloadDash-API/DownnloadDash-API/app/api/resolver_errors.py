@@ -11,9 +11,13 @@ PROVIDER_ERROR_CODES = {
     "PLATFORM_BLOCKED_PROXY",
     "COOKIE_REQUIRED",
     "COOKIE_EXPIRED",
+    "LOGIN_REQUIRED",
+    "ANTI_BOT_CHALLENGE",
     "RATE_LIMITED",
     "MEDIA_NOT_FOUND",
     "PRIVATE_MEDIA",
+    "PROXY_BLOCKED",
+    "EXTRACTOR_OUTDATED",
     "EXTRACTOR_FAILED",
 }
 
@@ -58,6 +62,15 @@ def classify_resolver_error(platform: Platform | str | None, raw_error: Optional
     if any(token in text for token in ("cookie expired", "expired cookie", "session expired", "login session has expired")):
         return "COOKIE_EXPIRED"
 
+    if any(token in text for token in ("html_kind=challenge", "checkpoint", "challenge", "captcha")):
+        return "ANTI_BOT_CHALLENGE"
+
+    if any(token in text for token in ("please report this issue", "extractor is broken", "unable to extract relay data")):
+        return "EXTRACTOR_OUTDATED"
+
+    if "html_kind=login" in text or "facebook_http_status=200" in text and "login" in text:
+        return "COOKIE_REQUIRED"
+
     if any(
         token in text
         for token in (
@@ -65,9 +78,6 @@ def classify_resolver_error(platform: Platform | str | None, raw_error: Optional
             "log in",
             "login form",
             "sign in",
-            "checkpoint",
-            "challenge",
-            "captcha",
             "use --cookies",
             "cookies-from-browser",
             "authentication required",
@@ -76,6 +86,9 @@ def classify_resolver_error(platform: Platform | str | None, raw_error: Optional
         )
     ):
         return "COOKIE_REQUIRED"
+
+    if "proxy" in text and any(token in text for token in ("403", "forbidden", "access denied", "blocked")):
+        return "PROXY_BLOCKED"
 
     if "403" in text or "forbidden" in text or "access denied" in text or "blocked" in text:
         return "PLATFORM_BLOCKED_PROXY"
@@ -106,6 +119,9 @@ def classify_resolver_error(platform: Platform | str | None, raw_error: Optional
 
     if platform_key in {"twitter", "x"} and any(token in text for token in ("no media found", "no video in this tweet", "media-less")):
         return "MEDIA_NOT_FOUND"
+
+    if platform_key in {"twitter", "x"} and "no direct url found" in text:
+        return "COOKIE_REQUIRED"
 
     if any(token in text for token in ("unable to extract", "failed to extract", "unsupported url", "no formats found", "no video formats found")):
         return "EXTRACTOR_FAILED"

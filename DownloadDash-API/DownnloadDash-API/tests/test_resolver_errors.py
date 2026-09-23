@@ -22,11 +22,31 @@ class ResolverErrorClassificationTests(unittest.TestCase):
                 self.assertNotEqual(result, "PRIVATE_MEDIA")
 
     def test_facebook_login_challenge_is_cookie_required_not_private_media(self):
-        raw_error = "Facebook returned login form / checkpoint challenge HTML"
+        raw_error = (
+            "Facebook HTML diagnostic: facebook_http_status=200 "
+            "html_kind=login cookiefile_applied=False proxy_applied=False"
+        )
 
         result = classify_resolver_error(Platform.FACEBOOK, raw_error)
 
         self.assertEqual(result, "COOKIE_REQUIRED")
+
+    def test_facebook_checkpoint_challenge_is_antibot_challenge(self):
+        raw_error = (
+            "Facebook HTML diagnostic: facebook_http_status=200 "
+            "html_kind=challenge cookiefile_applied=True proxy_applied=False"
+        )
+
+        result = classify_resolver_error(Platform.FACEBOOK, raw_error)
+
+        self.assertEqual(result, "ANTI_BOT_CHALLENGE")
+
+    def test_facebook_upstream_parser_breakage_is_extractor_outdated(self):
+        raw_error = "Facebook said: Unable to extract relay data; please report this issue on https://github.com/yt-dlp/yt-dlp"
+
+        result = classify_resolver_error(Platform.FACEBOOK, raw_error)
+
+        self.assertEqual(result, "EXTRACTOR_OUTDATED")
 
     def test_facebook_private_media_requires_private_signal(self):
         raw_error = "This content is not available because the owner only shared it with a small group"
@@ -40,6 +60,7 @@ class ResolverErrorClassificationTests(unittest.TestCase):
             ("No media found in this tweet", "MEDIA_NOT_FOUND"),
             ("Sorry, that page does not exist", "MEDIA_NOT_FOUND"),
             ("HTTP Error 401: Unauthorized. Use --cookies", "COOKIE_REQUIRED"),
+            ("Resolve failed: no direct URL found", "COOKIE_REQUIRED"),
             ("Twitter API returned 429 Too Many Requests", "RATE_LIMITED"),
             ("Tunnel connection failed: 407 Proxy Authentication Required", "PROXY_AUTH_FAILED"),
         ]
