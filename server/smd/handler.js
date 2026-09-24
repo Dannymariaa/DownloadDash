@@ -5,7 +5,7 @@ import { json, publicError, sendError } from "./errors.js";
 import { enforceRateLimit } from "./rate-limit.js";
 import { parseRoute, validateDownloadRequest, validateFileProxyRequest } from "./validation.js";
 
-const UPSTREAM_HEALTH_TIMEOUT_MS = 2_500;
+const UPSTREAM_HEALTH_TIMEOUT_MS = 8_000;
 
 function asPathParts(value) {
   if (!value) return [];
