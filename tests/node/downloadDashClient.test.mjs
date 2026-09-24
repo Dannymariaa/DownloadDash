@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { inferMediaTypeFromUrl, normalizeMediaItem } from '../../src/api/downloadDashClient.js';
+import {
+  getSelectableMediaItems,
+  inferMediaTypeFromUrl,
+  normalizeMediaItem,
+  normalizeResolvedDownloads,
+} from '../../src/api/downloadDashClient.js';
 
 test('client media type inference does not treat extensionless signed URLs as video', () => {
   assert.equal(inferMediaTypeFromUrl('https://cdn.example/photo?expires=1&sig=abc'), '');
@@ -53,4 +58,35 @@ test('client leaves unknown signed media unknown and does not use thumbnails as 
   assert.equal(video.type, 'video');
   assert.equal(video.url, 'https://cdn.example/video?sig=abc');
   assert.notEqual(video.url, video.thumbnail);
+});
+
+test('client normalizes media aliases without turning unknown items into photos', () => {
+  const items = [
+    normalizeMediaItem({ type: 'photo', url: 'https://cdn.example/1' }, 0),
+    normalizeMediaItem({ type: 'picture', url: 'https://cdn.example/2' }, 1),
+    normalizeMediaItem({ type: 'reel', url: 'https://cdn.example/3' }, 2),
+    normalizeMediaItem({ type: 'sound', url: 'https://cdn.example/4' }, 3),
+    normalizeMediaItem({ type: 'mystery', url: 'https://cdn.example/5', thumbnail: 'https://cdn.example/t.jpg' }, 4),
+  ];
+
+  assert.deepEqual(items.map((item) => item.type), ['image', 'image', 'video', 'audio', 'unknown']);
+  assert.deepEqual(getSelectableMediaItems(items).map((item) => item.id), ['media-0', 'media-1', 'media-2', 'media-3']);
+});
+
+test('client classifies mixed multi-media posts as albums and keeps stable selected ids', () => {
+  const normalized = normalizeResolvedDownloads({
+    type: 'video',
+    downloads: {
+      items: [
+        { type: 'image', url: 'https://cdn.example/01.jpg' },
+        { type: 'video', url: 'https://cdn.example/02.mp4', thumbnail: 'https://cdn.example/02.jpg', hasAudio: true },
+        { type: 'unknown', url: 'https://cdn.example/page' },
+        { type: 'image', url: 'https://cdn.example/03.jpg' },
+      ],
+    },
+  });
+
+  assert.equal(normalized.type, 'album');
+  assert.deepEqual(normalized.downloads.items.map((item) => item.id), ['media-0', 'media-1', 'media-2', 'media-3']);
+  assert.deepEqual(getSelectableMediaItems(normalized.downloads.items).map((item) => item.id), ['media-0', 'media-1', 'media-3']);
 });

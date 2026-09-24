@@ -117,10 +117,18 @@ class UniversalMediaDownloader:
         if is_reel and not is_post:
             return await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
 
-        # Posts: try instaloader for photos/albums first, then IG fallbacks.
+        # Posts: prefer resolvers that can prove the actual media type before
+        # accepting thumbnail/open-graph image fallbacks.
         post = await self._resolve_instagram_post(url, user_auth)
         if post:
             return post
+
+        try:
+            public = await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
+            if public:
+                return public
+        except Exception:
+            pass
 
         fallback = await self._resolve_instagram_fallbacks(url)
         if fallback:
@@ -164,22 +172,32 @@ class UniversalMediaDownloader:
                 for index, node in enumerate(post.get_sidecar_nodes() or []):
                     if node.is_video and node.video_url:
                         items.append({
+                            "id": f"media-{index}",
+                            "index": index,
                             "url": node.video_url,
+                            "downloadableUrl": node.video_url,
                             "type": "video",
                             "width": node.video_url_width,
                             "height": node.video_url_height,
                             "thumbnail": node.display_url,
+                            "thumbnailUrl": node.display_url,
                             "extension": "mp4",
+                            "mimeType": "video/mp4",
                             "filename": f"{shortcode}-{index + 1}.mp4",
                         })
                     elif node.display_url:
                         items.append({
+                            "id": f"media-{index}",
+                            "index": index,
                             "url": node.display_url,
+                            "downloadableUrl": node.display_url,
                             "type": "image",
                             "width": node.display_url_width,
                             "height": node.display_url_height,
                             "thumbnail": node.display_url,
+                            "thumbnailUrl": node.display_url,
                             "extension": "jpg",
+                            "mimeType": "image/jpeg",
                             "filename": f"{shortcode}-{index + 1}.jpg",
                         })
 
@@ -211,13 +229,25 @@ class UniversalMediaDownloader:
                         "direct_url": post.video_url,
                         "title": post.title or "Instagram Video",
                         "thumbnail": post.url,
+                        "thumbnailUrl": post.url,
+                        "downloadableUrl": post.video_url,
                         "ext": "mp4",
                         "filesize": None,
                         "kind": "video",
                         "downloads": {
                             "videoHD": post.video_url,
                             "videoSD": post.video_url,
-                            "image": post.url,
+                            "items": [{
+                                "id": "media-0",
+                                "index": 0,
+                                "type": "video",
+                                "url": post.video_url,
+                                "downloadableUrl": post.video_url,
+                                "thumbnail": post.url,
+                                "thumbnailUrl": post.url,
+                                "extension": "mp4",
+                                "mimeType": "video/mp4",
+                            }],
                         },
                         "author_username": post.owner_username,
                         "author_display_name": post.owner_username,
@@ -232,11 +262,26 @@ class UniversalMediaDownloader:
                     "direct_url": post.url,
                     "title": post.title or "Instagram Photo",
                     "thumbnail": post.url,
+                    "thumbnailUrl": post.url,
+                    "downloadableUrl": post.url,
                     "ext": "jpg",
                     "filesize": None,
                     "kind": "image",
                     "downloads": {
                         "image": post.url,
+                        "items": [{
+                            "id": "media-0",
+                            "index": 0,
+                            "type": "image",
+                            "url": post.url,
+                            "downloadableUrl": post.url,
+                            "thumbnail": post.url,
+                            "thumbnailUrl": post.url,
+                            "extension": "jpg",
+                            "mimeType": "image/jpeg",
+                            "width": post.width,
+                            "height": post.height,
+                        }],
                     },
                     "author_username": post.owner_username,
                     "author_display_name": post.owner_username,
@@ -294,7 +339,17 @@ class UniversalMediaDownloader:
                             "downloads": {
                                 "videoHD": media.video_url,
                                 "videoSD": media.video_url,
-                                "image": media.thumbnail_url,
+                                "items": [{
+                                    "id": "media-0",
+                                    "index": 0,
+                                    "type": "video",
+                                    "url": media.video_url,
+                                    "downloadableUrl": media.video_url,
+                                    "thumbnail": media.thumbnail_url,
+                                    "thumbnailUrl": media.thumbnail_url,
+                                    "extension": "mp4",
+                                    "mimeType": "video/mp4",
+                                }],
                             },
                             "author_username": media.user.username if media.user else None,
                             "author_display_name": media.user.full_name if media.user else None,
@@ -309,6 +364,17 @@ class UniversalMediaDownloader:
                             "kind": "image",
                             "downloads": {
                                 "image": media.thumbnail_url,
+                                "items": [{
+                                    "id": "media-0",
+                                    "index": 0,
+                                    "type": "image",
+                                    "url": media.thumbnail_url,
+                                    "downloadableUrl": media.thumbnail_url,
+                                    "thumbnail": media.thumbnail_url,
+                                    "thumbnailUrl": media.thumbnail_url,
+                                    "extension": "jpg",
+                                    "mimeType": "image/jpeg",
+                                }],
                             },
                             "author_username": media.user.username if media.user else None,
                             "author_display_name": media.user.full_name if media.user else None,
@@ -366,7 +432,17 @@ class UniversalMediaDownloader:
                                     "downloads": {
                                         "videoHD": item.video_url,
                                         "videoSD": item.video_url,
-                                        "image": item.url,
+                                        "items": [{
+                                            "id": "media-0",
+                                            "index": 0,
+                                            "type": "video",
+                                            "url": item.video_url,
+                                            "downloadableUrl": item.video_url,
+                                            "thumbnail": item.url,
+                                            "thumbnailUrl": item.url,
+                                            "extension": "mp4",
+                                            "mimeType": "video/mp4",
+                                        }],
                                     },
                                     "author_username": username,
                                     "author_display_name": username,
@@ -381,6 +457,17 @@ class UniversalMediaDownloader:
                                     "kind": "image",
                                     "downloads": {
                                         "image": item.url,
+                                        "items": [{
+                                            "id": "media-0",
+                                            "index": 0,
+                                            "type": "image",
+                                            "url": item.url,
+                                            "downloadableUrl": item.url,
+                                            "thumbnail": item.url,
+                                            "thumbnailUrl": item.url,
+                                            "extension": "jpg",
+                                            "mimeType": "image/jpeg",
+                                        }],
                                     },
                                     "author_username": username,
                                     "author_display_name": username,
@@ -399,7 +486,9 @@ class UniversalMediaDownloader:
         extract_audio: bool,
         media_type: Optional[MediaType],
     ) -> Dict[str, Any]:
-        if media_type in (MediaType.PHOTO, MediaType.IMAGE, MediaType.ALBUM, MediaType.CAROUSEL):
+        url_lower = url.lower()
+        looks_like_photo_post = "/photo/" in url_lower or re.search(r"/@[^/]+/photo/", url_lower)
+        if looks_like_photo_post or media_type in (MediaType.PHOTO, MediaType.IMAGE, MediaType.ALBUM, MediaType.CAROUSEL):
             scraped = await self._resolve_tiktok_photos(url)
             if scraped:
                 return scraped
@@ -432,12 +521,34 @@ class UniversalMediaDownloader:
                 or (data.get("music") or {}).get("url")
                 or (data.get("audio") or {}).get("url")
             )
-            items = [{"url": img, "type": "image", "extension": "jpg"} for img in images]
+            image_items = [
+                {
+                    "id": f"media-{index}",
+                    "index": index,
+                    "url": img,
+                    "downloadableUrl": img,
+                    "type": "image",
+                    "thumbnail": img,
+                    "thumbnailUrl": img,
+                    "extension": "jpg",
+                    "mimeType": "image/jpeg",
+                }
+                for index, img in enumerate(images)
+            ]
+            items = list(image_items)
             if audio_url:
-                items.append({"url": audio_url, "type": "audio", "extension": "mp3"})
+                items.append({
+                    "id": f"media-{len(items)}",
+                    "index": len(items),
+                    "url": audio_url,
+                    "downloadableUrl": audio_url,
+                    "type": "audio",
+                    "extension": "m4a",
+                    "mimeType": "audio/mp4",
+                })
             downloads = {
                 "image": primary,
-                "images": items,
+                "images": image_items,
                 "items": items,
             }
             if audio_url:
@@ -467,18 +578,32 @@ class UniversalMediaDownloader:
                 if not isinstance(result, dict):
                     return None
                 image_url = result.get("url") or result.get("image") or result.get("download_url")
-                if not image_url:
+                raw_items = []
+                for key in ("items", "media", "medias", "images", "photos", "resources"):
+                    value = result.get(key)
+                    if isinstance(value, list):
+                        raw_items.extend(value)
+                if image_url:
+                    raw_items.insert(0, {"type": "image", "url": image_url})
+                items = self.public_downloader._items_from_gallery_entries(raw_items)
+                if not items:
                     return None
+                image_url = items[0]["url"]
                 title = result.get("title") or "Pinterest Image"
+                first_image = next((item for item in items if item.get("type") == "image"), None)
+                first_video = next((item for item in items if item.get("type") == "video"), None)
                 return {
                     "direct_url": image_url,
                     "title": title,
-                    "thumbnail": image_url,
-                    "ext": "jpg",
+                    "thumbnail": (first_image or items[0]).get("thumbnail") or image_url,
+                    "ext": items[0].get("extension") or "jpg",
                     "filesize": None,
-                    "kind": "image",
+                    "kind": "album" if len(items) > 1 else items[0].get("type", "image"),
                     "downloads": {
-                        "image": image_url,
+                        "items": items,
+                        "images": [item for item in items if item.get("type") == "image"],
+                        **({"image": first_image["url"]} if first_image else {}),
+                        **({"videoHD": first_video["url"], "videoSD": first_video["url"]} if first_video else {}),
                     },
                 }
 

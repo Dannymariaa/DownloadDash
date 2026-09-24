@@ -344,6 +344,123 @@ class PublicPlatformDownloader:
             }
         return None
 
+    def _infer_item_type(self, candidate: Dict[str, Any], url: str) -> str:
+        explicit = str(
+            candidate.get("type")
+            or candidate.get("media_type")
+            or candidate.get("mediaType")
+            or candidate.get("kind")
+            or ""
+        ).lower()
+        if explicit in ("image", "photo", "picture", "img"):
+            return "image"
+        if explicit in ("video", "movie", "reel"):
+            return "video"
+        if explicit in ("audio", "music", "sound"):
+            return "audio"
+
+        mime = str(
+            candidate.get("mimeType")
+            or candidate.get("mime_type")
+            or candidate.get("contentType")
+            or candidate.get("content_type")
+            or ""
+        ).lower()
+        if mime.startswith("image/"):
+            return "image"
+        if mime.startswith("video/") or mime == "application/vnd.apple.mpegurl":
+            return "video"
+        if mime.startswith("audio/"):
+            return "audio"
+
+        vcodec = candidate.get("vcodec")
+        acodec = candidate.get("acodec")
+        if vcodec and vcodec != "none":
+            return "video"
+        if acodec and acodec != "none":
+            return "audio"
+
+        ext = str(candidate.get("ext") or candidate.get("extension") or "").lower()
+        if not ext:
+            path = urlparse(url).path.lower()
+            ext_match = re.search(r"\.([a-z0-9]{2,5})$", path)
+            ext = ext_match.group(1) if ext_match else ""
+        if ext in ("jpg", "jpeg", "png", "webp", "gif", "avif"):
+            return "image"
+        if ext in ("mp4", "webm", "mov", "m4v", "m3u8"):
+            return "video"
+        if ext in ("m4a", "mp3", "aac", "ogg", "opus", "wav"):
+            return "audio"
+        if candidate.get("is_video") is True or candidate.get("isVideo") is True:
+            return "video"
+        if candidate.get("is_video") is False or candidate.get("isVideo") is False:
+            return "image"
+        return "unknown"
+
+    def _items_from_gallery_entries(self, entries: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
+        items: list[Dict[str, Any]] = []
+        seen: set[str] = set()
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            requested = self._requested_url_from_info(entry) or {}
+            candidate_url = (
+                requested.get("url")
+                or entry.get("video_url")
+                or entry.get("videoUrl")
+                or entry.get("audio_url")
+                or entry.get("audioUrl")
+                or entry.get("music_url")
+                or entry.get("musicUrl")
+                or entry.get("sound_url")
+                or entry.get("soundUrl")
+                or entry.get("image_url")
+                or entry.get("imageUrl")
+                or entry.get("display_url")
+                or entry.get("displayUrl")
+                or entry.get("media_url")
+                or entry.get("mediaUrl")
+            )
+            if not candidate_url or candidate_url in seen:
+                continue
+
+            merged = {**entry, **requested}
+            item_type = self._infer_item_type(merged, candidate_url)
+            if item_type == "unknown":
+                continue
+
+            seen.add(candidate_url)
+            ext = merged.get("ext") or merged.get("extension")
+            if not ext:
+                ext_match = re.search(r"\.([a-z0-9]{2,5})$", urlparse(candidate_url).path.lower())
+                ext = ext_match.group(1) if ext_match else None
+
+            index = len(items)
+            thumbnail = entry.get("thumbnail") or entry.get("thumbnail_url") or entry.get("thumbnailUrl")
+            if item_type == "image":
+                thumbnail = thumbnail or candidate_url
+            items.append(
+                {
+                    "id": f"media-{index}",
+                    "index": index,
+                    "url": candidate_url,
+                    "downloadableUrl": candidate_url,
+                    "type": item_type,
+                    "filename": entry.get("filename") or f"item-{index + 1}.{ext or 'bin'}",
+                    "extension": ext,
+                    "mimeType": merged.get("mimeType") or merged.get("mime_type") or merged.get("contentType") or merged.get("content_type"),
+                    "width": merged.get("width"),
+                    "height": merged.get("height"),
+                    "thumbnail": thumbnail,
+                    "thumbnailUrl": thumbnail,
+                    "hasAudio": item_type == "video" and bool(merged.get("acodec") and merged.get("acodec") != "none"),
+                }
+            )
+
+        return items
+
     async def _extract_youtube_with_profiles(
         self,
         loop: asyncio.AbstractEventLoop,
@@ -799,43 +916,7 @@ class PublicPlatformDownloader:
 
         # Preserve gallery/carousel entries instead of collapsing to the first item.
         if isinstance(info, dict) and isinstance(info.get("entries"), list) and info["entries"]:
-            entry_items = []
-            for index, entry in enumerate(info["entries"]):
-                if not isinstance(entry, dict):
-                    continue
-                requested = self._requested_url_from_info(entry)
-                entry_url = (
-                    (requested or {}).get("url")
-                    or entry.get("url")
-                    or entry.get("webpage_url")
-                    or entry.get("thumbnail")
-                )
-                if not entry_url:
-                    continue
-                ext = (requested or {}).get("ext") or entry.get("ext")
-                vcodec = (requested or {}).get("vcodec") or entry.get("vcodec")
-                acodec = (requested or {}).get("acodec") or entry.get("acodec")
-                if vcodec and vcodec != "none":
-                    item_type = "video"
-                elif acodec and acodec != "none":
-                    item_type = "audio"
-                elif ext in ("mp4", "webm", "mov", "m4v"):
-                    item_type = "video"
-                elif ext in ("m4a", "mp3", "aac", "ogg"):
-                    item_type = "audio"
-                else:
-                    item_type = "image"
-                entry_items.append(
-                    {
-                        "url": entry_url,
-                        "type": item_type,
-                        "filename": entry.get("filename") or f"item-{index + 1}.{ext or 'bin'}",
-                        "extension": ext,
-                        "width": (requested or {}).get("width") or entry.get("width"),
-                        "height": (requested or {}).get("height") or entry.get("height"),
-                        "thumbnail": entry.get("thumbnail"),
-                    }
-                )
+            entry_items = self._items_from_gallery_entries(info["entries"])
 
             if len(entry_items) > 1:
                 primary = next((item for item in entry_items if item["type"] == "video"), None) or entry_items[0]
@@ -859,6 +940,27 @@ class PublicPlatformDownloader:
                     "ext": primary.get("extension"),
                     "filesize": None,
                     "kind": "album",
+                    "downloads": downloads,
+                }
+
+            if len(entry_items) == 1:
+                item = entry_items[0]
+                downloads = {"items": entry_items}
+                if item["type"] == "video":
+                    downloads["videoHD"] = item["url"]
+                    downloads["videoSD"] = item["url"]
+                elif item["type"] == "audio":
+                    downloads["audio"] = item["url"]
+                elif item["type"] == "image":
+                    downloads["image"] = item["url"]
+                    downloads["images"] = entry_items
+                return {
+                    "direct_url": item["url"],
+                    "title": info.get("title", "Gallery"),
+                    "thumbnail": item.get("thumbnail"),
+                    "ext": item.get("extension"),
+                    "filesize": None,
+                    "kind": item["type"],
                     "downloads": downloads,
                 }
 
@@ -1030,8 +1132,6 @@ class PublicPlatformDownloader:
             downloads["audio"] = selected_info_url
         if selected_image and selected_image.get("url"):
             downloads["image"] = selected_image["url"]
-        elif thumbnail:
-            downloads["image"] = thumbnail
 
         # Ensure image downloads are available when the primary is an image.
         if kind == "image" and not downloads.get("image"):
@@ -1041,6 +1141,27 @@ class PublicPlatformDownloader:
             api_downloads = self._tiktok_api_downloads(url, title)
             downloads.update(api_downloads)
             direct_url = downloads["audio"] if kind == "audio" else downloads["videoHD"]
+
+        if "items" not in downloads and direct_url:
+            item_thumbnail = thumbnail if kind != "image" else (thumbnail or direct_url)
+            item = {
+                "id": "media-0",
+                "index": 0,
+                "type": kind if kind in {"image", "video", "audio"} else "unknown",
+                "url": direct_url,
+                "downloadableUrl": direct_url,
+                "thumbnail": item_thumbnail,
+                "thumbnailUrl": item_thumbnail,
+                "extension": selected_info_ext or (primary.get("ext") if primary else info.get("ext")),
+                "width": (primary.get("width") if primary else info.get("width")),
+                "height": (primary.get("height") if primary else info.get("height")),
+                "hasAudio": kind == "video" and bool(
+                    (primary or {}).get("acodec") and (primary or {}).get("acodec") != "none"
+                ),
+            }
+            downloads["items"] = [item]
+            if kind == "image":
+                downloads["images"] = [item]
 
         return {
             "direct_url": direct_url,
@@ -1164,7 +1285,17 @@ class PublicPlatformDownloader:
                 "downloads": {
                     "videoHD": video_url,
                     "videoSD": video_url,
-                    "image": image_url,
+                    "items": [{
+                        "id": "media-0",
+                        "index": 0,
+                        "type": "video",
+                        "url": video_url,
+                        "downloadableUrl": video_url,
+                        "thumbnail": image_url,
+                        "thumbnailUrl": image_url,
+                        "extension": "mp4",
+                        "mimeType": "video/mp4",
+                    }],
                 },
             }
 
@@ -1178,6 +1309,17 @@ class PublicPlatformDownloader:
                 "kind": "image",
                 "downloads": {
                     "image": image_url,
+                    "items": [{
+                        "id": "media-0",
+                        "index": 0,
+                        "type": "image",
+                        "url": image_url,
+                        "downloadableUrl": image_url,
+                        "thumbnail": image_url,
+                        "thumbnailUrl": image_url,
+                        "extension": "jpg",
+                        "mimeType": "image/jpeg",
+                    }],
                 },
             }
 
@@ -1326,9 +1468,34 @@ class PublicPlatformDownloader:
             node = edge.get("node") if isinstance(edge, dict) and "node" in edge else edge
             if not isinstance(node, dict):
                 continue
+            index = len(images)
+            node_is_video = bool(node.get("is_video") or node.get("media_type") == 2)
+            node_video_url = node.get("video_url") or node.get("video_versions", [{}])[0].get("url")
             image_url = node.get("display_url") or node.get("image_versions2", {}).get("candidates", [{}])[0].get("url")
-            if image_url:
-                images.append({"url": image_url, "type": "image"})
+            if node_is_video and node_video_url:
+                images.append({
+                    "id": f"media-{index}",
+                    "index": index,
+                    "url": node_video_url,
+                    "downloadableUrl": node_video_url,
+                    "type": "video",
+                    "thumbnail": image_url,
+                    "thumbnailUrl": image_url,
+                    "extension": "mp4",
+                    "mimeType": "video/mp4",
+                })
+            elif image_url:
+                images.append({
+                    "id": f"media-{index}",
+                    "index": index,
+                    "url": image_url,
+                    "downloadableUrl": image_url,
+                    "type": "image",
+                    "thumbnail": image_url,
+                    "thumbnailUrl": image_url,
+                    "extension": "jpg",
+                    "mimeType": "image/jpeg",
+                })
 
         if is_video and video_url:
             return {
@@ -1341,12 +1508,24 @@ class PublicPlatformDownloader:
                 "downloads": {
                     "videoHD": video_url,
                     "videoSD": video_url,
-                    "image": display_url,
+                    "items": [{
+                        "id": "media-0",
+                        "index": 0,
+                        "url": video_url,
+                        "downloadableUrl": video_url,
+                        "type": "video",
+                        "thumbnail": display_url,
+                        "thumbnailUrl": display_url,
+                        "extension": "mp4",
+                        "mimeType": "video/mp4",
+                    }],
                 },
             }
 
         if images:
             primary = images[0]["url"]
+            first_image = next((item for item in images if item.get("type") == "image"), None)
+            first_video = next((item for item in images if item.get("type") == "video"), None)
             return {
                 "direct_url": primary,
                 "title": title,
@@ -1355,9 +1534,10 @@ class PublicPlatformDownloader:
                 "filesize": None,
                 "kind": "album" if len(images) > 1 else "image",
                 "downloads": {
-                    "image": primary,
+                    **({"image": first_image["url"]} if first_image else {}),
+                    **({"videoHD": first_video["url"], "videoSD": first_video["url"]} if first_video else {}),
                     "items": images,
-                    "images": images,
+                    "images": [item for item in images if item.get("type") == "image"],
                 },
             }
 
@@ -1371,6 +1551,17 @@ class PublicPlatformDownloader:
                 "kind": "image",
                 "downloads": {
                     "image": display_url,
+                    "items": [{
+                        "id": "media-0",
+                        "index": 0,
+                        "url": display_url,
+                        "downloadableUrl": display_url,
+                        "type": "image",
+                        "thumbnail": display_url,
+                        "thumbnailUrl": display_url,
+                        "extension": "jpg",
+                        "mimeType": "image/jpeg",
+                    }],
                 },
             }
 
@@ -1424,13 +1615,33 @@ class PublicPlatformDownloader:
                 "downloads": {
                     "videoHD": video_url,
                     "videoSD": video_url,
-                    "image": image_url,
+                    "items": [{
+                        "id": "media-0",
+                        "index": 0,
+                        "url": video_url,
+                        "downloadableUrl": video_url,
+                        "type": "video",
+                        "thumbnail": image_url,
+                        "thumbnailUrl": image_url,
+                        "extension": "mp4",
+                        "mimeType": "video/mp4",
+                    }],
                 },
             }
 
         if image_urls:
             image_url = image_urls[0]
-            images = [{"url": item, "type": "image"} for item in image_urls]
+            images = [{
+                "id": f"media-{index}",
+                "index": index,
+                "url": item,
+                "downloadableUrl": item,
+                "type": "image",
+                "thumbnail": item,
+                "thumbnailUrl": item,
+                "extension": "jpg",
+                "mimeType": "image/jpeg",
+            } for index, item in enumerate(image_urls)]
             return {
                 "direct_url": image_url,
                 "title": title,
@@ -1477,6 +1688,17 @@ class PublicPlatformDownloader:
                 "kind": "image",
                 "downloads": {
                     "image": thumb,
+                    "items": [{
+                        "id": "media-0",
+                        "index": 0,
+                        "url": thumb,
+                        "downloadableUrl": thumb,
+                        "type": "image",
+                        "thumbnail": thumb,
+                        "thumbnailUrl": thumb,
+                        "extension": "jpg",
+                        "mimeType": "image/jpeg",
+                    }],
                 },
             }
         return None

@@ -350,7 +350,7 @@ export default function DownloaderTemplate({
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [adGate, setAdGate] = useState(null);
-  const [selectedMediaIndexes, setSelectedMediaIndexes] = useState([]);
+  const [selectedMediaIds, setSelectedMediaIds] = useState([]);
   const platformIconNode = React.isValidElement(platformIcon)
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
     : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
@@ -361,7 +361,7 @@ export default function DownloaderTemplate({
     setIsLoading(true);
     setError('');
     setResult(null);
-    setSelectedMediaIndexes([]);
+    setSelectedMediaIds([]);
     setProgress(0);
 
     // Simulate progress
@@ -378,7 +378,7 @@ export default function DownloaderTemplate({
       const returnedItems = Array.isArray(response.downloads?.items)
         ? response.downloads.items.filter((item) => item?.url && item.type !== 'unknown')
         : [];
-      setSelectedMediaIndexes(returnedItems.map((_, index) => index));
+      setSelectedMediaIds(returnedItems.map((item, index) => item.id || `media-${item.index ?? index}`));
       if (user?.email) {
         await downloadDash.entities.DownloadHistory.create({
           user_email: user.email,
@@ -556,16 +556,18 @@ export default function DownloaderTemplate({
   const hasVideoSD = !!result?.downloads?.videoSD;
   const hasAudio = !!result?.downloads?.audio;
   const albumItems = Array.isArray(result?.downloads?.items)
-    ? result.downloads.items.filter((item) => item?.url)
+    ? result.downloads.items
+        .filter((item) => item?.url)
+        .map((item, index) => ({ ...item, id: item.id || `media-${item.index ?? index}`, index: item.index ?? index }))
     : [];
   const hasAlbumItems = albumItems.length > 1;
   const selectableMediaItems = albumItems.filter((item) => item.type !== 'unknown');
-  const selectedMediaItems = selectableMediaItems.filter((_, index) => selectedMediaIndexes.includes(index));
+  const selectedMediaItems = selectableMediaItems.filter((item) => selectedMediaIds.includes(item.id));
   
   // Separate album items by type
   const photoItems = albumItems.filter((item) => {
     const itemType = (item.type || '').toLowerCase();
-    return itemType !== 'audio' && itemType !== 'video';
+    return itemType === 'image';
   });
   const audioItems = albumItems.filter((item) => {
     const itemType = (item.type || '').toLowerCase();
@@ -585,15 +587,15 @@ export default function DownloaderTemplate({
   const photoDownloadUrl = hasAlbumItems ? photoItems[0]?.url : result?.downloads?.image;
   const hasMultiplePhotos = photoItems.length > 1;
   const hasVideoOrAudio = hasVideoHD || hasVideoSD || effectiveHasAudio;
-  const toggleMediaSelection = (index) => {
-    setSelectedMediaIndexes((current) =>
-      current.includes(index)
-        ? current.filter((itemIndex) => itemIndex !== index)
-        : [...current, index].sort((a, b) => a - b)
+  const toggleMediaSelection = (itemId) => {
+    setSelectedMediaIds((current) =>
+      current.includes(itemId)
+        ? current.filter((selectedId) => selectedId !== itemId)
+        : [...current, itemId]
     );
   };
-  const selectAllMedia = () => setSelectedMediaIndexes(selectableMediaItems.map((_, index) => index));
-  const clearMediaSelection = () => setSelectedMediaIndexes([]);
+  const selectAllMedia = () => setSelectedMediaIds(selectableMediaItems.map((item) => item.id));
+  const clearMediaSelection = () => setSelectedMediaIds([]);
   const mediaLabel = (item, index) => {
     const type = item.type === 'video' ? 'Video' : item.type === 'audio' ? 'Audio' : 'Photo';
     const parts = [item.quality, item.width && item.height ? `${item.width}x${item.height}` : '', item.format || item.extension || '', item.hasAudio ? 'audio' : '']
@@ -848,17 +850,17 @@ export default function DownloaderTemplate({
 
                       <div className="grid gap-3">
                         {selectableMediaItems.map((item, index) => {
-                          const checked = selectedMediaIndexes.includes(index);
+                          const checked = selectedMediaIds.includes(item.id);
                           const itemType = item.type === 'video' ? 'video' : item.type === 'audio' ? 'audio' : 'image';
                           return (
                             <label
-                              key={`${item.url}-${index}`}
+                              key={item.id}
                               className="grid grid-cols-[auto_72px_1fr] gap-3 items-center rounded-xl border border-gray-800 bg-black/30 p-3 hover:border-purple-500/50"
                             >
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                onChange={() => toggleMediaSelection(index)}
+                                onChange={() => toggleMediaSelection(item.id)}
                                 className="h-5 w-5 accent-purple-500"
                               />
                               <div className="h-16 w-[72px] overflow-hidden rounded-lg bg-gray-900 flex items-center justify-center">
