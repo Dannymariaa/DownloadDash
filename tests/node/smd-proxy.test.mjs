@@ -6,7 +6,6 @@ import handler from '../../api/smd/[...path].js';
 const intendedApiEntrypoints = [
   '_downloadDashProxy.js',
   'smd/[...path].js',
-  'smd/diagnostics/provider.js',
   'smd/facebook/download.js',
   'smd/health.js',
   'smd/instagram/download.js',
@@ -959,7 +958,6 @@ test('fallback route inventory preserves all platform endpoints and the Twitter 
     '_downloadDashProxy.js',
   ]);
   assert.deepEqual(smdDirectories, [
-    'diagnostics',
     'facebook',
     'instagram',
     'pinterest',
@@ -1041,11 +1039,16 @@ test('frontend clients keep DownloadDash secrets out of browser requests', async
 
 test('Vercel SPA rewrite excludes API paths so functions can handle requests', async () => {
   const config = JSON.parse(await readFile(new URL('../../vercel.json', import.meta.url), 'utf8'));
+  const smdRewriteIndex = config.rewrites.findIndex((rewrite) => rewrite.destination === '/api/smd/[...path]');
   const spaRewrite = config.rewrites.find((rewrite) => rewrite.destination === '/index.html');
+  const spaRewriteIndex = config.rewrites.indexOf(spaRewrite);
 
   assert.ok(config.functions['api/**/*.js']);
   assert.equal(config.framework, 'vite');
   assert.equal(config.outputDirectory, 'dist');
+  assert.ok(smdRewriteIndex >= 0);
+  assert.ok(smdRewriteIndex < spaRewriteIndex);
+  assert.equal(config.rewrites[smdRewriteIndex].source, '/api/smd/:path*');
   assert.ok(spaRewrite);
   assert.match(spaRewrite.source, /\(\?!api/);
 });
