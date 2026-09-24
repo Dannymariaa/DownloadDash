@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { downloadMedia, proxyFileRequest } from "./client.js";
+import { downloadMedia, proxyDiagnosticsRequest, proxyFileRequest } from "./client.js";
 import { getServerEnv, getServerEnvDiagnostics } from "./env.js";
 import { json, publicError, sendError } from "./errors.js";
 import { enforceRateLimit } from "./rate-limit.js";
-import { parseRoute, validateDownloadRequest, validateFileProxyRequest } from "./validation.js";
+import { parseRoute, validateDiagnosticsRequest, validateDownloadRequest, validateFileProxyRequest } from "./validation.js";
 
 const UPSTREAM_HEALTH_TIMEOUT_MS = 8_000;
 
@@ -168,6 +168,25 @@ export async function handleSmdRequest(req, res) {
         requestId,
         res,
       });
+    }
+
+    if (route.kind === "diagnostics") {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        throw publicError("UNSUPPORTED_PLATFORM", 405, `method ${req.method} is not supported for diagnostics`);
+      }
+      const payload = validateDiagnosticsRequest(req);
+      logStage("validation passed", {
+        requestId,
+        kind: route.kind,
+        path: `/${route.forwardPath.join("/")}`,
+      });
+      const env = getServerEnv();
+      logStage("environment loaded", {
+        requestId,
+        platform: payload.platform,
+        upstreamHost: env.upstreamHost,
+      });
+      return proxyDiagnosticsRequest({ env, payload, requestId, res });
     }
 
     if (req.method !== "POST") {

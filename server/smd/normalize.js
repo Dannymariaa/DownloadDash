@@ -55,6 +55,9 @@ function inferType(entry, url, key = "") {
 
   const keyType = normalizeType(qualityFromKey(key));
   if (keyType === "image" || keyType === "audio") return keyType;
+  const normalizedKey = String(key || "").toLowerCase();
+  if (["video", "videohd", "videosd"].includes(normalizedKey)) return "video";
+  if (["hd", "sd"].includes(qualityFromKey(key))) return "video";
 
   const extensionType = inferTypeFromUrl(url);
   if (extensionType) return extensionType;
@@ -86,9 +89,8 @@ function qualityFromKey(key = "") {
   return undefined;
 }
 
-function mediaIdentity(entry, url) {
-  const id = firstValue(entry, ["id", "media_id", "mediaId", "pk"]);
-  return id ? `id:${id}:${url}` : `url:${url}`;
+function mediaIdentity(_entry, url) {
+  return `url:${url}`;
 }
 
 function primaryUrlForEntry(entry, key = "") {

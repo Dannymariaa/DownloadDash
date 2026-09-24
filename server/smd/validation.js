@@ -107,6 +107,22 @@ export function validateFileProxyRequest(req) {
   return { ...body, url, sourceUrl };
 }
 
+export function validateDiagnosticsRequest(req) {
+  const platform = String(req.query?.platform || "").toLowerCase();
+  const allowed = new Set(["instagram", "tiktok", "pinterest", "reddit", "youtube", "facebook", "x", "twitter"]);
+  if (!allowed.has(platform)) {
+    throw publicError("UNSUPPORTED_PLATFORM", 400, "unsupported diagnostics platform");
+  }
+
+  const payload = { platform };
+  if (req.query?.url) payload.url = validatePublicUrl(String(req.query.url), platform === "twitter" ? "x" : platform);
+  for (const key of ["probe_proxy", "run_resolver", "run_gallery"]) {
+    const value = req.query?.[key];
+    if (value === "1" || value === "true" || value === true) payload[key] = "true";
+  }
+  return payload;
+}
+
 export function parseRoute(parts) {
   if (!parts.length) {
     throw publicError("UNSUPPORTED_PLATFORM", 404, "proxy path missing");
@@ -121,6 +137,10 @@ export function parseRoute(parts) {
 
   if (first === "download" && second === "file") {
     return { kind: "file", forwardPath: ["download", "file"] };
+  }
+
+  if (first === "diagnostics" && second === "provider") {
+    return { kind: "diagnostics", forwardPath: ["diagnostics", "provider"] };
   }
 
   if (first === "youtube" && second === "file") {

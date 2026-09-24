@@ -332,3 +332,40 @@ export async function proxyFileRequest({ env, forwardPath, payload, method, quer
     clearTimeout(timeout);
   }
 }
+
+export async function proxyDiagnosticsRequest({ env, payload, requestId, res }) {
+  const target = new URL(`${env.upstreamBaseUrl}/diagnostics/provider`);
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) target.searchParams.set(key, String(value));
+  });
+
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const upstream = await fetch(target.toString(), {
+      method: "GET",
+      headers: buildHeaders(env.apiKey),
+      signal: controller.signal,
+    });
+
+    const responseText = await upstream.text();
+    console.info("[DownloadDash SMD] diagnostics response", {
+      requestId,
+      status: upstream.status,
+      latencyMs: Date.now() - startedAt,
+    });
+
+    res.status(upstream.status);
+    res.setHeader("Content-Type", upstream.headers.get("content-type") || "application/json");
+    return res.end(responseText);
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw publicError("UPSTREAM_TIMEOUT", 504, "diagnostics request timed out");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}

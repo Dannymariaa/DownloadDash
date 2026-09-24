@@ -18,6 +18,7 @@ from app.config import settings
 from app.routers import (
     facebook_router,
     gallery_router,
+    diagnostics_router,
     instagram_router,
     pinterest_router,
     reddit_router,
@@ -185,6 +186,7 @@ app.include_router(reddit_router, tags=["reddit"])
 app.include_router(twitter_router, tags=["twitter"])
 app.include_router(youtube_router, tags=["youtube"])
 app.include_router(gallery_router, tags=["gallery-dl"])
+app.include_router(diagnostics_router, tags=["diagnostics"])
 app.include_router(telegram_router, tags=["telegram"])
 app.include_router(whatsapp_router, tags=["whatsapp"])
 app.include_router(whatsapp_business_router, tags=["whatsapp-business"])

@@ -6,6 +6,7 @@ import handler from '../../api/smd/[...path].js';
 const intendedApiEntrypoints = [
   '_downloadDashProxy.js',
   'smd/[...path].js',
+  'smd/diagnostics/provider.js',
   'smd/facebook/download.js',
   'smd/health.js',
   'smd/instagram/download.js',
@@ -327,6 +328,48 @@ test('normalization deduplicates nested provider duplicates without turning thum
   });
 });
 
+test('normalization removes duplicate YouTube aliases and does not keep unknown copies of playable media', async () => {
+  await withProxyEnv(async () => {
+    const signedUrl = 'https://rr1---sn.example.googlevideo.com/videoplayback?expire=1&mime=video%2Fmp4';
+
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({
+        success: true,
+        media_info: {
+          title: 'YouTube audio',
+          thumbnail_url: 'https://i.ytimg.com/vi_webp/example/maxresdefault.webp',
+        },
+        downloads: {
+          videoHD: signedUrl,
+          items: [
+            {
+              id: 'media-0',
+              index: 0,
+              type: 'audio',
+              url: signedUrl,
+              extension: 'mp4',
+              width: 640,
+              height: 360,
+              hasAudio: false,
+              thumbnail: 'https://i.ytimg.com/vi_webp/example/maxresdefault.webp',
+            },
+          ],
+        },
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'youtube/download', body: { url: validUrls.youtube } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.data.media.map((item) => item.url), [signedUrl]);
+    assert.deepEqual(body.data.media.map((item) => item.type), ['video']);
+    assert.equal(body.data.media.some((item) => item.type === 'unknown'), false);
+  });
+});
+
 test('all platform routes reject missing URL, malformed URL, and wrong domains before upstream fetch', async () => {
   await withProxyEnv(async () => {
     let fetchCalled = false;
@@ -506,6 +549,45 @@ test('health route can safely probe upstream reachability on request', async () 
     assert.equal(body.upstreamReachable, false);
     assert.equal(body.upstreamStatus, null);
     assert.doesNotMatch(JSON.stringify(body), /connect failed|test-key|DOWNLOADDASH_API_KEY/);
+  });
+});
+
+test('diagnostics route forwards sanitized provider probes through server-side auth', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async (url, init) => {
+      const target = new URL(url);
+      assert.equal(target.origin + target.pathname, 'https://render.example/diagnostics/provider');
+      assert.equal(target.searchParams.get('platform'), 'tiktok');
+      assert.equal(target.searchParams.get('url'), validUrls.tiktok);
+      assert.equal(target.searchParams.get('probe_proxy'), 'true');
+      assert.equal(init.method, 'GET');
+      assert.equal(init.headers['X-DownloadDash-Key'], 'test-key');
+      return new Response(JSON.stringify({
+        platform: 'tiktok',
+        proxyConfigured: true,
+        cookiesConfigured: false,
+        directConnectionSucceeds: 'NOT_SAFE_TO_TEST',
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const res = await request({
+      path: 'diagnostics/provider',
+      method: 'GET',
+      query: {
+        platform: 'tiktok',
+        url: validUrls.tiktok,
+        probe_proxy: '1',
+      },
+    });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.platform, 'tiktok');
+    assert.equal(body.proxyConfigured, true);
+    assert.doesNotMatch(JSON.stringify(body), /test-key|DOWNLOADDASH_API_KEY|X-DownloadDash-Key/);
   });
 });
 
@@ -877,6 +959,7 @@ test('fallback route inventory preserves all platform endpoints and the Twitter 
     '_downloadDashProxy.js',
   ]);
   assert.deepEqual(smdDirectories, [
+    'diagnostics',
     'facebook',
     'instagram',
     'pinterest',
