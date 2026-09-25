@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from app.models.schemas import MediaType, Quality
 from app.platforms.public_platforms import PublicPlatformDownloader
@@ -135,6 +135,38 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["url"], "https://cdn.example/actual.jpg")
         self.assertEqual(items[0]["type"], "image")
+
+    def test_instagram_reel_does_not_fall_back_to_oembed_thumbnail(self):
+        downloader = PublicPlatformDownloader()
+        downloader._fallback_instagram_json = AsyncMock(return_value=None)
+        downloader._fallback_instagram_html = AsyncMock(return_value=None)
+        downloader._fallback_instagram_oembed = AsyncMock(return_value={
+            "kind": "image",
+            "downloads": {
+                "items": [{
+                    "type": "image",
+                    "url": "https://cdn.example/reel-thumb.jpg",
+                }],
+            },
+        })
+        downloader._fallback_opengraph = AsyncMock(return_value={
+            "kind": "image",
+            "downloads": {
+                "items": [{
+                    "type": "image",
+                    "url": "https://cdn.example/og-thumb.jpg",
+                }],
+            },
+        })
+
+        with patch("app.platforms.public_platforms.yt_dlp.YoutubeDL") as ydl_mock:
+            ydl_mock.return_value.__enter__.return_value.extract_info.side_effect = Exception("No video formats found")
+
+            with self.assertRaises(Exception):
+                asyncio.run(downloader.resolve_media("https://www.instagram.com/reel/abc123/", Quality.HIGH))
+
+        downloader._fallback_instagram_oembed.assert_not_awaited()
+        downloader._fallback_opengraph.assert_not_awaited()
 
 
 if __name__ == "__main__":

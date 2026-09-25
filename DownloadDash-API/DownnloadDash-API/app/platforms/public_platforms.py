@@ -783,7 +783,8 @@ class PublicPlatformDownloader:
 
         # Instagram photo posts often fail with yt-dlp "No video formats found".
         # Try Instagram-specific fallbacks first for non-audio requests.
-        if ("instagram.com/" in url) and not extract_audio:
+        is_instagram_reel = bool(re.search(r"instagram\.com/(reel|tv)/", url, re.IGNORECASE))
+        if ("instagram.com/" in url) and not extract_audio and not is_instagram_reel:
             ig = await self._fallback_instagram_json(url)
             if ig:
                 return ig
@@ -897,18 +898,20 @@ class PublicPlatformDownloader:
                 raise Exception(f"Resolve failed: {msg}")
 
             if info is None and ("no video formats found" in lowered or "no formats found" in lowered) and not extract_audio:
-                ig_oembed = await self._fallback_instagram_oembed(url)
-                if ig_oembed:
-                    return ig_oembed
                 ig = await self._fallback_instagram_json(url)
                 if ig:
                     return ig
                 html = await self._fallback_instagram_html(url)
                 if html:
                     return html
-                og = await self._fallback_opengraph(url)
-                if og:
-                    return og
+                if not is_instagram_reel:
+                    ig_oembed = await self._fallback_instagram_oembed(url)
+                    if ig_oembed:
+                        return ig_oembed
+                if not is_instagram_reel:
+                    og = await self._fallback_opengraph(url)
+                    if og:
+                        return og
                 raise Exception(msg)
 
         if not info:
