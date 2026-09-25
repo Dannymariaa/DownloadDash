@@ -182,8 +182,38 @@ function collectMedia(upstreamData) {
   const media = [];
   const seen = new Set();
   const downloads = upstreamData?.downloads || {};
+  const scalarVideoKeys = ["videoHD", "videohd", "videoSd", "videoSD", "videosd", "video"];
+  const scalarVideoEntries = [];
+
+  for (const key of scalarVideoKeys) {
+    const value = downloads[key];
+    if (typeof value === "string") {
+      scalarVideoEntries.push({ url: value, quality: qualityFromKey(key), key });
+    }
+  }
+
+  const scalarVideoSeen = new Set();
+  const scalarVideoVariants = scalarVideoEntries
+    .filter((entry) => {
+      if (!entry.url || scalarVideoSeen.has(entry.url)) return false;
+      scalarVideoSeen.add(entry.url);
+      return true;
+    })
+    .map(({ key, ...entry }) => normalizeVariant(entry, key))
+    .filter(Boolean);
+  const collapseScalarVideos = scalarVideoVariants.length > 1;
+
+  if (collapseScalarVideos) {
+    pushMedia(media, seen, {
+      type: "video",
+      url: scalarVideoVariants[0].url,
+      quality: scalarVideoVariants[0].quality,
+      variants: scalarVideoVariants,
+    }, "video");
+  }
 
   for (const [key, value] of Object.entries(downloads)) {
+    if (collapseScalarVideos && scalarVideoKeys.includes(key) && typeof value === "string") continue;
     if (Array.isArray(value)) {
       value.forEach((item) => pushMedia(media, seen, item, key));
     } else if (typeof value === "string") {
