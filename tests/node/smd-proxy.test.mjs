@@ -300,6 +300,40 @@ test('normalization keeps TikTok photo images before separate soundtrack audio',
   });
 });
 
+test('normalization keeps quality variants nested under one source video', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({
+        success: true,
+        downloads: {
+          items: [
+            {
+              type: 'video',
+              url: 'https://cdn.tiktok.example/video-1080.mp4',
+              quality: 'hd',
+              variants: [
+                { url: 'https://cdn.tiktok.example/video-1080.mp4', height: 1080, format: 'mp4' },
+                { url: 'https://cdn.tiktok.example/video-480.mp4', height: 480, format: 'mp4' },
+              ],
+            },
+            { type: 'audio', url: 'https://cdn.tiktok.example/audio.m4a' },
+          ],
+        },
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'tiktok/download', body: { url: validUrls.tiktok } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.data.media.map((item) => item.type), ['video', 'audio']);
+    assert.deepEqual(body.data.media.map((item) => item.index), [0, 1]);
+    assert.deepEqual(body.data.media[0].variants.map((variant) => variant.height), [1080, 480]);
+  });
+});
+
 test('normalization deduplicates nested provider duplicates without turning thumbnails into media', async () => {
   await withProxyEnv(async () => {
     globalThis.fetch = async () =>

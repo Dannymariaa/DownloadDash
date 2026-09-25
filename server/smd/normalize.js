@@ -107,6 +107,23 @@ function primaryUrlForEntry(entry, key = "") {
   return firstValue(entry, ["url", "download_url", "downloadUrl", "media_url", "mediaUrl", "video_url", "videoUrl", "image_url", "imageUrl", "display_url", "displayUrl", "play_url", "playUrl", "src"]);
 }
 
+function normalizeVariant(item, key = "") {
+  const entry = typeof item === "string" ? { url: item } : item || {};
+  const url = primaryUrlForEntry(entry, key);
+  if (!url) return null;
+
+  const mimeType = firstValue(entry, ["mimeType", "mime_type", "contentType", "content_type", "mimetype"]);
+  const variant = { url };
+  const quality = entry.quality || qualityFromKey(key);
+  const format = entry.format || entry.extension || inferFormatFromMime(mimeType) || inferFormat(url);
+  if (quality) variant.quality = quality;
+  if (mimeType) variant.mimeType = mimeType;
+  if (format) variant.format = format;
+  if (entry.width) variant.width = entry.width;
+  if (entry.height) variant.height = entry.height;
+  return variant;
+}
+
 function pushMedia(media, seen, item, key = "") {
   const entry = typeof item === "string" ? { url: item } : item || {};
   const url = primaryUrlForEntry(entry, key);
@@ -132,13 +149,24 @@ function pushMedia(media, seen, item, key = "") {
   if (entry.hasAudio !== undefined || entry.has_audio !== undefined) normalized.hasAudio = Boolean(entry.hasAudio ?? entry.has_audio);
   if (entry.audioUrl || entry.audio_url) normalized.audioUrl = entry.audioUrl || entry.audio_url;
   if (entry.thumbnail || entry.thumbnail_url) normalized.thumbnail = entry.thumbnail || entry.thumbnail_url;
+  if (Array.isArray(entry.variants)) {
+    const variantSeen = new Set();
+    const variants = entry.variants
+      .map((variant) => normalizeVariant(variant))
+      .filter((variant) => {
+        if (!variant?.url || variantSeen.has(variant.url)) return false;
+        variantSeen.add(variant.url);
+        return true;
+      });
+    if (variants.length) normalized.variants = variants;
+  }
   media.push(normalized);
 }
 
 function collectNestedMediaCollections(source, depth = 0) {
   if (!source || typeof source !== "object" || depth > 5) return [];
   const collections = [];
-  for (const key of ["media", "medias", "items", "images", "photos", "photo", "carousel", "resources", "variants", "children"]) {
+  for (const key of ["media", "medias", "items", "images", "photos", "photo", "carousel", "resources", "children"]) {
     const value = source[key];
     if (Array.isArray(value)) collections.push(...value);
   }

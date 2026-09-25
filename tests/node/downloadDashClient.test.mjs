@@ -123,4 +123,5 @@ test('client keeps video quality variants inside one selectable source item', ()
   assert.equal(normalized.downloads.videoHD, 'https://cdn.example/video-1080.mp4');
   assert.equal(normalized.downloads.videoSD, 'https://cdn.example/video-480.mp4');
   assert.equal(normalized.downloads.audio, 'https://cdn.example/audio.m4a');
+  assert.deepEqual(normalized.downloads.items[0].variants.map((variant) => variant.height), [1080, 480]);
 });

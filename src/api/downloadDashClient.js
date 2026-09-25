@@ -530,7 +530,7 @@ export const normalizeMediaItem = (item, index, fallbackType = 'unknown', key = 
     'image_url',
   ]);
 
-  return {
+  const normalized = {
     id: entry.id || `media-${index}`,
     url: absolutizeApiUrl(url),
     type,
@@ -546,6 +546,21 @@ export const normalizeMediaItem = (item, index, fallbackType = 'unknown', key = 
     thumbnail: absolutizeApiUrl(thumbnail || (type === 'image' ? url : undefined)),
     index,
   };
+
+  if (Array.isArray(entry.variants)) {
+    const seenVariants = new Set();
+    const variants = entry.variants
+      .map((variant) => normalizeMediaItem(variant, index, type))
+      .filter((variant) => {
+        if (!variant?.url || seenVariants.has(variant.url)) return false;
+        seenVariants.add(variant.url);
+        return true;
+      })
+      .map(({ variants: _variants, id: _id, index: _index, thumbnail: _thumbnail, ...variant }) => variant);
+    if (variants.length) normalized.variants = variants;
+  }
+
+  return normalized;
 };
 
 const collectMediaItems = (data, downloads) => {
