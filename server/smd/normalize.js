@@ -173,7 +173,16 @@ function collectMedia(upstreamData) {
   const direct = firstValue(upstreamData, ["download_url", "downloadUrl", "url", "direct_url"]);
   if (direct) pushMedia(media, seen, { url: direct }, "direct");
 
-  return media;
+  const orderWeight = (item) => {
+    if (item.type === "image" || item.type === "video") return 0;
+    if (item.type === "audio") return 1;
+    return 2;
+  };
+
+  return media
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .sort((a, b) => orderWeight(a.item) - orderWeight(b.item) || a.originalIndex - b.originalIndex)
+    .map(({ item }, index) => ({ ...item, index }));
 }
 
 export function normalizeDownloadResponse(platform, upstreamData) {

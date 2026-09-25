@@ -90,3 +90,37 @@ test('client classifies mixed multi-media posts as albums and keeps stable selec
   assert.deepEqual(normalized.downloads.items.map((item) => item.id), ['media-0', 'media-1', 'media-2', 'media-3']);
   assert.deepEqual(getSelectableMediaItems(normalized.downloads.items).map((item) => item.id), ['media-0', 'media-1', 'media-3']);
 });
+
+test('client keeps video quality variants inside one selectable source item', () => {
+  const normalized = normalizeResolvedDownloads({
+    type: 'video',
+    downloads: {
+      videoHD: 'https://cdn.example/video-1080.mp4',
+      videoSD: 'https://cdn.example/video-480.mp4',
+      audio: 'https://cdn.example/audio.m4a',
+      items: [
+        {
+          id: 'media-0',
+          type: 'video',
+          url: 'https://cdn.example/video-1080.mp4',
+          variants: [
+            { url: 'https://cdn.example/video-1080.mp4', height: 1080 },
+            { url: 'https://cdn.example/video-480.mp4', height: 480 },
+          ],
+        },
+        {
+          id: 'media-1',
+          type: 'audio',
+          url: 'https://cdn.example/audio.m4a',
+        },
+      ],
+    },
+  });
+
+  assert.equal(normalized.type, 'video');
+  assert.deepEqual(normalized.downloads.items.map((item) => item.type), ['video', 'audio']);
+  assert.deepEqual(getSelectableMediaItems(normalized.downloads.items).map((item) => item.id), ['media-0', 'media-1']);
+  assert.equal(normalized.downloads.videoHD, 'https://cdn.example/video-1080.mp4');
+  assert.equal(normalized.downloads.videoSD, 'https://cdn.example/video-480.mp4');
+  assert.equal(normalized.downloads.audio, 'https://cdn.example/audio.m4a');
+});

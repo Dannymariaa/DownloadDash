@@ -275,6 +275,31 @@ test('normalization preserves single image, five-image carousel, and mixed carou
   }
 });
 
+test('normalization keeps TikTok photo images before separate soundtrack audio', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({
+        success: true,
+        media: [
+          { type: 'audio', url: 'https://cdn.tiktok.example/sound.m4a', contentType: 'audio/mp4' },
+          { type: 'image', url: 'https://cdn.tiktok.example/1.jpeg', contentType: 'image/jpeg' },
+          { type: 'image', url: 'https://cdn.tiktok.example/2.jpeg', contentType: 'image/jpeg' },
+          { type: 'image', url: 'https://cdn.tiktok.example/3.jpeg', contentType: 'image/jpeg' },
+        ],
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'tiktok/download', body: { url: validUrls.tiktok } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.data.media.map((item) => item.type), ['image', 'image', 'image', 'audio']);
+    assert.deepEqual(body.data.media.map((item) => item.index), [0, 1, 2, 3]);
+  });
+});
+
 test('normalization deduplicates nested provider duplicates without turning thumbnails into media', async () => {
   await withProxyEnv(async () => {
     globalThis.fetch = async () =>

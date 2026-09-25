@@ -400,6 +400,37 @@ class PublicPlatformDownloader:
     def _items_from_gallery_entries(self, entries: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
         items: list[Dict[str, Any]] = []
         seen: set[str] = set()
+        source_index_by_key: dict[str, int] = {}
+
+        def _source_key(entry: Dict[str, Any], item_type: str, url: str) -> str:
+            source_id = (
+                entry.get("source_id")
+                or entry.get("sourceId")
+                or entry.get("media_id")
+                or entry.get("mediaId")
+                or entry.get("media_key")
+                or entry.get("mediaKey")
+                or entry.get("id")
+                or entry.get("display_id")
+            )
+            if source_id:
+                return f"{item_type}:{source_id}"
+            return f"{item_type}:{url}"
+
+        def _variant_from_entry(entry: Dict[str, Any], url: str, ext: str | None) -> Dict[str, Any]:
+            return {
+                "url": url,
+                "downloadableUrl": url,
+                "extension": ext,
+                "format": entry.get("format") or entry.get("format_id"),
+                "formatId": entry.get("format_id"),
+                "quality": entry.get("quality"),
+                "width": entry.get("width"),
+                "height": entry.get("height"),
+                "mimeType": entry.get("mimeType") or entry.get("mime_type") or entry.get("contentType") or entry.get("content_type"),
+                "filesize": entry.get("filesize") or entry.get("filesize_approx"),
+                "tbr": entry.get("tbr"),
+            }
 
         for entry in entries:
             if not isinstance(entry, dict):
@@ -430,34 +461,44 @@ class PublicPlatformDownloader:
             item_type = self._infer_item_type(merged, candidate_url)
             if item_type == "unknown":
                 continue
-
-            seen.add(candidate_url)
             ext = merged.get("ext") or merged.get("extension")
             if not ext:
                 ext_match = re.search(r"\.([a-z0-9]{2,5})$", urlparse(candidate_url).path.lower())
                 ext = ext_match.group(1) if ext_match else None
 
+            source_key = _source_key(merged, item_type, candidate_url)
+            if source_key in source_index_by_key:
+                existing = items[source_index_by_key[source_key]]
+                variants = existing.setdefault("variants", [])
+                variant = _variant_from_entry(merged, candidate_url, ext)
+                if all(item.get("url") != candidate_url for item in variants):
+                    variants.append(variant)
+                seen.add(candidate_url)
+                continue
+
+            seen.add(candidate_url)
             index = len(items)
             thumbnail = entry.get("thumbnail") or entry.get("thumbnail_url") or entry.get("thumbnailUrl")
             if item_type == "image":
                 thumbnail = thumbnail or candidate_url
-            items.append(
-                {
-                    "id": f"media-{index}",
-                    "index": index,
-                    "url": candidate_url,
-                    "downloadableUrl": candidate_url,
-                    "type": item_type,
-                    "filename": entry.get("filename") or f"item-{index + 1}.{ext or 'bin'}",
-                    "extension": ext,
-                    "mimeType": merged.get("mimeType") or merged.get("mime_type") or merged.get("contentType") or merged.get("content_type"),
-                    "width": merged.get("width"),
-                    "height": merged.get("height"),
-                    "thumbnail": thumbnail,
-                    "thumbnailUrl": thumbnail,
-                    "hasAudio": item_type == "video" and bool(merged.get("acodec") and merged.get("acodec") != "none"),
-                }
-            )
+            item = {
+                "id": f"media-{index}",
+                "index": index,
+                "url": candidate_url,
+                "downloadableUrl": candidate_url,
+                "type": item_type,
+                "filename": entry.get("filename") or f"item-{index + 1}.{ext or 'bin'}",
+                "extension": ext,
+                "mimeType": merged.get("mimeType") or merged.get("mime_type") or merged.get("contentType") or merged.get("content_type"),
+                "width": merged.get("width"),
+                "height": merged.get("height"),
+                "thumbnail": thumbnail,
+                "thumbnailUrl": thumbnail,
+                "hasAudio": item_type == "video" and bool(merged.get("acodec") and merged.get("acodec") != "none"),
+                "variants": [_variant_from_entry(merged, candidate_url, ext)],
+            }
+            items.append(item)
+            source_index_by_key[source_key] = index
 
         return items
 

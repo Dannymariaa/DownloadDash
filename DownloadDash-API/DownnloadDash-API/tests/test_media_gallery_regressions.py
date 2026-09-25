@@ -137,6 +137,73 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         self.assertEqual(items[0]["url"], "https://cdn.example/actual.jpg")
         self.assertEqual(items[0]["type"], "image")
 
+    def test_gallery_video_format_variants_collapse_to_one_source_item(self):
+        downloader = PublicPlatformDownloader()
+
+        entries = [
+            {
+                "id": "post-video",
+                "media_id": "post-video",
+                "url": "https://cdn.example/video-1080.mp4",
+                "ext": "mp4",
+                "height": 1080,
+                "width": 1920,
+                "vcodec": "h264",
+                "acodec": "aac",
+            },
+            {
+                "id": "post-video",
+                "media_id": "post-video",
+                "url": "https://cdn.example/video-480.mp4",
+                "ext": "mp4",
+                "height": 480,
+                "width": 854,
+                "vcodec": "h264",
+                "acodec": "aac",
+            },
+            {
+                "id": "post-video-audio",
+                "media_id": "post-video-audio",
+                "url": "https://cdn.example/audio.m4a",
+                "ext": "m4a",
+                "acodec": "aac",
+                "vcodec": "none",
+            },
+        ]
+
+        items = downloader._items_from_gallery_entries(entries)
+
+        self.assertEqual([item["type"] for item in items], ["video", "audio"])
+        self.assertEqual(items[0]["url"], "https://cdn.example/video-1080.mp4")
+        self.assertEqual([variant["height"] for variant in items[0]["variants"]], [1080, 480])
+
+    def test_gallery_distinct_carousel_videos_remain_separate_source_items(self):
+        downloader = PublicPlatformDownloader()
+
+        entries = [
+            {
+                "id": "carousel-child-1",
+                "media_id": "carousel-child-1",
+                "url": "https://cdn.example/child-1.mp4",
+                "ext": "mp4",
+                "vcodec": "h264",
+                "acodec": "aac",
+            },
+            {
+                "id": "carousel-child-2",
+                "media_id": "carousel-child-2",
+                "url": "https://cdn.example/child-2.mp4",
+                "ext": "mp4",
+                "vcodec": "h264",
+                "acodec": "aac",
+            },
+        ]
+
+        items = downloader._items_from_gallery_entries(entries)
+
+        self.assertEqual([item["url"] for item in items], ["https://cdn.example/child-1.mp4", "https://cdn.example/child-2.mp4"])
+        self.assertEqual([item["index"] for item in items], [0, 1])
+
     def test_instagram_reel_does_not_fall_back_to_oembed_thumbnail(self):
         downloader = PublicPlatformDownloader()
         downloader._fallback_instagram_json = AsyncMock(return_value=None)
