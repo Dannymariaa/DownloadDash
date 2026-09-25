@@ -2,7 +2,8 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from app.models.schemas import MediaType, Quality
+from app.api.shared import _gallery_result_is_richer, _should_try_gallery_enrichment
+from app.models.schemas import MediaType, Platform, Quality
 from app.platforms.public_platforms import PublicPlatformDownloader
 from app.platforms.universal_downloader import UniversalMediaDownloader
 
@@ -167,6 +168,60 @@ class MediaGalleryRegressionTests(unittest.TestCase):
 
         downloader._fallback_instagram_oembed.assert_not_awaited()
         downloader._fallback_opengraph.assert_not_awaited()
+
+    def test_instagram_single_image_post_allows_gallery_enrichment(self):
+        result = {
+            "direct_url": "https://cdn.example/thumb.jpg",
+            "kind": "image",
+            "downloads": {
+                "items": [{
+                    "type": "image",
+                    "url": "https://cdn.example/thumb.jpg",
+                }],
+            },
+        }
+
+        self.assertTrue(
+            _should_try_gallery_enrichment(
+                Platform.INSTAGRAM,
+                "https://www.instagram.com/p/abc123/",
+                result,
+            )
+        )
+
+        richer_gallery = {
+            "direct_url": "https://cdn.example/01.jpg",
+            "kind": "image",
+            "downloads": {
+                "items": [
+                    {"type": "image", "url": "https://cdn.example/01.jpg"},
+                    {"type": "video", "url": "https://cdn.example/02.mp4"},
+                ],
+            },
+        }
+
+        self.assertTrue(_gallery_result_is_richer(result, richer_gallery))
+
+    def test_instagram_single_photo_does_not_replace_with_equal_gallery_image(self):
+        result = {
+            "direct_url": "https://cdn.example/photo.jpg",
+            "kind": "image",
+            "downloads": {
+                "items": [{
+                    "type": "image",
+                    "url": "https://cdn.example/photo.jpg",
+                }],
+            },
+        }
+        equal_gallery = {
+            "direct_url": "https://cdn.example/photo.jpg",
+            "kind": "image",
+            "downloads": {
+                "image": "https://cdn.example/photo.jpg",
+            },
+        }
+
+        self.assertFalse(_gallery_result_is_richer(result, equal_gallery))
 
 
 if __name__ == "__main__":

@@ -174,6 +174,48 @@ def _gallery_result_to_universal(
     }
 
 
+def _download_item_count(result: Optional[Dict[str, Any]]) -> int:
+    if not result:
+        return 0
+    downloads = result.get("downloads") or {}
+    for source_items in (
+        downloads.get("items"),
+        downloads.get("images"),
+        downloads.get("photos"),
+        result.get("items"),
+        result.get("images"),
+        result.get("photos"),
+    ):
+        if isinstance(source_items, list) and source_items:
+            return len(source_items)
+    return 1 if result.get("direct_url") else 0
+
+
+def _should_try_gallery_enrichment(
+    platform: Platform,
+    url: str,
+    result: Optional[Dict[str, Any]],
+    extract_audio: bool = False,
+) -> bool:
+    if platform != Platform.INSTAGRAM or extract_audio or not result:
+        return False
+    if "/p/" not in url.lower():
+        return False
+    return (result.get("kind") or "").lower() == "image" and _download_item_count(result) <= 1
+
+
+def _gallery_result_is_richer(current: Optional[Dict[str, Any]], gallery_result: Optional[Dict[str, Any]]) -> bool:
+    if not gallery_result or not gallery_result.get("direct_url"):
+        return False
+    current_count = _download_item_count(current)
+    gallery_count = _download_item_count(gallery_result)
+    if gallery_count > current_count:
+        return True
+    current_kind = ((current or {}).get("kind") or "").lower()
+    gallery_kind = (gallery_result.get("kind") or "").lower()
+    return current_kind == "image" and gallery_kind in {"video", "audio"}
+
+
 async def _resolve_with_gallery_fallback(
     platform: Platform,
     url: str,
@@ -211,6 +253,15 @@ async def download_public(
         except Exception as e:
             resolve_error = e
             result = None
+
+    if _should_try_gallery_enrichment(platform, url_str, result, request.extract_audio):
+        gallery_result = await _resolve_with_gallery_fallback(
+            platform=platform,
+            url=url_str,
+            extract_audio=request.extract_audio,
+        )
+        if _gallery_result_is_richer(result, gallery_result):
+            result = gallery_result
 
     if not result or not result.get("direct_url"):
         gallery_result = await _resolve_with_gallery_fallback(
