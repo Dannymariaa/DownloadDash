@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { ADSTERRA_BREAKPOINT, ADSTERRA_UNITS } from '@/config/adsterraConfig';
 import adManager from '@/lib/adManager';
 import { useAdPlatform } from './useAdPlatform';
+import { useAuth } from '@/lib/AuthContext';
 
 const useVisible = (rootMargin = '220px') => {
   const ref = useRef(null);
@@ -45,6 +46,8 @@ const useViewport = () => {
 
 export function AdsterraBanner({ unitKey, placement = 'default', className = '' }) {
   const { isMobileApp } = useAdPlatform();
+  const { entitlements, isLoadingAuth, isLoadingPublicSettings } = useAuth();
+  const adFree = Boolean(entitlements?.adFree);
   const reactId = useId().replace(/:/g, '');
   const containerRef = useRef(null);
   const [visibleRef, isVisible] = useVisible();
@@ -53,7 +56,7 @@ export function AdsterraBanner({ unitKey, placement = 'default', className = '' 
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!unit || !container || !isVisible || isMobileApp) return undefined;
+    if (!unit || !container || !isVisible || isMobileApp || adFree || isLoadingAuth || isLoadingPublicSettings) return undefined;
     adManager.loadAdsterraBanner({
       unit,
       container,
@@ -62,9 +65,9 @@ export function AdsterraBanner({ unitKey, placement = 'default', className = '' 
       console.warn('Adsterra banner failed to load', error);
     });
     return () => adManager.cleanupAdContainer(container);
-  }, [isMobileApp, isVisible, placement, reactId, unit]);
+  }, [adFree, isLoadingAuth, isLoadingPublicSettings, isMobileApp, isVisible, placement, reactId, unit]);
 
-  if (!unit || isMobileApp) return null;
+  if (!unit || isMobileApp || adFree || isLoadingAuth || isLoadingPublicSettings) return null;
   if (unit.desktopOnly && viewportWidth < ADSTERRA_BREAKPOINT) return null;
   if (unit.mobileOnly && viewportWidth >= ADSTERRA_BREAKPOINT) return null;
 
@@ -92,20 +95,22 @@ export function AdsterraBanner({ unitKey, placement = 'default', className = '' 
 
 export function AdsterraNativeBanner({ placement = 'native', className = '' }) {
   const { isMobileApp } = useAdPlatform();
+  const { entitlements, isLoadingAuth, isLoadingPublicSettings } = useAuth();
+  const adFree = Boolean(entitlements?.adFree);
   const containerRef = useRef(null);
   const [visibleRef, isVisible] = useVisible('260px');
   const unit = ADSTERRA_UNITS.nativeBanner;
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !isVisible || isMobileApp) return undefined;
+    if (!container || !isVisible || isMobileApp || adFree || isLoadingAuth || isLoadingPublicSettings) return undefined;
     adManager.loadAdsterraNative({ container }).catch((error) => {
       console.warn('Adsterra native banner failed to load', error);
     });
     return () => {};
-  }, [isMobileApp, isVisible, placement]);
+  }, [adFree, isLoadingAuth, isLoadingPublicSettings, isMobileApp, isVisible, placement]);
 
-  if (isMobileApp) return null;
+  if (isMobileApp || adFree || isLoadingAuth || isLoadingPublicSettings) return null;
 
   return (
     <div
@@ -125,6 +130,9 @@ export function AdsterraNativeBanner({ placement = 'native', className = '' }) {
 }
 
 export function MobileStickyAdsterra() {
+  const { entitlements, isLoadingAuth, isLoadingPublicSettings } = useAuth();
+  if (entitlements?.adFree || isLoadingAuth || isLoadingPublicSettings) return null;
+
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center border-t border-purple-500/20 bg-black/85 px-2 py-2 backdrop-blur md:hidden">
       <AdsterraBanner unitKey="banner320x50" placement="mobile-sticky" />

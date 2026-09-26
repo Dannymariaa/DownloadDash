@@ -248,3 +248,35 @@ test('javascript and data ad URLs are rejected', () => {
   assert.equal(isSafeAdDestination('data:text/html;base64,PGgxPkFkPC9oMT4=').safe, false);
   assert.equal(isSafeAdDestination('https://ads.example/path').safe, true);
 });
+
+test('Pro ad-free entitlement blocks all ad launches and script registration', () => {
+  const scheduler = createAdScheduler({ now: () => 0, entitlements: { adFree: true } });
+
+  assert.equal(scheduler.canShowAnyAd(), false);
+  assert.equal(scheduler.canShowMultiTag(), false);
+  assert.equal(scheduler.canShowNotificationAd(), false);
+  assert.equal(scheduler.canRedirect(), false);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+  assert.equal(scheduler.startNotificationAd().reason, 'ad-free-entitlement');
+  assert.equal(scheduler.startInterruptiveAd({
+    network: AD_NETWORKS.MONETAG,
+    format: AD_FORMATS.POPUNDER,
+  }).allowed, false);
+  assert.equal(scheduler.startDownloadAd('download-1').allowed, false);
+  assert.equal(scheduler.markScriptInjected('monetag:246109'), false);
+  assert.deepEqual(scheduler.snapshot().injectedScripts, []);
+});
+
+test('scheduler can switch between Free and Pro entitlement state', () => {
+  const scheduler = createAdScheduler({ now: () => 0 });
+
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+  scheduler.finishNotificationAd('done');
+
+  scheduler.setAdEntitlements({ adFree: true });
+  scheduler.setNow(() => 10 * 60 * 1000);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+
+  scheduler.setAdEntitlements({ adFree: false });
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+});

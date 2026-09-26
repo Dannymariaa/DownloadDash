@@ -11,6 +11,7 @@ import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
 import HDVideoAdModal from './HDVideoAdModal';
 import { useI18n } from '@/lib/i18n';
+import { useAuth } from '@/lib/AuthContext';
 import adScheduler from '@/lib/adScheduler';
 import { getPlatformIcon } from '@/components/PlatformIcons';
 import { createPageUrl } from '@/utils';
@@ -342,6 +343,8 @@ export default function DownloaderTemplate({
   user
 }) {
   const { t } = useI18n();
+  const { entitlements } = useAuth();
+  const adFree = Boolean(entitlements?.adFree);
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -533,7 +536,7 @@ export default function DownloaderTemplate({
 
     const decision = adScheduler.startDownloadAd(actionId);
     if (!decision.allowed) {
-      if (decision.reason === 'global-cooldown' || decision.reason === 'multitag-cooldown') {
+      if (decision.reason === 'global-cooldown' || decision.reason === 'multitag-cooldown' || decision.reason === 'ad-free-entitlement') {
         beginDownloadAfterGate(downloadUrl, type, label, items).finally(() => {
           completedDownloadActionsRef.current.add(actionId);
           pendingDownloadActionRef.current = null;
@@ -542,6 +545,14 @@ export default function DownloaderTemplate({
       }
 
       pendingDownloadActionRef.current = null;
+      return;
+    }
+
+    if (adFree) {
+      beginDownloadAfterGate(downloadUrl, type, label, items).finally(() => {
+        completedDownloadActionsRef.current.add(actionId);
+        pendingDownloadActionRef.current = null;
+      });
       return;
     }
 

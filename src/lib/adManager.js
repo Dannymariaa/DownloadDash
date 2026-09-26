@@ -20,6 +20,10 @@ const loadExternalScript = ({ id, src, parent = document.body, attrs = {}, force
       resolve(null);
       return;
     }
+    if (adScheduler.hasAdFreeEntitlement()) {
+      resolve(null);
+      return;
+    }
 
     const existing = queryScript(id);
     if (existing || adScheduler.hasScriptInjected(id)) {
@@ -92,6 +96,7 @@ export const adManager = {
   },
 
   async loadAdsterraBanner({ unit, container, placementId }) {
+    if (adScheduler.hasAdFreeEntitlement()) return false;
     if (!isBrowser() || !unit || !container) return false;
     if (hasInjectedFrame(container)) return true;
 
@@ -119,6 +124,7 @@ export const adManager = {
   },
 
   async loadAdsterraNative({ container }) {
+    if (adScheduler.hasAdFreeEntitlement()) return false;
     const unit = ADSTERRA_UNITS.nativeBanner;
     if (!isBrowser() || !container) return false;
     if (hasInjectedFrame(container) || container.children.length > 0) return true;
@@ -140,6 +146,7 @@ export const adManager = {
   },
 
   loadMonetag() {
+    if (adScheduler.hasAdFreeEntitlement()) return Promise.resolve(null);
     if (!isBrowser()) return Promise.resolve(null);
     if (!monetagLoadingPromise) {
       monetagLoadingPromise = loadExternalScript({
@@ -159,7 +166,7 @@ export const adManager = {
   },
 
   canTriggerMonetag(now = Date.now()) {
-    if (!isBrowser() || activeBlockingAd) return false;
+    if (!isBrowser() || activeBlockingAd || adScheduler.hasAdFreeEntitlement()) return false;
     const last = Number(sessionStorage.getItem(MONETAG_LAST_TRIGGER_KEY) || 0);
     return (
       adScheduler.canShowNotificationAd(now) &&
@@ -189,6 +196,9 @@ export const adManager = {
   },
 
   startMonetagNotificationScheduler(delayMs = 2500) {
+    if (adScheduler.hasAdFreeEntitlement()) {
+      return { started: false, reason: 'ad-free-entitlement' };
+    }
     return adScheduler.startNotificationScheduler(() => {
       this.triggerMonetag().catch((error) => {
         console.warn('Monetag trigger failed', error);

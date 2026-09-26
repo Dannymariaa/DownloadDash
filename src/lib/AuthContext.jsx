@@ -6,6 +6,7 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [account, setAccount] = useState({ authenticated: false, plan: 'free', entitlements: { adFree: false } });
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
@@ -40,33 +41,36 @@ export const AuthProvider = ({ children }) => {
     try {
       // Now check if the user is authenticated
       setIsLoadingAuth(true);
-      const currentUser = await downloadDash.auth.me();
-      setUser(currentUser);
-      setIsAuthenticated(true);
+      const currentAccount = await downloadDash.auth.me();
+      setAccount({
+        authenticated: Boolean(currentAccount.authenticated),
+        plan: currentAccount.plan || 'free',
+        entitlements: { adFree: Boolean(currentAccount.entitlements?.adFree) },
+        subscription: currentAccount.subscription || null,
+        ...currentAccount,
+      });
+      setUser(currentAccount.authenticated ? currentAccount : null);
+      setIsAuthenticated(Boolean(currentAccount.authenticated));
       setIsLoadingAuth(false);
     } catch (error) {
       console.error('User auth check failed:', error);
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
-      
-      // If user auth fails, it might be an expired token
-      if (error.status === 401 || error.status === 403) {
-        setAuthError({
-          type: 'auth_required',
-          message: 'Authentication required'
-        });
-      }
+      setUser(null);
+      setAccount({ authenticated: false, plan: 'free', entitlements: { adFree: false } });
     }
   };
 
-  const logout = (shouldRedirect = true) => {
+  const logout = async (shouldRedirect = true) => {
+    await downloadDash.auth.logout().catch(() => {});
     setUser(null);
     setIsAuthenticated(false);
+    setAccount({ authenticated: false, plan: 'free', entitlements: { adFree: false } });
     
     if (shouldRedirect) {
-      downloadDash.auth.logout(window.location.href);
+      window.location.href = '/';
     } else {
-      downloadDash.auth.logout();
+      await checkUserAuth();
     }
   };
 
@@ -77,6 +81,10 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={{ 
       user, 
+      account,
+      entitlements: account.entitlements || { adFree: false },
+      plan: account.plan || 'free',
+      isPro: account.plan === 'pro' && Boolean(account.entitlements?.adFree),
       isAuthenticated, 
       isLoadingAuth,
       isLoadingPublicSettings,

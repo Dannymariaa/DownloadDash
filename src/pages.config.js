@@ -109,6 +109,12 @@ const SystemStatus = lazy(() => import('./pages/SystemStatus'));
 const Updates = lazy(() => import('./pages/Updates'));
 const PlatformGuides = lazy(() => import('./pages/PlatformGuides'));
 const AppDownload = lazy(() => import('./pages/AppDownload'));
+const Pricing = lazy(() => import('./pages/Pricing'));
+const Login = lazy(() => import('./pages/Login'));
+const Signup = lazy(() => import('./pages/Signup'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const CheckoutStatus = lazy(() => import('./pages/CheckoutStatus'));
 
 
 export const PAGES = {
@@ -171,6 +177,12 @@ export const PAGES = {
     "Updates": Updates,
     "PlatformGuides": PlatformGuides,
     "AppDownload": AppDownload,
+    "Pricing": Pricing,
+    "Login": Login,
+    "Signup": Signup,
+    "ForgotPassword": ForgotPassword,
+    "ResetPassword": ResetPassword,
+    "CheckoutStatus": CheckoutStatus,
 }
 
 export const pagesConfig = {

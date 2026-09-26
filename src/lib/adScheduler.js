@@ -79,8 +79,10 @@ export function createAdScheduler({
   setTimer = typeof window !== 'undefined' ? window.setTimeout.bind(window) : setTimeout,
   clearTimer = typeof window !== 'undefined' ? window.clearTimeout.bind(window) : clearTimeout,
   deniedDomains = DEFAULT_DENIED_AD_DOMAINS,
+  entitlements = {},
 } = {}) {
   let nowFn = now;
+  let adEntitlements = { adFree: Boolean(entitlements.adFree) };
   let lastAnyAdAt = null;
   let lastMultiTagAt = null;
   let redirectAttemptedThisPage = false;
@@ -117,7 +119,12 @@ export function createAdScheduler({
     }
   };
 
+  const hasAdFreeEntitlement = () => Boolean(adEntitlements.adFree);
+
+  const blockedByAdFree = () => ({ allowed: false, reason: 'ad-free-entitlement' });
+
   const canShowNotificationAd = (at = currentTime()) => {
+    if (hasAdFreeEntitlement()) return false;
     pruneNotificationHistory(at);
     if (notificationActive || activeAd) return false;
     if (notificationHistory.length >= NOTIFICATION_MAX_PER_WINDOW) return false;
@@ -132,6 +139,7 @@ export function createAdScheduler({
   };
 
   const canShowAnyAd = (at = currentTime()) => {
+    if (hasAdFreeEntitlement()) return false;
     if (activeAd) return false;
     return lastAnyAdAt === null || at - lastAnyAdAt >= GLOBAL_INTERRUPTIVE_COOLDOWN_MS;
   };
@@ -141,7 +149,7 @@ export function createAdScheduler({
     return lastMultiTagAt === null || at - lastMultiTagAt >= MULTITAG_MAIN_COOLDOWN_MS;
   };
 
-  const canRedirect = () => !redirectAttemptedThisPage;
+  const canRedirect = () => !hasAdFreeEntitlement() && !redirectAttemptedThisPage;
 
   const startInterruptiveAd = ({
     network,
@@ -150,6 +158,8 @@ export function createAdScheduler({
     actionId,
     timeoutMs = ACTIVE_AD_TIMEOUT_MS,
   }) => {
+    if (hasAdFreeEntitlement()) return blockedByAdFree();
+
     const at = currentTime();
     const isRedirect = REDIRECT_FORMATS.has(format);
 
@@ -192,6 +202,8 @@ export function createAdScheduler({
     actionId,
     timeoutMs = ACTIVE_AD_TIMEOUT_MS,
   } = {}) => {
+    if (hasAdFreeEntitlement()) return blockedByAdFree();
+
     const at = currentTime();
     pruneNotificationHistory(at);
 
@@ -229,6 +241,9 @@ export function createAdScheduler({
   };
 
   const startNotificationScheduler = (callback, intervalMs) => {
+    if (hasAdFreeEntitlement()) {
+      return { started: false, reason: 'ad-free-entitlement' };
+    }
     if (notificationSchedulerTimer) {
       return { started: false, reason: 'already-started' };
     }
@@ -254,6 +269,8 @@ export function createAdScheduler({
   };
 
   const startDownloadAd = (actionId) => {
+    if (hasAdFreeEntitlement()) return blockedByAdFree();
+
     if (!actionId || startedDownloadActions.has(actionId)) {
       return { allowed: false, reason: 'duplicate-download-action' };
     }
@@ -272,6 +289,15 @@ export function createAdScheduler({
     setNow(nextNow) {
       nowFn = nextNow;
     },
+    setAdEntitlements(nextEntitlements = {}) {
+      adEntitlements = { adFree: Boolean(nextEntitlements.adFree) };
+      if (hasAdFreeEntitlement()) {
+        stopNotificationScheduler();
+        finishActiveAd('ad-free-entitlement');
+        notificationActive = false;
+      }
+    },
+    hasAdFreeEntitlement,
     canShowAnyAd,
     canShowMultiTag,
     canShowNotificationAd,
@@ -287,6 +313,7 @@ export function createAdScheduler({
       return false;
     },
     markScriptInjected(id) {
+      if (hasAdFreeEntitlement()) return false;
       if (!id || injectedScripts.has(id)) return false;
       injectedScripts.add(id);
       return true;

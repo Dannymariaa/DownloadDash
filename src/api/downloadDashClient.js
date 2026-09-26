@@ -57,6 +57,22 @@ const buildHeaders = () => {
   };
 };
 
+const accountRequest = async (path, { method = 'GET', body } = {}) => {
+  const res = await fetch(path, {
+    method,
+    credentials: 'include',
+    headers: body ? buildHeaders() : { Accept: 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await tryParseJson(res);
+  if (!res.ok) {
+    const error = new Error(data?.message || data?.error || `Request failed (${res.status})`);
+    error.status = res.status;
+    throw error;
+  }
+  return data;
+};
+
 const safeHeadersForDiagnostics = (headers) =>
   Object.fromEntries(
     Object.entries(headers || {}).map(([key, value]) => [
@@ -1021,11 +1037,23 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
 
 export const downloadDash = {
   auth: {
-    isAuthenticated: async () => true,
-    me: async () => ({ email: 'user@downloaddash.com' }),
-    redirectToLogin: () => {
-      window.location.reload();
+    isAuthenticated: async () => {
+      const account = await accountRequest('/api/account/me');
+      return Boolean(account.authenticated);
     },
+    me: async () => accountRequest('/api/account/me'),
+    signup: async (payload) => accountRequest('/api/account/signup', { method: 'POST', body: payload }),
+    login: async (payload) => accountRequest('/api/account/login', { method: 'POST', body: payload }),
+    forgotPassword: async (payload) => accountRequest('/api/account/forgot-password', { method: 'POST', body: payload }),
+    resetPassword: async (payload) => accountRequest('/api/account/reset-password', { method: 'POST', body: payload }),
+    logout: async () => accountRequest('/api/account/logout', { method: 'POST' }),
+    redirectToLogin: () => {
+      window.location.href = '/login';
+    },
+  },
+  billing: {
+    checkout: async () => accountRequest('/api/billing/checkout', { method: 'POST' }),
+    portal: async () => accountRequest('/api/billing/portal', { method: 'POST' }),
   },
   appLogs: {
     logUserInApp: async () => true,

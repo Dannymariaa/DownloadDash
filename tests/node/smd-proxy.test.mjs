@@ -5,6 +5,15 @@ import handler from '../../api/smd/[...path].js';
 
 const intendedApiEntrypoints = [
   '_downloadDashProxy.js',
+  'account/forgot-password.js',
+  'account/login.js',
+  'account/logout.js',
+  'account/me.js',
+  'account/reset-password.js',
+  'account/signup.js',
+  'billing/checkout.js',
+  'billing/portal.js',
+  'billing/webhook.js',
   'smd/[...path].js',
   'smd/facebook/download.js',
   'smd/health.js',

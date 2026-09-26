@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Bell,
   CheckCircle2,
+  Crown,
   Download,
   FileCheck2,
   Fingerprint,
@@ -21,6 +22,7 @@ import { createPageUrl } from '@/utils';
 import downloadDash from '@/api/downloadDashClient';
 import AdBanner from '@/components/AdBanner';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/AuthContext';
 
 const preferenceCards = [
   {
@@ -112,6 +114,7 @@ const accountGuide = [
 ];
 
 export default function Account() {
+  const { account, isPro, logout, checkAppState } = useAuth();
   const [user, setUser] = useState(null);
   const [downloadCount, setDownloadCount] = useState(0);
   const [savedCount, setSavedCount] = useState(0);
@@ -144,6 +147,25 @@ export default function Account() {
     };
     load();
   }, []);
+
+  const startCheckout = async () => {
+    try {
+      const checkout = await downloadDash.billing.checkout();
+      window.location.href = checkout.checkoutUrl;
+    } catch {
+      window.location.href = '/login?next=/pricing';
+    }
+  };
+
+  const manageSubscription = async () => {
+    const portal = await downloadDash.billing.portal();
+    window.location.href = portal.portalUrl;
+  };
+
+  const handleLogout = async () => {
+    await logout(false);
+    await checkAppState();
+  };
 
   const profileItems = useMemo(
     () => [
@@ -187,18 +209,31 @@ export default function Account() {
                     Sign in to manage account
                   </Button>
                 ) : (
-                  <Button className="bg-emerald-500 text-black hover:bg-emerald-400" asChild>
-                    <Link to={createPageUrl('Dashboard')}>
-                      <MonitorSmartphone className="mr-2 h-4 w-4" />
-                      Open Dashboard
-                    </Link>
-                  </Button>
+                  <>
+                    <Button className="bg-emerald-500 text-black hover:bg-emerald-400" asChild>
+                      <Link to={createPageUrl('Dashboard')}>
+                        <MonitorSmartphone className="mr-2 h-4 w-4" />
+                        Open Dashboard
+                      </Link>
+                    </Button>
+                    {isPro ? (
+                      <Button variant="outline" className="border-emerald-300/40 text-emerald-200 hover:bg-emerald-400/10" onClick={manageSubscription}>
+                        <Crown className="mr-2 h-4 w-4" />
+                        Manage subscription
+                      </Button>
+                    ) : (
+                      <Button variant="outline" className="border-white/20 text-white hover:bg-white/10" onClick={startCheckout}>
+                        <Crown className="mr-2 h-4 w-4" />
+                        Upgrade to Pro
+                      </Button>
+                    )}
+                  </>
                 )}
                 {!isGuestView && (
                   <Button
                     variant="outline"
                     className="border-white/20 text-white hover:bg-white/10"
-                    onClick={() => downloadDash.auth.logout()}
+                    onClick={handleLogout}
                   >
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
@@ -208,6 +243,22 @@ export default function Account() {
             </div>
 
             <div className="rounded-xl border border-white/10 bg-zinc-950/80 p-5">
+              <div className="mb-4 rounded-lg border border-emerald-300/20 bg-black/40 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm text-gray-400">Current plan</div>
+                    <div className="mt-1 flex items-center gap-2 text-xl font-bold">
+                      {isPro ? 'DownloadDash Pro' : 'DownloadDash Free'}
+                      {isPro && <span className="rounded-full border border-emerald-300/40 px-2 py-0.5 text-[10px] font-bold text-emerald-200">PRO</span>}
+                    </div>
+                  </div>
+                  <Crown className={isPro ? 'h-6 w-6 text-emerald-300' : 'h-6 w-6 text-gray-500'} />
+                </div>
+                <div className="mt-3 text-sm text-gray-400">
+                  Status: {account?.subscription?.status || (isGuestView ? 'Guest Free' : 'Free')}
+                  {account?.subscription?.currentPeriodEnd ? ` · Renews/expires ${new Date(account.subscription.currentPeriodEnd).toLocaleDateString()}` : ''}
+                </div>
+              </div>
               <div className="space-y-3">
                 {profileItems.map(({ label, value, icon: Icon }) => (
                   <div key={label} className="rounded-lg border border-white/10 bg-black/40 p-4">

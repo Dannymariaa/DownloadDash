@@ -58,6 +58,12 @@ export const PAGE_ROUTES: Record<string, string> = {
   Updates: '/updates',
   PlatformGuides: '/platform-guides',
   AppDownload: '/android-app',
+  Pricing: '/pricing',
+  Login: '/login',
+  Signup: '/signup',
+  ForgotPassword: '/forgot-password',
+  ResetPassword: '/reset-password',
+  CheckoutStatus: '/checkout-status',
 };
 
 const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
@@ -120,6 +126,12 @@ const LEGACY_PAGE_ROUTES: Record<string, string[]> = {
   Updates: ['/Updates'],
   PlatformGuides: ['/PlatformGuides'],
   AppDownload: ['/AppDownload', '/download-app'],
+  Pricing: ['/Pricing'],
+  Login: ['/Login'],
+  Signup: ['/Signup'],
+  ForgotPassword: ['/ForgotPassword'],
+  ResetPassword: ['/ResetPassword'],
+  CheckoutStatus: ['/CheckoutStatus'],
 };
 
 const normalizePath = (path: string) => {

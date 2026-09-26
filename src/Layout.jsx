@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck, ChevronDown, Settings2, Bell } from 'lucide-react';
+import { Menu, X, Home, Download, User, LogIn, Bookmark, History, FileText, LifeBuoy, ShieldCheck, ChevronDown, Settings2, Bell, Crown } from 'lucide-react';
 import {
   FacebookIcon,
   InstagramIcon,
@@ -12,9 +12,9 @@ import {
   YouTubeIcon,
 } from '@/components/PlatformIcons';
 import { Button } from '@/components/ui/button';
-import downloadDash from '@/api/downloadDashClient';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useI18n } from '@/lib/i18n';
+import { useAuth } from '@/lib/AuthContext';
 
 const platformNavItems = [
   { page: 'YouTubeDownloader', label: 'YouTube', Icon: YouTubeIcon, hover: 'hover:text-red-400', mobileHover: 'hover:bg-red-500/20' },
@@ -288,6 +288,15 @@ const getPageTheme = (pageName) => {
       ribbonTitle: 'Notification Center',
       ribbonBody: 'This page controls glowing popup alerts for web app and mobile app updates.',
     },
+    Pricing: {
+      border: 'border-emerald-400/20',
+      accentText: 'text-emerald-300',
+      brand: 'from-emerald-300 to-cyan-300',
+      badgeBg: 'bg-emerald-400/10',
+      badgeBorder: 'border-emerald-400/25',
+      ribbonTitle: 'DownloadDash Pro',
+      ribbonBody: 'Compare Free and Pro without interrupting the downloader.',
+    },
   };
 
   return themes[pageName] || themes.Home;
@@ -296,20 +305,10 @@ const getPageTheme = (pageName) => {
 export default function Layout({ children, currentPageName }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isPlatformsOpen, setIsPlatformsOpen] = useState(false);
-  const [user, setUser] = useState(null);
+  const { user, isPro } = useAuth();
   const { t } = useI18n();
   const theme = useMemo(() => getPageTheme(currentPageName), [currentPageName]);
   const showRibbon = Boolean(theme.ribbonTitle && currentPageName && currentPageName !== 'Home');
-
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const isAuth = await downloadDash.auth.isAuthenticated();
-        if (isAuth) setUser(await downloadDash.auth.me());
-      } catch {}
-    };
-    loadUser();
-  }, []);
 
   return (
     <div className="min-h-screen bg-black">
@@ -406,6 +405,9 @@ export default function Layout({ children, currentPageName }) {
               <Link to={createPageUrl('Notifications')} className="text-gray-300 hover:text-purple-200 transition-colors flex items-center gap-2">
                 <Bell className="h-4 w-4" /> Notifications
               </Link>
+              <Link to={createPageUrl('Pricing')} className="text-gray-300 hover:text-emerald-300 transition-colors flex items-center gap-2">
+                <Crown className="h-4 w-4" /> Pro
+              </Link>
             </nav>
 
             <div className="flex items-center gap-3">
@@ -418,11 +420,14 @@ export default function Layout({ children, currentPageName }) {
                 >
                   <Button variant="ghost" className="hidden sm:flex items-center gap-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/20">
                     <User className="h-4 w-4" /> {user.full_name?.split(' ')[0] || t('nav.account')}
+                    {isPro && <span className="rounded-full border border-emerald-300/40 px-2 py-0.5 text-[10px] font-bold text-emerald-200">PRO</span>}
                   </Button>
                 </Link>
               ) : (
-                <Button onClick={() => downloadDash.auth.redirectToLogin()} className="hidden sm:flex bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90">
+                <Button asChild className="hidden sm:flex bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90">
+                  <Link to={createPageUrl('Login')}>
                   <LogIn className="mr-2 h-4 w-4" /> {t('nav.login')}
+                  </Link>
                 </Button>
               )}
               <Button
@@ -480,8 +485,10 @@ export default function Layout({ children, currentPageName }) {
                   </Link>
                   </>
                 ) : (
-                  <Button onClick={() => { downloadDash.auth.redirectToLogin(); setIsMenuOpen(false); }} className="w-full bg-gradient-to-r from-purple-600 to-pink-600">
+                  <Button asChild className="w-full bg-gradient-to-r from-purple-600 to-pink-600">
+                    <Link to={createPageUrl('Login')} onClick={() => setIsMenuOpen(false)}>
                     <LogIn className="mr-2 h-4 w-4" /> {t('nav.loginSignup')}
+                    </Link>
                   </Button>
                 )}
                 <Link to={createPageUrl('Settings')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-blue-500/20" onClick={() => setIsMenuOpen(false)}>
@@ -489,6 +496,10 @@ export default function Layout({ children, currentPageName }) {
                 </Link>
                 <Link to={createPageUrl('Notifications')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-purple-500/20" onClick={() => setIsMenuOpen(false)}>
                   <Bell className="h-5 w-5" /> Notifications
+                </Link>
+                <Link to={createPageUrl('Pricing')} className="flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:text-white hover:bg-emerald-500/20" onClick={() => setIsMenuOpen(false)}>
+                  <Crown className="h-5 w-5" /> DownloadDash Pro
+                  {isPro && <span className="ml-auto rounded-full border border-emerald-300/40 px-2 py-0.5 text-[10px] font-bold text-emerald-200">PRO</span>}
                 </Link>
               </nav>
             </div>
@@ -554,6 +565,7 @@ export default function Layout({ children, currentPageName }) {
                 <Link to={createPageUrl('Dashboard')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.dashboard')}</Link>
                 <Link to={createPageUrl('Settings')} className="block text-gray-400 hover:text-blue-300 text-sm">Settings</Link>
                 <Link to={createPageUrl('Notifications')} className="block text-gray-400 hover:text-purple-200 text-sm">Notifications</Link>
+                <Link to={createPageUrl('Pricing')} className="block text-gray-400 hover:text-emerald-300 text-sm">DownloadDash Pro</Link>
                 <Link to={createPageUrl('RecommendedApps')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.guides')}</Link>
                 <Link to={createPageUrl('HowDownloadDashWorks')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.howItWorks')}</Link>
                 <Link to={createPageUrl('SupportedPlatforms')} className="block text-gray-400 hover:text-purple-400 text-sm">{t('nav.supportedPlatforms')}</Link>
