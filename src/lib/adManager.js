@@ -161,12 +161,16 @@ export const adManager = {
   canTriggerMonetag(now = Date.now()) {
     if (!isBrowser() || activeBlockingAd) return false;
     const last = Number(sessionStorage.getItem(MONETAG_LAST_TRIGGER_KEY) || 0);
-    return adScheduler.canShowMultiTag(now) && (!last || now - last >= MONETAG_CONFIG.minIntervalMs);
+    return (
+      adScheduler.canShowNotificationAd(now) &&
+      adScheduler.canShowMultiTag(now) &&
+      (!last || now - last >= MONETAG_CONFIG.minIntervalMs)
+    );
   },
 
   async triggerMonetag() {
     if (!this.canTriggerMonetag()) return false;
-    const decision = adScheduler.startInterruptiveAd({
+    const decision = adScheduler.startNotificationAd({
       network: AD_NETWORKS.MONETAG,
       format: AD_FORMATS.MULTITAG,
     });
@@ -179,9 +183,21 @@ export const adManager = {
       return true;
     } finally {
       window.setTimeout(() => {
-        adScheduler.finishActiveAd('monetag-ready');
+        adScheduler.finishNotificationAd('monetag-ready');
       }, 1500);
     }
+  },
+
+  startMonetagNotificationScheduler(delayMs = 2500) {
+    return adScheduler.startNotificationScheduler(() => {
+      this.triggerMonetag().catch((error) => {
+        console.warn('Monetag trigger failed', error);
+      });
+    }, delayMs);
+  },
+
+  stopMonetagNotificationScheduler() {
+    return adScheduler.stopNotificationScheduler();
   },
 };
 

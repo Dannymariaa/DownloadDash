@@ -130,6 +130,99 @@ test('duplicate render does not inject duplicate scripts', () => {
   assert.equal(scheduler.markScriptInjected('adsterra:banner:top'), true);
 });
 
+test('notification ads obey a rolling 2 per 5 minutes limit with a 2 minute minimum gap', () => {
+  const scheduler = createAdScheduler({ now: () => 0 });
+
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+  scheduler.finishNotificationAd('closed');
+
+  scheduler.setNow(() => 1_000);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+
+  scheduler.setNow(() => 30_000);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+
+  scheduler.setNow(() => 119_000);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+
+  scheduler.setNow(() => 120_000);
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+  scheduler.finishNotificationAd('closed');
+
+  scheduler.setNow(() => 121_000);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+
+  scheduler.setNow(() => 299_000);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+
+  scheduler.setNow(() => 300_001);
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+});
+
+test('notification rolling window blocks until the oldest timestamp expires', () => {
+  const scheduler = createAdScheduler({ now: () => 10 * 60 * 1000 });
+
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+  scheduler.finishNotificationAd('closed');
+
+  scheduler.setNow(() => 12 * 60 * 1000 + 10_000);
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+  scheduler.finishNotificationAd('closed');
+
+  scheduler.setNow(() => 13 * 60 * 1000);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+
+  scheduler.setNow(() => 15 * 60 * 1000 + 1);
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+});
+
+test('notification active lock blocks simultaneous notification ads', () => {
+  const scheduler = createAdScheduler({ now: () => 0 });
+
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+});
+
+test('100 notification triggers in one second allow at most one notification', () => {
+  const scheduler = createAdScheduler({ now: () => 0 });
+  let allowed = 0;
+
+  for (let index = 0; index < 100; index += 1) {
+    if (scheduler.startNotificationAd().allowed) allowed += 1;
+  }
+
+  assert.equal(allowed, 1);
+});
+
+test('notification route changes preserve limiter history', () => {
+  const scheduler = createAdScheduler({ now: () => 0 });
+
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+  scheduler.finishNotificationAd('closed');
+  scheduler.noteSpaNavigation('/notifications');
+
+  scheduler.setNow(() => 60_000);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+});
+
+test('notification scheduler creates only one timer across rerenders', () => {
+  let timerCount = 0;
+  const scheduler = createAdScheduler({
+    now: () => 0,
+    setTimer: () => {
+      timerCount += 1;
+      return timerCount;
+    },
+    clearTimer: () => {},
+  });
+
+  const callback = () => {};
+  assert.equal(scheduler.startNotificationScheduler(callback, 1000).started, true);
+  assert.equal(scheduler.startNotificationScheduler(callback, 1000).started, false);
+  assert.equal(timerCount, 1);
+  assert.equal(scheduler.snapshot().notificationSchedulerActive, true);
+});
+
 test('active ad blocks another interruptive ad', () => {
   const scheduler = createAdScheduler({ now: () => 0 });
 

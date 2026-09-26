@@ -1,5 +1,8 @@
 export const GLOBAL_INTERRUPTIVE_COOLDOWN_MS = 2 * 60 * 1000;
 export const MULTITAG_MAIN_COOLDOWN_MS = 5 * 60 * 1000;
+export const NOTIFICATION_MIN_GAP_MS = 2 * 60 * 1000;
+export const NOTIFICATION_WINDOW_MS = 5 * 60 * 1000;
+export const NOTIFICATION_MAX_PER_WINDOW = 2;
 export const ACTIVE_AD_TIMEOUT_MS = 45 * 1000;
 
 export const AD_NETWORKS = {
@@ -14,6 +17,7 @@ export const AD_FORMATS = {
   POPUNDER: 'popunder',
   DIRECT_LINK: 'direct-link',
   INTERSTITIAL: 'interstitial',
+  NOTIFICATION: 'notification',
 };
 
 const REDIRECT_FORMATS = new Set([
@@ -82,6 +86,10 @@ export function createAdScheduler({
   let redirectAttemptedThisPage = false;
   let activeAd = null;
   let activeTimer = null;
+  let notificationActive = false;
+  let notificationSchedulerTimer = null;
+  let notificationSchedulerCallback = null;
+  const notificationHistory = [];
   const injectedScripts = new Set();
   const startedDownloadActions = new Set();
 
@@ -101,6 +109,26 @@ export function createAdScheduler({
       activeAd.finishReason = reason;
     }
     activeAd = null;
+  };
+
+  const pruneNotificationHistory = (at = currentTime()) => {
+    while (notificationHistory.length > 0 && at - notificationHistory[0] >= NOTIFICATION_WINDOW_MS) {
+      notificationHistory.shift();
+    }
+  };
+
+  const canShowNotificationAd = (at = currentTime()) => {
+    pruneNotificationHistory(at);
+    if (notificationActive || activeAd) return false;
+    if (notificationHistory.length >= NOTIFICATION_MAX_PER_WINDOW) return false;
+
+    const lastNotificationAt = notificationHistory.at(-1) ?? null;
+    return lastNotificationAt === null || at - lastNotificationAt >= NOTIFICATION_MIN_GAP_MS;
+  };
+
+  const finishNotificationAd = (reason = 'finished') => {
+    notificationActive = false;
+    finishActiveAd(reason);
   };
 
   const canShowAnyAd = (at = currentTime()) => {
@@ -158,6 +186,73 @@ export function createAdScheduler({
     return { allowed: true, reason: 'allowed', activeAd: { ...activeAd } };
   };
 
+  const startNotificationAd = ({
+    network = AD_NETWORKS.MONETAG,
+    format = AD_FORMATS.NOTIFICATION,
+    actionId,
+    timeoutMs = ACTIVE_AD_TIMEOUT_MS,
+  } = {}) => {
+    const at = currentTime();
+    pruneNotificationHistory(at);
+
+    if (notificationActive || activeAd) return { allowed: false, reason: 'active-notification' };
+    if (notificationHistory.length >= NOTIFICATION_MAX_PER_WINDOW) {
+      return { allowed: false, reason: 'notification-window-limit' };
+    }
+
+    const lastNotificationAt = notificationHistory.at(-1) ?? null;
+    if (lastNotificationAt !== null && at - lastNotificationAt < NOTIFICATION_MIN_GAP_MS) {
+      return { allowed: false, reason: 'notification-min-gap' };
+    }
+
+    if (!canShowAnyAd(at)) return { allowed: false, reason: 'global-cooldown' };
+
+    lastAnyAdAt = at;
+    if (format === AD_FORMATS.MULTITAG || network === AD_NETWORKS.MONETAG) {
+      lastMultiTagAt = at;
+    }
+    notificationHistory.push(at);
+    notificationActive = true;
+    activeAd = {
+      network,
+      format,
+      actionId: actionId || null,
+      startedAt: at,
+      notification: true,
+    };
+
+    clearActiveTimer();
+    activeTimer = setTimer(() => finishNotificationAd('timeout'), timeoutMs);
+    if (typeof activeTimer?.unref === 'function') activeTimer.unref();
+
+    return { allowed: true, reason: 'allowed', activeAd: { ...activeAd } };
+  };
+
+  const startNotificationScheduler = (callback, intervalMs) => {
+    if (notificationSchedulerTimer) {
+      return { started: false, reason: 'already-started' };
+    }
+    if (typeof callback !== 'function' || !Number.isFinite(intervalMs) || intervalMs <= 0) {
+      return { started: false, reason: 'invalid-scheduler' };
+    }
+
+    notificationSchedulerCallback = callback;
+    notificationSchedulerTimer = setTimer(() => {
+      notificationSchedulerTimer = null;
+      notificationSchedulerCallback?.();
+    }, intervalMs);
+    if (typeof notificationSchedulerTimer?.unref === 'function') notificationSchedulerTimer.unref();
+    return { started: true, reason: 'started' };
+  };
+
+  const stopNotificationScheduler = () => {
+    if (!notificationSchedulerTimer) return false;
+    clearTimer(notificationSchedulerTimer);
+    notificationSchedulerTimer = null;
+    notificationSchedulerCallback = null;
+    return true;
+  };
+
   const startDownloadAd = (actionId) => {
     if (!actionId || startedDownloadActions.has(actionId)) {
       return { allowed: false, reason: 'duplicate-download-action' };
@@ -179,8 +274,13 @@ export function createAdScheduler({
     },
     canShowAnyAd,
     canShowMultiTag,
+    canShowNotificationAd,
     canRedirect,
     startInterruptiveAd,
+    startNotificationAd,
+    finishNotificationAd,
+    startNotificationScheduler,
+    stopNotificationScheduler,
     startDownloadAd,
     finishActiveAd,
     noteSpaNavigation() {
@@ -203,6 +303,10 @@ export function createAdScheduler({
         lastMultiTagAt,
         redirectAttemptedThisPage,
         activeAd: activeAd ? { ...activeAd } : null,
+        notificationHistory: [...notificationHistory],
+        lastNotificationAt: notificationHistory.at(-1) ?? null,
+        notificationActive,
+        notificationSchedulerActive: Boolean(notificationSchedulerTimer),
         startedDownloadActions: [...startedDownloadActions],
         injectedScripts: [...injectedScripts],
       };
