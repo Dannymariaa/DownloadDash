@@ -95,6 +95,32 @@ class ResolverErrorClassificationTests(unittest.TestCase):
         self.assertTrue(state["loaded"])
         self.assertEqual(state["cookieCount"], 2)
         self.assertEqual(state["expired"], "YES")
+        self.assertEqual(state["expiredCookieCount"], 2)
+        self.assertEqual(state["nonExpiredCookieCount"], 0)
+        self.assertEqual(state["earliestExpiry"], 1)
+        self.assertEqual(state["latestExpiry"], 1)
+
+    def test_cookie_state_reports_partial_expiry_without_cookie_names(self):
+        with TemporaryDirectory() as temp_dir:
+            cookiefile = Path(temp_dir) / "cookies.txt"
+            cookiefile.write_text(
+                "# Netscape HTTP Cookie File\n"
+                ".x.com\tTRUE\t/\tTRUE\t1\tauth_token\tredacted\n"
+                ".x.com\tTRUE\t/\tTRUE\t4102444800\tct0\tredacted\n"
+                ".x.com\tTRUE\t/\tTRUE\t0\tguest_id\tredacted\n",
+                encoding="utf-8",
+            )
+
+            state = inspect_netscape_cookiefile(str(cookiefile))
+
+        self.assertEqual(state["cookieCount"], 3)
+        self.assertEqual(state["expiredCookieCount"], 1)
+        self.assertEqual(state["nonExpiredCookieCount"], 1)
+        self.assertEqual(state["sessionCookieCount"], 1)
+        self.assertEqual(state["expired"], "PARTIAL")
+        self.assertEqual(state["earliestExpiry"], 1)
+        self.assertEqual(state["latestExpiry"], 4102444800)
+        self.assertNotIn("auth_token", str(state))
 
     def test_x_cookie_required_promotes_to_cookie_expired_when_cookiefile_is_stale(self):
         class UniversalStub:
@@ -127,6 +153,23 @@ class ResolverErrorClassificationTests(unittest.TestCase):
 
         self.assertFalse(response.success)
         self.assertEqual(response.error_code, "COOKIE_EXPIRED")
+
+    def test_x_login_and_empty_metadata_are_not_extractor_outdated(self):
+        cases = [
+            ("Twitter/X login required. Please use --cookies", "COOKIE_REQUIRED"),
+            ("gallery-dl returned metadata with zero entries", "EXTRACTOR_FAILED"),
+            ("HTTP Error 429: Too Many Requests", "RATE_LIMITED"),
+            ("HTTP Error 403: Forbidden", "PLATFORM_BLOCKED_PROXY"),
+        ]
+
+        for raw_error, expected in cases:
+            with self.subTest(raw_error=raw_error):
+                self.assertEqual(classify_resolver_error(Platform.X, raw_error), expected)
+
+    def test_x_schema_breakage_can_still_be_extractor_outdated(self):
+        raw_error = "Twitter said: Unable to extract GraphQL data; please report this issue on https://github.com/yt-dlp/yt-dlp"
+
+        self.assertEqual(classify_resolver_error(Platform.X, raw_error), "EXTRACTOR_OUTDATED")
 
 
 if __name__ == "__main__":

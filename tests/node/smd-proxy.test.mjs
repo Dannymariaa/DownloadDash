@@ -635,6 +635,33 @@ test('health route can safely probe upstream reachability on request', async () 
   });
 });
 
+test('upstream health timeout remains truthful and bounded', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async (_url, init) => {
+      await new Promise((resolve, reject) => {
+        init.signal.addEventListener(
+          'abort',
+          () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })),
+          { once: true }
+        );
+      });
+    };
+
+    const startedAt = Date.now();
+    const res = await request({ path: 'health', method: 'GET', query: { upstream: '1' } });
+    const body = readJson(res);
+    const elapsed = Date.now() - startedAt;
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.upstreamReachable, false);
+    assert.equal(body.upstreamStatus, null);
+    assert.ok(body.upstreamLatencyMs >= 1_000);
+    assert.ok(body.upstreamLatencyMs < 6_000);
+    assert.ok(elapsed < 6_500);
+  });
+});
+
 test('diagnostics route forwards sanitized provider probes through server-side auth', async () => {
   await withProxyEnv(async () => {
     globalThis.fetch = async (url, init) => {

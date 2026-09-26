@@ -316,15 +316,13 @@ async def root():
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    wa_status = await whatsapp_downloader.get_connection_status()
-    wa_business_status = await whatsapp_business_downloader.get_connection_status()
     return {
         "status": "healthy",
         "timestamp": time.time(),
         "services": {
             "telegram": telegram_downloader.is_connected if hasattr(telegram_downloader, "is_connected") else False,
-            "whatsapp": bool(wa_status.get("connected")),
-            "whatsapp_business": bool(wa_business_status.get("connected")),
+            "whatsapp": "not_checked",
+            "whatsapp_business": "not_checked",
         }
     }
 

@@ -1,8 +1,10 @@
 import asyncio
 import importlib.metadata
+import os
 from typing import Any
 
 import httpx
+import yt_dlp
 from fastapi import APIRouter, Query
 
 from app.api.cookie_state import inspect_netscape_cookiefile
@@ -69,6 +71,115 @@ def _summarize_gallery_result(result: Any) -> dict[str, Any]:
         "types": item_summary["types"],
         "source": "gallery-dl",
     }
+
+
+def _direct_url_count(info: Any) -> int:
+    count = 0
+    if isinstance(info, dict):
+        if info.get("url"):
+            count += 1
+        formats = info.get("formats")
+        if isinstance(formats, list):
+            count += sum(1 for item in formats if isinstance(item, dict) and item.get("url"))
+        entries = info.get("entries")
+        if isinstance(entries, list):
+            count += sum(_direct_url_count(entry) for entry in entries)
+    return count
+
+
+def _entry_count(info: Any) -> int:
+    if isinstance(info, dict) and isinstance(info.get("entries"), list):
+        return len(info["entries"])
+    return 0
+
+
+def _formats_count(info: Any) -> int:
+    if isinstance(info, dict) and isinstance(info.get("formats"), list):
+        return len(info["formats"])
+    return 0
+
+
+def _extractor_name(info: Any) -> str | None:
+    if not isinstance(info, dict):
+        return None
+    return info.get("extractor_key") or info.get("extractor")
+
+
+async def _probe_ytdlp_trace(url: str, platform: Platform, cookie_state: dict[str, Any]) -> dict[str, Any]:
+    cookiefile = public_downloader._cookiefile_for_url(url)
+    proxy_url = public_downloader.proxy_urls.get("x") or public_downloader.proxy_urls.get("twitter") or public_downloader.proxy_urls.get("default")
+    opts: dict[str, Any] = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "ignore_no_formats_error": True,
+        "noplaylist": True,
+        "socket_timeout": 12,
+        "extract_flat": False,
+        "http_headers": public_downloader._build_http_headers(url),
+    }
+    if cookiefile and os.path.exists(cookiefile):
+        opts["cookiefile"] = cookiefile
+    if proxy_url:
+        opts["proxy"] = proxy_url
+
+    trace: dict[str, Any] = {
+        "attempted": True,
+        "extractor": None,
+        "metadataSucceeded": False,
+        "entryCount": 0,
+        "formatsCount": 0,
+        "directMediaUrlCount": 0,
+        "cookieFileApplied": bool(opts.get("cookiefile")),
+        "nonExpiredCookieRows": int(cookie_state.get("nonExpiredCookieCount") or 0),
+        "providerStatusCategory": "UNKNOWN",
+    }
+
+    def extract_info() -> Any:
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            return ydl.extract_info(url, download=False)
+
+    try:
+        info = await asyncio.get_event_loop().run_in_executor(None, extract_info)
+        trace.update(
+            {
+                "extractor": _extractor_name(info),
+                "metadataSucceeded": bool(info),
+                "entryCount": _entry_count(info),
+                "formatsCount": _formats_count(info),
+                "directMediaUrlCount": _direct_url_count(info),
+                "providerStatusCategory": "OK",
+            }
+        )
+    except Exception as exc:
+        sanitized = sanitize_provider_error(str(exc))
+        error_code = _promote_cookie_error(platform, classify_resolver_error(platform, sanitized), cookie_state)
+        lower = sanitized.lower()
+        if any(token in lower for token in ("401", "login", "cookie", "unauthorized", "sign in")):
+            category = "AUTH"
+        elif any(token in lower for token in ("429", "rate limit", "too many requests")):
+            category = "RATE_LIMIT"
+        elif any(token in lower for token in ("403", "forbidden", "blocked")):
+            category = "BLOCKED"
+        elif any(token in lower for token in ("timed out", "timeout")):
+            category = "TIMEOUT"
+        elif any(token in lower for token in ("please report this issue", "unable to extract", "extractor")):
+            category = "SCHEMA_OR_EXTRACTOR"
+        elif any(token in lower for token in ("not found", "does not exist", "deleted", "removed")):
+            category = "NOT_FOUND"
+        else:
+            category = "FAILED"
+        trace.update(
+            {
+                "errorClass": type(exc).__name__,
+                "errorCode": error_code,
+                "sanitizedFailure": sanitized[:500],
+                "providerStatusCategory": category,
+                "classifierRule": error_code,
+            }
+        )
+
+    return trace
 
 
 def _promote_cookie_error(platform: Platform, code: str, cookie_state: dict[str, Any]) -> str:
@@ -151,6 +262,8 @@ async def provider_diagnostics(
         response["galleryDlProxyProbe"] = await _probe_proxy(gallery_proxy_url)
 
     if run_resolver and url:
+        if platform_value in (Platform.X, Platform.TWITTER):
+            response["ytDlpTrace"] = await _probe_ytdlp_trace(url, platform_value, ytdlp_cookie_state)
         try:
             result = await universal_downloader.resolve_media(
                 url=url,
@@ -169,6 +282,8 @@ async def provider_diagnostics(
                 "summary": {"metadataReturned": False, "directUrlReturned": False, "entryCount": 0},
                 "errorClass": type(exc).__name__,
                 "errorCode": _promote_cookie_error(platform_value, error_code, ytdlp_cookie_state),
+                "sanitizedFailure": sanitized[:500],
+                "classifierRule": _promote_cookie_error(platform_value, error_code, ytdlp_cookie_state),
             }
 
     if run_gallery and url:
@@ -178,6 +293,8 @@ async def provider_diagnostics(
                 "attempted": True,
                 "summary": _summarize_gallery_result(gallery_result),
             }
+            if not (gallery_result.get("items") if isinstance(gallery_result, dict) else None):
+                response["galleryDl"]["zeroEntryFailure"] = "ZERO_ENTRIES"
         except Exception as exc:
             sanitized = sanitize_provider_error(str(exc))
             error_code = classify_resolver_error(platform_value, sanitized)
@@ -186,6 +303,8 @@ async def provider_diagnostics(
                 "summary": {"metadataReturned": False, "entryCount": 0},
                 "errorClass": type(exc).__name__,
                 "errorCode": _promote_cookie_error(platform_value, error_code, gallery_cookie_state),
+                "sanitizedFailure": sanitized[:500],
+                "classifierRule": _promote_cookie_error(platform_value, error_code, gallery_cookie_state),
             }
 
     # Yield once so slow probes do not monopolize the event loop in single-worker runs.
