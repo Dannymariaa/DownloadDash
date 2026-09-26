@@ -65,6 +65,16 @@ def classify_resolver_error(platform: Platform | str | None, raw_error: Optional
     if any(token in text for token in ("cookie expired", "expired cookie", "session expired", "login session has expired")):
         return "COOKIE_EXPIRED"
 
+    if platform_key in {"twitter", "x"} and any(
+        token in text
+        for token in (
+            "temporarily locked",
+            "unlock your account",
+            "authorization: denied by access control",
+        )
+    ):
+        return "LOGIN_REQUIRED"
+
     if any(token in text for token in ("html_kind=challenge", "checkpoint", "challenge", "captcha")):
         return "ANTI_BOT_CHALLENGE"
 

@@ -155,7 +155,20 @@ async def _probe_ytdlp_trace(url: str, platform: Platform, cookie_state: dict[st
         sanitized = sanitize_provider_error(str(exc))
         error_code = _promote_cookie_error(platform, classify_resolver_error(platform, sanitized), cookie_state)
         lower = sanitized.lower()
-        if any(token in lower for token in ("401", "login", "cookie", "unauthorized", "sign in")):
+        if any(
+            token in lower
+            for token in (
+                "401",
+                "login",
+                "log in",
+                "cookie",
+                "unauthorized",
+                "authorization",
+                "sign in",
+                "temporarily locked",
+                "unlock your account",
+            )
+        ):
             category = "AUTH"
         elif any(token in lower for token in ("429", "rate limit", "too many requests")):
             category = "RATE_LIMIT"

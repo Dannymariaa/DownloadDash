@@ -157,6 +157,12 @@ class ResolverErrorClassificationTests(unittest.TestCase):
     def test_x_login_and_empty_metadata_are_not_extractor_outdated(self):
         cases = [
             ("Twitter/X login required. Please use --cookies", "COOKIE_REQUIRED"),
+            (
+                "Authorization: Denied by access control: To protect our users from spam and other malicious activity, "
+                "this account is temporarily locked. Please log in to https://twitter.com to unlock your account.; "
+                "please report this issue on https://github.com/yt-dlp/yt-dlp/issues",
+                "LOGIN_REQUIRED",
+            ),
             ("gallery-dl returned metadata with zero entries", "EXTRACTOR_FAILED"),
             ("HTTP Error 429: Too Many Requests", "RATE_LIMITED"),
             ("HTTP Error 403: Forbidden", "PLATFORM_BLOCKED_PROXY"),
