@@ -2,7 +2,10 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from app.api.shared import _gallery_result_is_richer, _should_try_gallery_enrichment
+from fastapi import BackgroundTasks
+
+from app.api.shared import _gallery_result_is_richer, _should_try_gallery_enrichment, download_public
+from app.models.schemas import DownloadRequest
 from app.models.schemas import MediaType, Platform, Quality
 from app.platforms.public_platforms import PublicPlatformDownloader
 from app.platforms.universal_downloader import UniversalMediaDownloader
@@ -289,6 +292,43 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         }
 
         self.assertFalse(_gallery_result_is_richer(result, equal_gallery))
+
+    def test_pinterest_video_item_does_not_populate_image_download(self):
+        class UniversalStub:
+            async def resolve_media(self, *args, **kwargs):
+                return {
+                    "direct_url": "https://v.pinimg.com/video.m3u8",
+                    "title": "Pinterest video",
+                    "thumbnail": "https://i.pinimg.com/thumb.jpg",
+                    "ext": "mp4",
+                    "kind": "video",
+                    "downloads": {
+                        "videoHD": "https://v.pinimg.com/video.m3u8",
+                        "videoSD": "https://v.pinimg.com/video.m3u8",
+                        "items": [{
+                            "type": "video",
+                            "url": "https://v.pinimg.com/video.m3u8",
+                            "thumbnail": "https://i.pinimg.com/thumb.jpg",
+                            "extension": "mp4",
+                        }],
+                    },
+                }
+
+        request = DownloadRequest(
+            url="https://www.pinterest.com/pin/123/",
+            platform=Platform.PINTEREST,
+            quality=Quality.HIGHEST,
+            include_metadata=True,
+        )
+
+        with patch("app.api.shared.universal_downloader", UniversalStub()):
+            response = asyncio.run(download_public(Platform.PINTEREST, request, BackgroundTasks()))
+
+        self.assertTrue(response.success)
+        self.assertEqual(response.media_info.media_type, MediaType.VIDEO)
+        self.assertEqual(response.downloads["videoHD"], "https://v.pinimg.com/video.m3u8")
+        self.assertEqual(response.downloads["items"][0]["type"], "video")
+        self.assertNotIn("image", response.downloads)
 
 
 if __name__ == "__main__":

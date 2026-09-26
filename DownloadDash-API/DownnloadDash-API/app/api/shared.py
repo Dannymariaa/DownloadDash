@@ -346,7 +346,9 @@ async def download_public(
 
     if image_items:
         downloads["items"] = image_items
-        downloads["image"] = downloads.get("image") or image_items[0]["url"]
+        first_image_item = next((item for item in image_items if item.get("type") == "image"), None)
+        if first_image_item:
+            downloads["image"] = downloads.get("image") or first_image_item["url"]
         if len(image_items) > 1 and kind in {"image", "album", "carousel", "post", "unknown"}:
             kind = "album"
 
