@@ -40,5 +40,5 @@ export const ADSTERRA_BREAKPOINT = 768;
 export const MONETAG_CONFIG = {
   scriptSrc: 'https://quge5.com/88/tag.min.js',
   zone: '246109',
-  minIntervalMs: 90 * 1000,
+  minIntervalMs: 5 * 60 * 1000,
 };

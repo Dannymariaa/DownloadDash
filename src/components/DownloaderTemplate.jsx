@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Download, Link as LinkIcon, Loader2, CheckCircle,
@@ -11,6 +11,7 @@ import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
 import HDVideoAdModal from './HDVideoAdModal';
 import { useI18n } from '@/lib/i18n';
+import adScheduler from '@/lib/adScheduler';
 import { getPlatformIcon } from '@/components/PlatformIcons';
 import { createPageUrl } from '@/utils';
 import { mediaDisplayLabel, prepareZipDownload } from '@/utils/downloadZip';
@@ -351,6 +352,9 @@ export default function DownloaderTemplate({
   const [showPreview, setShowPreview] = useState(false);
   const [adGate, setAdGate] = useState(null);
   const [selectedMediaIds, setSelectedMediaIds] = useState([]);
+  const downloadActionSeqRef = useRef(0);
+  const pendingDownloadActionRef = useRef(null);
+  const completedDownloadActionsRef = useRef(new Set());
   const platformIconNode = React.isValidElement(platformIcon)
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
     : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
@@ -503,9 +507,9 @@ export default function DownloaderTemplate({
     }
   };
 
-  const beginDownloadAfterGate = (downloadUrl, type, label, items = null) => {
+  const beginDownloadAfterGate = async (downloadUrl, type, label, items = null) => {
     if (type === 'zip') {
-      startZipDownload(items);
+      await startZipDownload(items);
       return;
     }
 
@@ -515,22 +519,52 @@ export default function DownloaderTemplate({
     }
 
     if (items?.length) {
-      startAlbumDownload(items);
+      await startAlbumDownload(items);
     } else {
-      startDownload(downloadUrl, type);
+      await startDownload(downloadUrl, type);
     }
   };
 
   const requestDownload = (downloadUrl, type, label, items = null) => {
+    if (pendingDownloadActionRef.current || adGate || isDownloading) return;
+
+    const actionId = `${type}:${Date.now()}:${downloadActionSeqRef.current += 1}`;
+    pendingDownloadActionRef.current = actionId;
+
+    const decision = adScheduler.startDownloadAd(actionId);
+    if (!decision.allowed) {
+      if (decision.reason === 'global-cooldown' || decision.reason === 'multitag-cooldown') {
+        beginDownloadAfterGate(downloadUrl, type, label, items).finally(() => {
+          completedDownloadActionsRef.current.add(actionId);
+          pendingDownloadActionRef.current = null;
+        });
+        return;
+      }
+
+      pendingDownloadActionRef.current = null;
+      return;
+    }
+
     const countdownSeconds = type === 'videoHD' ? 30 : 5;
-    setAdGate({ downloadUrl, type, label, items, countdownSeconds });
+    setAdGate({ actionId, downloadUrl, type, label, items, countdownSeconds });
   };
 
-  const handleAdGateComplete = () => {
+  const handleAdGateComplete = async () => {
     if (!adGate) return;
-    const { downloadUrl, type, label, items } = adGate;
+    const { actionId, downloadUrl, type, label, items } = adGate;
+    if (completedDownloadActionsRef.current.has(actionId)) return;
+    completedDownloadActionsRef.current.add(actionId);
     setAdGate(null);
-    beginDownloadAfterGate(downloadUrl, type, label, items);
+    try {
+      await beginDownloadAfterGate(downloadUrl, type, label, items);
+    } finally {
+      pendingDownloadActionRef.current = null;
+    }
+  };
+
+  const handleAdGateClose = () => {
+    pendingDownloadActionRef.current = null;
+    setAdGate(null);
   };
 
   const handleSave = async () => {
@@ -1269,7 +1303,7 @@ export default function DownloaderTemplate({
         {adGate && (
           <HDVideoAdModal
             isOpen={!!adGate}
-            onClose={() => setAdGate(null)}
+            onClose={handleAdGateClose}
             onComplete={handleAdGateComplete}
             videoTitle={adGate.label}
             countdownSeconds={adGate.countdownSeconds}

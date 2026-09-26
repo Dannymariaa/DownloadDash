@@ -1,6 +1,6 @@
 # Ads Configuration
 
-DownloadDash now uses **Adsterra responsive banner ads** with responsive sizing and native ad support for HD video unlock feature.
+DownloadDash uses **Adsterra responsive/native banner ads** and a scheduler-controlled **Monetag MultiTag** integration. Interruptive ads must go through `src/lib/adScheduler.js`; do not add direct timers, route-change triggers, direct-link redirects, or independent popunder scripts.
 
 ## Ad Units Configuration
 
@@ -37,19 +37,27 @@ The application uses four Adsterra ad units with responsive design:
 ## Runtime Files
 
 - [src/config/adsterraConfig.js](src/config/adsterraConfig.js) - Central Adsterra configuration and helpers
-- [src/Layout.jsx](src/Layout.jsx) - Root layout (no global ad loading, ads loaded per-component)
+- [src/App.jsx](src/App.jsx) - Root app wiring for Monetag initializer and mobile sticky Adsterra
+- [src/lib/adScheduler.js](src/lib/adScheduler.js) - Global interruptive ad scheduler, cooldowns, redirect guard, and URL validator
+- [src/lib/adManager.js](src/lib/adManager.js) - Provider script loader and scheduler integration
 - [src/components/AdBanner.jsx](src/components/AdBanner.jsx) - Responsive banner wrapper
 - [src/components/HDVideoAdModal.jsx](src/components/HDVideoAdModal.jsx) - HD video unlock modal with native ad
+- [src/components/Ads/MonetagInitializer.jsx](src/components/Ads/MonetagInitializer.jsx) - One-time scheduler-controlled Monetag trigger
 - [mobile/app.json](mobile/app.json) - Mobile app ad configuration
 - [mobile/utils/adsManager.js](mobile/utils/adsManager.js) - Mobile ad manager
 
 ## Current Configuration
 
 - Provider: `adsterra`
+- Provider: `monetag`
 - Format: Responsive iframe + Native
 - Units: 4 (320x50, 728x90, 300x250, Native)
 - Loading: Per-component, on-demand
 - Duplicate Prevention: Container-based script marker checking
+- Global interruptive cooldown: 2 minutes
+- Monetag MultiTag cooldown: 5 minutes
+- DownloadDash-controlled redirect/popunder/direct-link attempts: max 1 per full page load
+- SPA navigation does not reset redirect/popunder/direct-link allowance
 
 ## Ad Placements
 
@@ -106,6 +114,20 @@ VITE_ADSTERRA_BANNER_300x250_KEY=25fdf0e506fec8285d21a27d4bc83eb2
 - **On-Demand Loading**: Scripts load only when AdBanner component renders
 - **HD Video Gate**: Native banner shown in modal before HD download is granted
 - **Performance**: No blocking scripts, all ads load asynchronously
+- **Scheduling**: Interruptive ads use `src/lib/adScheduler.js`; excessive triggers are discarded rather than queued
+- **Download Gates**: One eligible ad event per download action, then the selected download continues
+- **Client URL Safety**: DownloadDash-controlled ad destination URLs must be valid `http:` or `https:` and must not match configured adult denylist domains
+
+## Adult / Pornography Safety
+
+Client code validates ad destinations only when DownloadDash itself receives or controls the URL before navigation. Third-party provider scripts can choose or redirect to a final destination internally, so adult/pornographic inventory must be disabled in each provider dashboard.
+
+MANUAL DASHBOARD ACTION REQUIRED:
+
+- Monetag: keep this property/zone in mainstream-only inventory. Disable or remove SmartLink/direct-link, popunder, push/social/in-page push, and adult/non-mainstream campaign categories. Confirm zone `246109` and MultiTag formats do not serve adult, erotic, adult dating, cam, or explicit-video campaigns.
+- Adsterra: for each website/ad unit zone, keep traffic/category mainstream and do not enable "accept all ads" / Boost CPM-style settings for sensitive traffic. Disable adult/erotic, adult dating/cam, explicit, popunder, Social Bar/push, Smartlink/direct-link, malware/scareware, gambling, and crypto if inappropriate for the audience.
+
+Do not claim pornography blocking is complete until these provider-side restrictions are enabled and verified in the dashboards. Frontend denylisting is defense in depth, not the primary safety control.
 
 ## Mobile Configuration
 
@@ -134,14 +156,14 @@ Check if ads are loading correctly:
 
 ## Migration Notes
 
-- Removed: Monetag Vignette (zone 11129621)
-- Added: Adsterra responsive banners
-- Updated: Component structure for on-demand ad loading
-- Added: HD video unlock modal with native banner support
-- No popup timers, onclick redirects, or frequency logic
-- No push notifications, direct links, or interstitials
-- Clean banner display only
-- Script loaded from root Layout component to ensure single initialization
+- Removed route-change Monetag triggers
+- Added centralized scheduler for interruptive ads
+- Added 2-minute global interruptive cooldown
+- Added 5-minute Monetag MultiTag cooldown
+- Added one redirect/popunder/direct-link attempt guard per full page load for DownloadDash-controlled navigations
+- Reduced HD download gate to one Adsterra native banner placement
+- Added client destination validation for DownloadDash-controlled ad URLs
+- Removed unused mobile direct opening of provider script URLs
 2. **Audio Download Flow**: Unified with other download types (previously had special handling)
 3. **Photo Album Handling**: Better detection and support for carousel/album downloads
 4. **Audio Extraction**: Improved support for extracting audio from photo carousels

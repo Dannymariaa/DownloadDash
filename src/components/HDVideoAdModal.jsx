@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { AdsterraBanner, AdsterraNativeBanner } from '@/components/Ads/AdsterraAds';
+import { AdsterraNativeBanner } from '@/components/Ads/AdsterraAds';
 import adManager from '@/lib/adManager';
+import adScheduler from '@/lib/adScheduler';
 
 /**
  * HD Video Unlock Ad Modal
@@ -24,7 +25,10 @@ export default function HDVideoAdModal({
     adManager.beginBlockingAd('rewarded');
     setCountdown(countdownSeconds);
 
-    return () => adManager.endBlockingAd('rewarded');
+    return () => {
+      adManager.endBlockingAd('rewarded');
+      adScheduler.finishActiveAd('gate-unmounted');
+    };
   }, [isOpen, countdownSeconds]);
 
   // Countdown timer
@@ -40,12 +44,14 @@ export default function HDVideoAdModal({
 
   const handleComplete = () => {
     adManager.endBlockingAd('rewarded');
+    adScheduler.finishActiveAd('gate-complete');
     onComplete?.();
     onClose?.();
   };
 
   const handleClose = () => {
     adManager.endBlockingAd('rewarded');
+    adScheduler.finishActiveAd('gate-closed');
     onClose?.();
   };
 
@@ -85,12 +91,9 @@ export default function HDVideoAdModal({
         {/* Content */}
         <div className="p-6">
           {/* Adsterra sponsor panel */}
-          <div className="mb-6 grid min-h-[250px] gap-4 rounded-lg border border-purple-500/20 bg-black/35 p-4 md:grid-cols-[1fr_320px]">
+          <div className="mb-6 min-h-[250px] rounded-lg border border-purple-500/20 bg-black/35 p-4">
             <div className="flex min-h-[250px] items-center justify-center overflow-hidden rounded-md bg-white/[0.03]">
               <AdsterraNativeBanner placement="rewarded-download-gate-native" className="px-2" />
-            </div>
-            <div className="flex min-h-[250px] items-center justify-center overflow-hidden rounded-md bg-white/[0.03]">
-              <AdsterraBanner unitKey="banner300x250" placement="rewarded-download-gate-display" />
             </div>
           </div>
 

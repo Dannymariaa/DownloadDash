@@ -1,11 +1,11 @@
 import { ADSTERRA_UNITS, MONETAG_CONFIG } from '@/config/adsterraConfig';
+import adScheduler, { AD_FORMATS, AD_NETWORKS } from '@/lib/adScheduler';
 
 const SCRIPT_ATTR = 'data-dd-ad-script';
 const MONETAG_LAST_TRIGGER_KEY = 'downloaddash:monetag:last-trigger';
 
 let activeBlockingAd = null;
 let monetagLoadingPromise = null;
-let monetagTriggering = false;
 
 const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined';
 
@@ -22,18 +22,25 @@ const loadExternalScript = ({ id, src, parent = document.body, attrs = {}, force
     }
 
     const existing = queryScript(id);
-    if (existing && !forceReload) {
-      if (existing.dataset.loaded === 'true') {
-        resolve(existing);
+    if (existing || adScheduler.hasScriptInjected(id)) {
+      if (existing && forceReload) {
+        existing.remove();
+        adScheduler.clearScriptInjected(id);
+      } else if (existing) {
+        if (existing.dataset.loaded === 'true') {
+          resolve(existing);
+          return;
+        }
+        existing.addEventListener('load', () => resolve(existing), { once: true });
+        existing.addEventListener('error', reject, { once: true });
+        return;
+      } else if (!forceReload) {
+        resolve(null);
         return;
       }
-      existing.addEventListener('load', () => resolve(existing), { once: true });
-      existing.addEventListener('error', reject, { once: true });
-      return;
     }
-    if (existing && forceReload) {
-      existing.remove();
-    }
+
+    adScheduler.markScriptInjected(id);
 
     const script = document.createElement('script');
     script.src = src;
@@ -48,7 +55,10 @@ const loadExternalScript = ({ id, src, parent = document.body, attrs = {}, force
       script.dataset.loaded = 'true';
       resolve(script);
     });
-    script.addEventListener('error', reject);
+    script.addEventListener('error', (error) => {
+      adScheduler.clearScriptInjected(id);
+      reject(error);
+    });
     parent.appendChild(script);
   });
 
@@ -57,7 +67,11 @@ const hasInjectedFrame = (container) =>
 
 const clearProviderMarkup = (container) => {
   if (!container) return;
-  container.querySelectorAll('iframe, ins, object, embed, script').forEach((node) => node.remove());
+  container.querySelectorAll('iframe, ins, object, embed, script').forEach((node) => {
+    const scriptId = node.getAttribute?.(SCRIPT_ATTR);
+    if (scriptId) adScheduler.clearScriptInjected(scriptId);
+    node.remove();
+  });
 };
 
 export const adManager = {
@@ -100,7 +114,6 @@ export const adManager = {
         'data-ad-unit': unit.key,
         'data-ad-placement': placementId,
       },
-      forceReload: true,
     });
     return !!script;
   },
@@ -118,7 +131,6 @@ export const adManager = {
         'data-ad-provider': 'adsterra',
         'data-ad-unit': 'native',
       },
-      forceReload: true,
     });
     return true;
   },
@@ -147,14 +159,19 @@ export const adManager = {
   },
 
   canTriggerMonetag(now = Date.now()) {
-    if (!isBrowser() || activeBlockingAd || monetagTriggering) return false;
+    if (!isBrowser() || activeBlockingAd) return false;
     const last = Number(sessionStorage.getItem(MONETAG_LAST_TRIGGER_KEY) || 0);
-    return !last || now - last >= MONETAG_CONFIG.minIntervalMs;
+    return adScheduler.canShowMultiTag(now) && (!last || now - last >= MONETAG_CONFIG.minIntervalMs);
   },
 
   async triggerMonetag() {
     if (!this.canTriggerMonetag()) return false;
-    monetagTriggering = true;
+    const decision = adScheduler.startInterruptiveAd({
+      network: AD_NETWORKS.MONETAG,
+      format: AD_FORMATS.MULTITAG,
+    });
+    if (!decision.allowed) return false;
+
     try {
       await this.loadMonetag();
       sessionStorage.setItem(MONETAG_LAST_TRIGGER_KEY, String(Date.now()));
@@ -162,7 +179,7 @@ export const adManager = {
       return true;
     } finally {
       window.setTimeout(() => {
-        monetagTriggering = false;
+        adScheduler.finishActiveAd('monetag-ready');
       }, 1500);
     }
   },
