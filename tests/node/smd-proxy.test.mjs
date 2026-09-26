@@ -275,16 +275,20 @@ test('normalization preserves single image, five-image carousel, and mixed carou
   }
 });
 
-test('normalization keeps TikTok photo images before separate soundtrack audio', async () => {
+test('normalization keeps TikTok five-photo posts before separate soundtrack audio', async () => {
   await withProxyEnv(async () => {
+    const images = Array.from({ length: 5 }, (_, index) => ({
+      type: 'image',
+      url: `https://cdn.tiktok.example/${index + 1}.jpeg`,
+      contentType: 'image/jpeg',
+    }));
+
     globalThis.fetch = async () =>
       new Response(JSON.stringify({
         success: true,
         media: [
           { type: 'audio', url: 'https://cdn.tiktok.example/sound.m4a', contentType: 'audio/mp4' },
-          { type: 'image', url: 'https://cdn.tiktok.example/1.jpeg', contentType: 'image/jpeg' },
-          { type: 'image', url: 'https://cdn.tiktok.example/2.jpeg', contentType: 'image/jpeg' },
-          { type: 'image', url: 'https://cdn.tiktok.example/3.jpeg', contentType: 'image/jpeg' },
+          ...images,
         ],
       }), {
         status: 200,
@@ -295,8 +299,8 @@ test('normalization keeps TikTok photo images before separate soundtrack audio',
     const body = readJson(res);
 
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(body.data.media.map((item) => item.type), ['image', 'image', 'image', 'audio']);
-    assert.deepEqual(body.data.media.map((item) => item.index), [0, 1, 2, 3]);
+    assert.deepEqual(body.data.media.map((item) => item.type), ['image', 'image', 'image', 'image', 'image', 'audio']);
+    assert.deepEqual(body.data.media.map((item) => item.index), [0, 1, 2, 3, 4, 5]);
   });
 });
 
