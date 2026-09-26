@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import BackgroundTasks, HTTPException
 
+from app.api.cookie_state import inspect_netscape_cookiefile
 from app.api.resolver_errors import classify_resolver_error, sanitize_provider_error
 from app.config import settings
 from app.models.schemas import (
@@ -66,6 +67,15 @@ def _set_resolve_cache(key: str, value: Dict[str, Any]) -> None:
         while len(_resolve_cache) > 384:
             _resolve_cache.pop(next(iter(_resolve_cache)))
     _resolve_cache[key] = (time.time() + RESOLVE_CACHE_TTL_SECONDS, value)
+
+
+def _promote_x_cookie_error(platform: Platform, url: str, error_code: str) -> str:
+    if platform not in (Platform.TWITTER, Platform.X) or error_code != "COOKIE_REQUIRED":
+        return error_code
+    cookie_state = inspect_netscape_cookiefile(public_downloader._cookiefile_for_url(url))
+    if cookie_state.get("expired") == "YES":
+        return "COOKIE_EXPIRED"
+    return error_code
 
 
 def detect_platform(url: str) -> Optional[Platform]:
@@ -278,6 +288,7 @@ async def download_public(
     if not result:
         raw_error = str(resolve_error) if resolve_error else "No media resolver returned a result"
         error_code = classify_resolver_error(platform, raw_error)
+        error_code = _promote_x_cookie_error(platform, url_str, error_code)
         sanitized_error = sanitize_provider_error(raw_error)
         print(
             "Warning: resolver_failed "

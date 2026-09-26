@@ -1,6 +1,15 @@
+import asyncio
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+from fastapi import BackgroundTasks
+
+from app.api.cookie_state import inspect_netscape_cookiefile
 from app.api.resolver_errors import classify_resolver_error
+from app.api.shared import download_public
+from app.models.schemas import DownloadRequest
 from app.models.schemas import Platform
 
 
@@ -68,6 +77,56 @@ class ResolverErrorClassificationTests(unittest.TestCase):
         for raw_error, expected in cases:
             with self.subTest(raw_error=raw_error):
                 self.assertEqual(classify_resolver_error(Platform.TWITTER, raw_error), expected)
+
+    def test_cookie_state_counts_httponly_rows_and_detects_expired_file(self):
+        with TemporaryDirectory() as temp_dir:
+            cookiefile = Path(temp_dir) / "cookies.txt"
+            cookiefile.write_text(
+                "# Netscape HTTP Cookie File\n"
+                "#HttpOnly_.x.com\tTRUE\t/\tTRUE\t1\tauth_token\tredacted\n"
+                ".x.com\tTRUE\t/\tTRUE\t1\tct0\tredacted\n",
+                encoding="utf-8",
+            )
+
+            state = inspect_netscape_cookiefile(str(cookiefile))
+
+        self.assertTrue(state["generated"])
+        self.assertTrue(state["readable"])
+        self.assertTrue(state["loaded"])
+        self.assertEqual(state["cookieCount"], 2)
+        self.assertEqual(state["expired"], "YES")
+
+    def test_x_cookie_required_promotes_to_cookie_expired_when_cookiefile_is_stale(self):
+        class UniversalStub:
+            async def resolve_media(self, *args, **kwargs):
+                raise RuntimeError("HTTP Error 401: Unauthorized. Use --cookies")
+
+        class GalleryStub:
+            async def resolve(self, *args, **kwargs):
+                raise RuntimeError("gallery disabled for test")
+
+        class PublicStub:
+            def __init__(self, cookiefile):
+                self.cookiefile = cookiefile
+
+            def _cookiefile_for_url(self, url):
+                return self.cookiefile
+
+        with TemporaryDirectory() as temp_dir:
+            cookiefile = Path(temp_dir) / "cookies.txt"
+            cookiefile.write_text(
+                ".x.com\tTRUE\t/\tTRUE\t1\tauth_token\tredacted\n",
+                encoding="utf-8",
+            )
+            request = DownloadRequest(url="https://x.com/example/status/123", platform=Platform.X)
+
+            with patch("app.api.shared.universal_downloader", UniversalStub()), \
+                 patch("app.api.shared.gallery_downloader", GalleryStub()), \
+                 patch("app.api.shared.public_downloader", PublicStub(str(cookiefile))):
+                response = asyncio.run(download_public(Platform.X, request, BackgroundTasks()))
+
+        self.assertFalse(response.success)
+        self.assertEqual(response.error_code, "COOKIE_EXPIRED")
 
 
 if __name__ == "__main__":

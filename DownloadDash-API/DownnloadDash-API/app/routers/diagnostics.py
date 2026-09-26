@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 from fastapi import APIRouter, Query
 
+from app.api.cookie_state import inspect_netscape_cookiefile
 from app.api.resolver_errors import classify_resolver_error, sanitize_provider_error
 from app.models.schemas import Platform, Quality
 from app.state import gallery_downloader, public_downloader, universal_downloader
@@ -70,6 +71,12 @@ def _summarize_gallery_result(result: Any) -> dict[str, Any]:
     }
 
 
+def _promote_cookie_error(platform: Platform, code: str, cookie_state: dict[str, Any]) -> str:
+    if platform in (Platform.X, Platform.TWITTER) and code == "COOKIE_REQUIRED" and cookie_state.get("expired") == "YES":
+        return "COOKIE_EXPIRED"
+    return code
+
+
 async def _probe_proxy(proxy_url: str | None) -> dict[str, Any]:
     if not proxy_url:
         return {"configured": False, "reachable": False, "authAccepted": False}
@@ -112,16 +119,22 @@ async def provider_diagnostics(
     platform_key = "x" if platform_value in (Platform.X, Platform.TWITTER) else platform_value.value
     proxy_url = public_downloader.proxy_urls.get(platform_key) or public_downloader.proxy_urls.get("default")
     gallery_proxy_url = gallery_downloader.proxy_urls.get(platform_key) or gallery_downloader.proxy_urls.get("default")
-    cookie_names = public_downloader._cookie_names_for_url(url or f"https://{platform_key}.com/")
+    probe_url = url or f"https://{platform_key}.com/"
+    ytdlp_cookiefile = public_downloader._cookiefile_for_url(probe_url)
     gallery_cookiefile = gallery_downloader.cookiefiles.get(platform_key) or gallery_downloader.cookiefiles.get("default")
+    ytdlp_cookie_state = inspect_netscape_cookiefile(ytdlp_cookiefile)
+    gallery_cookie_state = inspect_netscape_cookiefile(gallery_cookiefile)
 
     response: dict[str, Any] = {
         "platform": platform_key,
-        "cookiesConfigured": bool(cookie_names),
-        "cookieCount": len(cookie_names),
+        "cookiesConfigured": bool(ytdlp_cookie_state["loaded"]),
+        "cookieCount": int(ytdlp_cookie_state["cookieCount"]),
         "proxyConfigured": bool(proxy_url),
-        "galleryDlCookiesConfigured": bool(gallery_cookiefile),
+        "galleryDlCookiesConfigured": bool(gallery_cookie_state["loaded"]),
         "galleryDlProxyConfigured": bool(gallery_proxy_url),
+        "cookieState": ytdlp_cookie_state,
+        "ytDlpCookie": ytdlp_cookie_state,
+        "galleryDlCookie": gallery_cookie_state,
         "directConnectionSucceeds": "NOT_SAFE_TO_TEST",
         "extractors": {
             "yt-dlp": _package_version("yt-dlp"),
@@ -150,11 +163,12 @@ async def provider_diagnostics(
             }
         except Exception as exc:
             sanitized = sanitize_provider_error(str(exc))
+            error_code = classify_resolver_error(platform_value, sanitized)
             response["resolver"] = {
                 "attempted": True,
                 "summary": {"metadataReturned": False, "directUrlReturned": False, "entryCount": 0},
                 "errorClass": type(exc).__name__,
-                "errorCode": classify_resolver_error(platform_value, sanitized),
+                "errorCode": _promote_cookie_error(platform_value, error_code, ytdlp_cookie_state),
             }
 
     if run_gallery and url:
@@ -166,11 +180,12 @@ async def provider_diagnostics(
             }
         except Exception as exc:
             sanitized = sanitize_provider_error(str(exc))
+            error_code = classify_resolver_error(platform_value, sanitized)
             response["galleryDl"] = {
                 "attempted": True,
                 "summary": {"metadataReturned": False, "entryCount": 0},
                 "errorClass": type(exc).__name__,
-                "errorCode": classify_resolver_error(platform_value, sanitized),
+                "errorCode": _promote_cookie_error(platform_value, error_code, gallery_cookie_state),
             }
 
     # Yield once so slow probes do not monopolize the event loop in single-worker runs.
