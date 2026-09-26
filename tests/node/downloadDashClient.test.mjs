@@ -5,6 +5,7 @@ import {
   inferMediaTypeFromUrl,
   normalizeMediaItem,
   normalizeResolvedDownloads,
+  responseErrorMessage,
 } from '../../src/api/downloadDashClient.js';
 
 test('client media type inference does not treat extensionless signed URLs as video', () => {
@@ -124,4 +125,38 @@ test('client keeps video quality variants inside one selectable source item', ()
   assert.equal(normalized.downloads.videoSD, 'https://cdn.example/video-480.mp4');
   assert.equal(normalized.downloads.audio, 'https://cdn.example/audio.m4a');
   assert.deepEqual(normalized.downloads.items[0].variants.map((variant) => variant.height), [1080, 480]);
+});
+
+test('client maps backend downloader error codes to user-safe messages', () => {
+  const cases = [
+    ['MEDIA_NOT_FOUND', 'Media was not found or is no longer available.'],
+    ['PRIVATE_MEDIA', 'This media is private, restricted, or unavailable.'],
+    ['LOGIN_REQUIRED', 'X is currently requiring an authenticated session for this media. Please try again later.'],
+    ['COOKIE_REQUIRED', 'This media currently requires an authenticated platform session. Please try again later.'],
+    ['COOKIE_EXPIRED', 'This media currently requires a refreshed platform session. Please try again later.'],
+    ['ANTI_BOT_CHALLENGE', 'Facebook temporarily blocked access to this public post. Try again later or try another public link.'],
+    ['PLATFORM_BLOCKED_PROXY', 'The platform temporarily blocked this request. Please try again later.'],
+    ['PROXY_BLOCKED', 'The download service is temporarily blocked by the platform. Please try again later.'],
+    ['RATE_LIMITED', 'Too many requests. Please try again later.'],
+    ['EXTRACTOR_OUTDATED', 'This media cannot be resolved right now. Please try again later.'],
+    ['EXTRACTOR_FAILED', 'This media could not be resolved right now. Please try again later.'],
+    ['UPSTREAM_TIMEOUT', 'The download service is temporarily unavailable. Please try again shortly.'],
+    ['UPSTREAM_UNAVAILABLE', 'The download service is temporarily unavailable. Please try again shortly.'],
+    ['UPSTREAM_PROXY_FAILED', 'The download service is temporarily unavailable. Please try again shortly.'],
+    ['UPSTREAM_ROUTE_NOT_FOUND', 'The download service is temporarily unavailable. Please try again shortly.'],
+    ['UNSUPPORTED_MEDIA', 'This media is not supported for download.'],
+  ];
+
+  for (const [code, expected] of cases) {
+    assert.equal(
+      responseErrorMessage({
+        error: {
+          code,
+          message: 'raw provider text account locked cookies.txt authorization Bearer secret',
+        },
+      }, 'Download failed'),
+      expected,
+      code
+    );
+  }
 });

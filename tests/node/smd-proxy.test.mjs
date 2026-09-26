@@ -956,6 +956,43 @@ test('authentication failures are not retried', async () => {
   });
 });
 
+test('structured permanent resolver errors are not retried even with upstream 5xx status', async () => {
+  const permanentCodes = [
+    ['LOGIN_REQUIRED', 401],
+    ['COOKIE_REQUIRED', 401],
+    ['COOKIE_EXPIRED', 401],
+    ['PRIVATE_MEDIA', 403],
+    ['MEDIA_NOT_FOUND', 404],
+    ['ANTI_BOT_CHALLENGE', 403],
+    ['UNSUPPORTED_MEDIA', 422],
+  ];
+
+  for (const [resolverCode, expectedStatus] of permanentCodes) {
+    await withProxyEnv(async () => {
+      let attempts = 0;
+      globalThis.fetch = async () => {
+        attempts += 1;
+        return new Response(JSON.stringify({
+          success: false,
+          error_code: resolverCode,
+          error: 'raw upstream account locked cookies.txt token=secret',
+        }), {
+          status: 502,
+          headers: { 'content-type': 'application/json' },
+        });
+      };
+
+      const res = await request({ path: 'x/download', body: { url: validUrls.x } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, expectedStatus, resolverCode);
+      assert.equal(body.error.code, resolverCode);
+      assert.equal(attempts, 1, resolverCode);
+      assert.doesNotMatch(JSON.stringify(body), /account locked|cookies\.txt|token=secret/);
+    });
+  }
+});
+
 test('network failures are normalized as upstream unavailable', async () => {
   await withProxyEnv(async () => {
     globalThis.fetch = async () => {

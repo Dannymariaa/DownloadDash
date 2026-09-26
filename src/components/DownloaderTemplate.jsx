@@ -13,7 +13,7 @@ import HDVideoAdModal from './HDVideoAdModal';
 import { useI18n } from '@/lib/i18n';
 import { getPlatformIcon } from '@/components/PlatformIcons';
 import { createPageUrl } from '@/utils';
-import { buildStoredZip } from '@/utils/zip';
+import { mediaDisplayLabel, prepareZipDownload } from '@/utils/downloadZip';
 
 // Platform URL validation
 const urlPatterns = {
@@ -410,15 +410,6 @@ export default function DownloaderTemplate({
     return 'mp4';
   };
 
-  const filenameFromItem = (item, type, index) => {
-    if (item?.filename) {
-      const extension = String(item.filename).split('.').pop();
-      if (extension && extension.length <= 5) return item.filename;
-    }
-    const extension = item?.format || item?.extension || getDownloadExtension(type, item?.url);
-    return `DownloadDash-${platform}-${String(index + 1).padStart(2, '0')}.${extension}`;
-  };
-
   const buildFilename = (type, urlValue = '', index = null) => {
     const randomDigits = Math.floor(Math.random() * 9000000000) + 1000000000;
     const suffix = index === null ? '' : `-${String(index + 1).padStart(2, '0')}`;
@@ -479,20 +470,19 @@ export default function DownloaderTemplate({
       setIsLoading(true);
       setIsDownloading(true);
 
-      const files = [];
-      for (let index = 0; index < items.length; index += 1) {
-        const item = items[index];
-        const itemType = item.type === 'video' ? 'video' : item.type === 'audio' ? 'audio' : 'image';
-        const blob = await downloadDash.fetchMediaBlob(item.url, result?.original_url || url, itemType);
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        files.push({
-          name: filenameFromItem(item, itemType, index),
-          bytes,
-        });
+      const zip = await prepareZipDownload({
+        items,
+        platform,
+        sourceUrl: result?.original_url || url,
+        fetchMediaBlob: downloadDash.fetchMediaBlob,
+      });
+
+      if (!zip.files.length) {
+        const failedLabels = zip.failed.map((item) => item.label).join(', ');
+        throw new Error(failedLabels ? `Could not fetch selected items: ${failedLabels}.` : 'Could not fetch selected items.');
       }
 
-      const blob = buildStoredZip(files);
-      const objectUrl = URL.createObjectURL(blob);
+      const objectUrl = URL.createObjectURL(zip.blob);
       const link = document.createElement('a');
       link.href = objectUrl;
       link.download = `DownloadDash-${platform}-media.zip`;
@@ -500,7 +490,10 @@ export default function DownloaderTemplate({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(objectUrl);
-      alert(t('alerts.downloadStarted', { filename: link.download }));
+      const message = zip.failed.length
+        ? `${t('alerts.downloadStarted', { filename: link.download })}\n\n${zip.failureMessage}`
+        : t('alerts.downloadStarted', { filename: link.download });
+      alert(message);
     } catch (error) {
       console.error('ZIP download failed:', error);
       alert(t('errors.downloadFailed', { message: error.message || 'Unknown error' }));
@@ -597,10 +590,10 @@ export default function DownloaderTemplate({
   const selectAllMedia = () => setSelectedMediaIds(selectableMediaItems.map((item) => item.id));
   const clearMediaSelection = () => setSelectedMediaIds([]);
   const mediaLabel = (item, index) => {
-    const type = item.type === 'video' ? 'Video' : item.type === 'audio' ? 'Audio' : 'Photo';
+    const type = mediaDisplayLabel(item, index);
     const parts = [item.quality, item.width && item.height ? `${item.width}x${item.height}` : '', item.format || item.extension || '', item.hasAudio ? 'audio' : '']
       .filter(Boolean);
-    return `${type} ${index + 1}${parts.length ? ` - ${parts.join(' - ')}` : ''}`;
+    return `${type}${parts.length ? ` - ${parts.join(' - ')}` : ''}`;
   };
   const pageContent = platformPageContent[platform] || {
     intro:

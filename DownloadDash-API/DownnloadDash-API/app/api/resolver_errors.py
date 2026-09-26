@@ -24,6 +24,7 @@ PROVIDER_ERROR_CODES = {
 SECRET_PATTERNS = (
     re.compile(r"(https?://)([^:@/\s]+):([^@/\s]+)@", re.IGNORECASE),
     re.compile(r"(socks[45]h?://)([^:@/\s]+):([^@/\s]+)@", re.IGNORECASE),
+    re.compile(r"(?i)\b(authorization)\s*:\s*(bearer|basic)\s+[^\s]+"),
     re.compile(r"(?i)\b(cookie|token|authorization|password|passwd|secret)=([^&\s]+)"),
     re.compile(r"(?i)\b(cookie_names|cookiefile_path)=([^)\s]+)"),
 )
@@ -38,6 +39,8 @@ def sanitize_provider_error(raw_error: Optional[str]) -> str:
     for pattern in SECRET_PATTERNS:
         if "cookie_names|cookiefile_path" in pattern.pattern:
             text = pattern.sub(lambda match: f"{match.group(1)}=<redacted>", text)
+        elif "(authorization)" in pattern.pattern:
+            text = pattern.sub(lambda match: f"{match.group(1)}: <redacted>", text)
         elif pattern.pattern.startswith("(?i)"):
             text = pattern.sub(lambda match: f"{match.group(1)}=<redacted>", text)
         else:

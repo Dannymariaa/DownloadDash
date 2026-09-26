@@ -99,6 +99,7 @@ const PROVIDER_ERROR_STATUS = {
   PRIVATE_MEDIA: 403,
   EXTRACTOR_OUTDATED: 502,
   EXTRACTOR_FAILED: 502,
+  UNSUPPORTED_MEDIA: 422,
 };
 
 function mapProviderErrorCode(data) {
@@ -224,11 +225,6 @@ export async function downloadMedia({ env, platform, payload, requestId }) {
         attempt,
       });
 
-      if (!upstream.ok && isTransientStatus(upstream.status) && attempt <= MAX_TRANSIENT_RETRIES) {
-        await wait(retryDelay(attempt));
-        continue;
-      }
-
       let data = null;
       if (responseText.trim()) {
         try {
@@ -241,6 +237,14 @@ export async function downloadMedia({ env, platform, payload, requestId }) {
       }
 
       if (!upstream.ok) {
+        const structuredError = mapProviderErrorCode(data);
+        if (structuredError) throw structuredError;
+
+        if (isTransientStatus(upstream.status) && attempt <= MAX_TRANSIENT_RETRIES) {
+          await wait(retryDelay(attempt));
+          continue;
+        }
+
         throw mapUpstreamError(upstream.status, data, responseText);
       }
 

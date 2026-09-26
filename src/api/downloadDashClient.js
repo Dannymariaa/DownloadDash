@@ -75,7 +75,7 @@ const summarizeResponseBody = (body) => {
   }
 };
 
-const USER_SAFE_ERROR_MESSAGES = {
+export const USER_SAFE_ERROR_MESSAGES = {
   SERVICE_CONFIGURATION_ERROR: 'The download service is temporarily unavailable. Please try again shortly.',
   UPSTREAM_UNAVAILABLE: 'The download service is temporarily unavailable. Please try again shortly.',
   UPSTREAM_TIMEOUT: 'The download service is temporarily unavailable. Please try again shortly.',
@@ -89,6 +89,15 @@ const USER_SAFE_ERROR_MESSAGES = {
   BLOCKED_HOST: 'Paste a public platform link.',
   MEDIA_NOT_FOUND: 'Media was not found or is no longer available.',
   PRIVATE_MEDIA: 'This media is private, restricted, or unavailable.',
+  LOGIN_REQUIRED: 'X is currently requiring an authenticated session for this media. Please try again later.',
+  COOKIE_REQUIRED: 'This media currently requires an authenticated platform session. Please try again later.',
+  COOKIE_EXPIRED: 'This media currently requires a refreshed platform session. Please try again later.',
+  ANTI_BOT_CHALLENGE: 'Facebook temporarily blocked access to this public post. Try again later or try another public link.',
+  PLATFORM_BLOCKED_PROXY: 'The platform temporarily blocked this request. Please try again later.',
+  PROXY_BLOCKED: 'The download service is temporarily blocked by the platform. Please try again later.',
+  RATE_LIMITED: 'Too many requests. Please try again later.',
+  EXTRACTOR_OUTDATED: 'This media cannot be resolved right now. Please try again later.',
+  EXTRACTOR_FAILED: 'This media could not be resolved right now. Please try again later.',
   UNSUPPORTED_MEDIA: 'This media is not supported for download.',
   UPSTREAM_RATE_LIMITED: 'Too many requests. Please try again later.',
 };
@@ -98,7 +107,7 @@ const responseErrorCode = (data) => {
   return data?.error?.code || data?.code || null;
 };
 
-const responseErrorMessage = (data, fallback) => {
+export const responseErrorMessage = (data, fallback) => {
   const code = responseErrorCode(data);
   if (code && USER_SAFE_ERROR_MESSAGES[code]) return USER_SAFE_ERROR_MESSAGES[code];
   if (typeof data?.error === 'object' && data.error?.message) return data.error.message;
