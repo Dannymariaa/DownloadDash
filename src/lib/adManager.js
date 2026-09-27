@@ -1,11 +1,15 @@
 import { ADSTERRA_UNITS, MONETAG_CONFIG } from '@/config/adsterraConfig';
-import adScheduler, { AD_FORMATS, AD_NETWORKS } from '@/lib/adScheduler';
+import adScheduler, { AD_FORMATS, AD_NETWORKS, NOTIFICATION_GUARD_BLOCKED } from '@/lib/adScheduler';
 
 const SCRIPT_ATTR = 'data-dd-ad-script';
 const MONETAG_LAST_TRIGGER_KEY = 'downloaddash:monetag:last-trigger';
 
 let activeBlockingAd = null;
 let monetagLoadingPromise = null;
+let browserAdGuardsInstalled = false;
+let originalWindowOpen = null;
+let originalNotification = null;
+let originalShowNotification = null;
 
 const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined';
 
@@ -78,6 +82,90 @@ const clearProviderMarkup = (container) => {
   });
 };
 
+const finishNotificationSoon = (reason) => {
+  if (!isBrowser()) return;
+  window.setTimeout(() => {
+    adScheduler.finishNotificationAd(reason);
+  }, 1500);
+};
+
+const createBlockedNotification = (title, options) => {
+  const target = typeof EventTarget === 'function' ? new EventTarget() : {};
+  Object.defineProperties(target, {
+    title: { value: String(title || ''), enumerable: true },
+    body: { value: options?.body || '', enumerable: true },
+    tag: { value: options?.tag || NOTIFICATION_GUARD_BLOCKED, enumerable: true },
+    close: { value: () => {}, enumerable: true },
+  });
+  return target;
+};
+
+const installBrowserAdGuards = () => {
+  if (!isBrowser() || browserAdGuardsInstalled) return false;
+  browserAdGuardsInstalled = true;
+
+  originalWindowOpen = window.open;
+  if (typeof originalWindowOpen === 'function') {
+    window.open = function guardedWindowOpen(url, target, features) {
+      const decision = adScheduler.startInterruptiveAd({
+        network: AD_NETWORKS.MONETAG,
+        format: AD_FORMATS.POPUNDER,
+        destinationUrl: typeof url === 'string' && url ? url : undefined,
+        actionId: 'window-open',
+        timeoutMs: 1500,
+      });
+
+      if (!decision.allowed) return null;
+
+      try {
+        return originalWindowOpen.call(window, url, target, features);
+      } finally {
+        window.setTimeout(() => adScheduler.finishActiveAd('window-open-returned'), 1500);
+      }
+    };
+  }
+
+  if (typeof window.Notification === 'function') {
+    originalNotification = window.Notification;
+    const GuardedNotification = function GuardedNotification(title, options = {}) {
+      const decision = adScheduler.startBrowserNotificationAd(`notification:${options.tag || title || Date.now()}`);
+      if (!decision.allowed) return createBlockedNotification(title, options);
+
+      try {
+        return new originalNotification(title, options);
+      } finally {
+        finishNotificationSoon('browser-notification-returned');
+      }
+    };
+
+    Object.setPrototypeOf(GuardedNotification, originalNotification);
+    GuardedNotification.prototype = originalNotification.prototype;
+    Object.defineProperties(GuardedNotification, {
+      permission: { get: () => originalNotification.permission },
+      maxActions: { get: () => originalNotification.maxActions },
+      requestPermission: {
+        value: (...args) => originalNotification.requestPermission(...args),
+      },
+    });
+    window.Notification = GuardedNotification;
+  }
+
+  const serviceWorkerRegistration = window.ServiceWorkerRegistration?.prototype;
+  if (serviceWorkerRegistration?.showNotification && !originalShowNotification) {
+    originalShowNotification = serviceWorkerRegistration.showNotification;
+    serviceWorkerRegistration.showNotification = function guardedShowNotification(title, options = {}) {
+      const decision = adScheduler.startBrowserNotificationAd(`sw-notification:${options.tag || title || Date.now()}`);
+      if (!decision.allowed) return Promise.resolve(undefined);
+
+      return Promise.resolve(originalShowNotification.call(this, title, options)).finally(() => {
+        finishNotificationSoon('service-worker-notification-returned');
+      });
+    };
+  }
+
+  return true;
+};
+
 export const adManager = {
   beginBlockingAd(provider = 'rewarded') {
     if (activeBlockingAd && activeBlockingAd !== provider) return false;
@@ -94,6 +182,8 @@ export const adManager = {
   isBlockingAdActive() {
     return !!activeBlockingAd;
   },
+
+  installBrowserAdGuards,
 
   async loadAdsterraBanner({ unit, container, placementId }) {
     if (adScheduler.hasAdFreeEntitlement()) return false;
@@ -148,6 +238,7 @@ export const adManager = {
   loadMonetag() {
     if (adScheduler.hasAdFreeEntitlement()) return Promise.resolve(null);
     if (!isBrowser()) return Promise.resolve(null);
+    this.installBrowserAdGuards();
     if (!monetagLoadingPromise) {
       monetagLoadingPromise = loadExternalScript({
         id: `monetag:${MONETAG_CONFIG.zone}`,

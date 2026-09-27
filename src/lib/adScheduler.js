@@ -5,6 +5,7 @@ export const NOTIFICATION_WINDOW_MS = 5 * 60 * 1000;
 export const NOTIFICATION_MAX_PER_WINDOW = 2;
 export const ACTIVE_AD_TIMEOUT_MS = 45 * 1000;
 export const NOTIFICATION_HISTORY_STORAGE_KEY = 'downloaddash:ads:notification-history:v1';
+export const NOTIFICATION_GUARD_BLOCKED = 'downloaddash:ads:notification-blocked';
 
 export const AD_NETWORKS = {
   ADSTERRA: 'adsterra',
@@ -138,7 +139,7 @@ export function createAdScheduler({
   };
 
   const pruneNotificationHistory = (at = currentTime()) => {
-    while (notificationHistory.length > 0 && at - notificationHistory[0] >= NOTIFICATION_WINDOW_MS) {
+    while (notificationHistory.length > 0 && at - notificationHistory[0] > NOTIFICATION_WINDOW_MS) {
       notificationHistory.shift();
     }
     writeStoredNotificationHistory();
@@ -330,6 +331,14 @@ export function createAdScheduler({
     canRedirect,
     startInterruptiveAd,
     startNotificationAd,
+    startBrowserNotificationAd(actionId = 'browser-notification') {
+      return startNotificationAd({
+        network: AD_NETWORKS.MONETAG,
+        format: AD_FORMATS.NOTIFICATION,
+        actionId,
+        timeoutMs: 1500,
+      });
+    },
     finishNotificationAd,
     startNotificationScheduler,
     stopNotificationScheduler,

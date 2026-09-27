@@ -155,8 +155,29 @@ test('notification ads obey a rolling 2 per 5 minutes limit with a 2 minute mini
   scheduler.setNow(() => 299_000);
   assert.equal(scheduler.startNotificationAd().allowed, false);
 
+  scheduler.setNow(() => 300_000);
+  assert.equal(scheduler.startNotificationAd().allowed, false);
+
   scheduler.setNow(() => 300_001);
   assert.equal(scheduler.startNotificationAd().allowed, true);
+});
+
+test('blocked notification triggers are discarded instead of queued', () => {
+  const scheduler = createAdScheduler({ now: () => 0 });
+
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+  scheduler.finishNotificationAd('closed');
+
+  for (const blockedAt of [1_000, 30_000, 119_000]) {
+    scheduler.setNow(() => blockedAt);
+    assert.equal(scheduler.startNotificationAd().allowed, false);
+  }
+
+  assert.deepEqual(scheduler.snapshot().notificationHistory, [0]);
+
+  scheduler.setNow(() => 120_000);
+  assert.equal(scheduler.startNotificationAd().allowed, true);
+  assert.deepEqual(scheduler.snapshot().notificationHistory, [0, 120_000]);
 });
 
 test('notification rolling window blocks until the oldest timestamp expires', () => {
