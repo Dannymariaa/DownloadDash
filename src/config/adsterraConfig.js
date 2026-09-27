@@ -41,4 +41,8 @@ export const MONETAG_CONFIG = {
   scriptSrc: 'https://quge5.com/88/tag.min.js',
   zone: '246109',
   minIntervalMs: 5 * 60 * 1000,
+  // Monetag MultiTag/Popunder owns click-anywhere behavior after it loads.
+  // Keep disabled unless the provider zone is changed to a controllable,
+  // explicitly-triggered format that does not attach persistent document clicks.
+  enablePersistentMultiTag: false,
 };

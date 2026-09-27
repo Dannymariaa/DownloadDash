@@ -6,6 +6,7 @@ export const NOTIFICATION_MAX_PER_WINDOW = 2;
 export const ACTIVE_AD_TIMEOUT_MS = 45 * 1000;
 export const NOTIFICATION_HISTORY_STORAGE_KEY = 'downloaddash:ads:notification-history:v1';
 export const NOTIFICATION_GUARD_BLOCKED = 'downloaddash:ads:notification-blocked';
+export const PAGE_REDIRECT_STATE_KEY = '__DOWNLOADDASH_AD_REDIRECT_STATE__';
 
 export const AD_NETWORKS = {
   ADSTERRA: 'adsterra',
@@ -23,9 +24,11 @@ export const AD_FORMATS = {
 };
 
 const REDIRECT_FORMATS = new Set([
+  AD_FORMATS.MULTITAG,
   AD_FORMATS.POPUP,
   AD_FORMATS.POPUNDER,
   AD_FORMATS.DIRECT_LINK,
+  AD_FORMATS.INTERSTITIAL,
 ]);
 
 const DEFAULT_DENIED_AD_DOMAINS = [
@@ -83,12 +86,12 @@ export function createAdScheduler({
   localStorage = typeof window !== 'undefined' ? window.localStorage : null,
   deniedDomains = DEFAULT_DENIED_AD_DOMAINS,
   entitlements = {},
+  pageState,
 } = {}) {
   let nowFn = now;
   let adEntitlements = { adFree: Boolean(entitlements.adFree) };
   let lastAnyAdAt = null;
   let lastMultiTagAt = null;
-  let redirectAttemptedThisPage = false;
   let activeAd = null;
   let activeTimer = null;
   let notificationActive = false;
@@ -97,6 +100,25 @@ export function createAdScheduler({
   const notificationHistory = [];
   const injectedScripts = new Set();
   const startedDownloadActions = new Set();
+
+  const redirectState = (() => {
+    if (pageState) {
+      if (typeof pageState.redirectUsedThisPage !== 'boolean') pageState.redirectUsedThisPage = false;
+      return pageState;
+    }
+    if (typeof window !== 'undefined') {
+      if (!window[PAGE_REDIRECT_STATE_KEY]) {
+        Object.defineProperty(window, PAGE_REDIRECT_STATE_KEY, {
+          configurable: false,
+          enumerable: false,
+          writable: false,
+          value: { redirectUsedThisPage: false },
+        });
+      }
+      return window[PAGE_REDIRECT_STATE_KEY];
+    }
+    return { redirectUsedThisPage: false };
+  })();
 
   const currentTime = () => Number(nowFn());
 
@@ -175,7 +197,7 @@ export function createAdScheduler({
     return lastMultiTagAt === null || at - lastMultiTagAt >= MULTITAG_MAIN_COOLDOWN_MS;
   };
 
-  const canRedirect = () => !hasAdFreeEntitlement() && !redirectAttemptedThisPage;
+  const canRedirect = () => !hasAdFreeEntitlement() && !redirectState.redirectUsedThisPage;
 
   const startInterruptiveAd = ({
     network,
@@ -190,19 +212,19 @@ export function createAdScheduler({
     const isRedirect = REDIRECT_FORMATS.has(format);
 
     if (activeAd) return { allowed: false, reason: 'active-ad' };
+    if (isRedirect && !canRedirect()) {
+      return { allowed: false, reason: 'redirect-limit' };
+    }
     if (!canShowAnyAd(at)) return { allowed: false, reason: 'global-cooldown' };
     if (format === AD_FORMATS.MULTITAG && !canShowMultiTag(at)) {
       return { allowed: false, reason: 'multitag-cooldown' };
-    }
-    if (isRedirect && !canRedirect()) {
-      return { allowed: false, reason: 'redirect-limit' };
     }
     if (destinationUrl) {
       const destination = isSafeAdDestination(destinationUrl, deniedDomains);
       if (!destination.safe) return { allowed: false, reason: 'unsafe-destination', detail: destination };
     }
 
-    if (isRedirect) redirectAttemptedThisPage = true;
+    if (isRedirect) redirectState.redirectUsedThisPage = true;
     lastAnyAdAt = at;
     if (format === AD_FORMATS.MULTITAG || network === AD_NETWORKS.MONETAG) {
       lastMultiTagAt = at;
@@ -220,6 +242,40 @@ export function createAdScheduler({
     if (typeof activeTimer?.unref === 'function') activeTimer.unref();
 
     return { allowed: true, reason: 'allowed', activeAd: { ...activeAd } };
+  };
+
+  const requestAdRedirect = ({
+    network,
+    format = AD_FORMATS.POPUNDER,
+    destinationUrl,
+    actionId,
+    timeoutMs = ACTIVE_AD_TIMEOUT_MS,
+    launch,
+  } = {}) => {
+    const redirectFormat = REDIRECT_FORMATS.has(format) ? format : AD_FORMATS.POPUNDER;
+    const decision = startInterruptiveAd({
+      network,
+      format: redirectFormat,
+      destinationUrl,
+      actionId,
+      timeoutMs,
+    });
+
+    if (!decision.allowed) return decision;
+
+    if (typeof launch !== 'function') return decision;
+
+    try {
+      return {
+        ...decision,
+        launchResult: launch(),
+      };
+    } catch (error) {
+      return {
+        ...decision,
+        launchError: error,
+      };
+    }
   };
 
   const startNotificationAd = ({
@@ -330,6 +386,7 @@ export function createAdScheduler({
     canShowNotificationAd,
     canRedirect,
     startInterruptiveAd,
+    requestAdRedirect,
     startNotificationAd,
     startBrowserNotificationAd(actionId = 'browser-notification') {
       return startNotificationAd({
@@ -364,7 +421,8 @@ export function createAdScheduler({
       return {
         lastAnyAdAt,
         lastMultiTagAt,
-        redirectAttemptedThisPage,
+        redirectAttemptedThisPage: redirectState.redirectUsedThisPage,
+        redirectUsedThisPage: redirectState.redirectUsedThisPage,
         activeAd: activeAd ? { ...activeAd } : null,
         notificationHistory: [...notificationHistory],
         lastNotificationAt: notificationHistory.at(-1) ?? null,

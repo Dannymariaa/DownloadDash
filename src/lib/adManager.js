@@ -2,12 +2,13 @@ import { ADSTERRA_UNITS, MONETAG_CONFIG } from '@/config/adsterraConfig';
 import adScheduler, { AD_FORMATS, AD_NETWORKS, NOTIFICATION_GUARD_BLOCKED } from '@/lib/adScheduler';
 
 const SCRIPT_ATTR = 'data-dd-ad-script';
-const MONETAG_LAST_TRIGGER_KEY = 'downloaddash:monetag:last-trigger';
 
 let activeBlockingAd = null;
 let monetagLoadingPromise = null;
 let browserAdGuardsInstalled = false;
 let originalWindowOpen = null;
+let originalLocationAssign = null;
+let originalLocationReplace = null;
 let originalNotification = null;
 let originalShowNotification = null;
 
@@ -107,22 +108,59 @@ const installBrowserAdGuards = () => {
   originalWindowOpen = window.open;
   if (typeof originalWindowOpen === 'function') {
     window.open = function guardedWindowOpen(url, target, features) {
-      const decision = adScheduler.startInterruptiveAd({
+      const decision = adScheduler.requestAdRedirect({
         network: AD_NETWORKS.MONETAG,
         format: AD_FORMATS.POPUNDER,
         destinationUrl: typeof url === 'string' && url ? url : undefined,
         actionId: 'window-open',
         timeoutMs: 1500,
+        launch: () => originalWindowOpen.call(window, url, target, features),
       });
 
       if (!decision.allowed) return null;
-
-      try {
-        return originalWindowOpen.call(window, url, target, features);
-      } finally {
-        window.setTimeout(() => adScheduler.finishActiveAd('window-open-returned'), 1500);
-      }
+      window.setTimeout(() => adScheduler.finishActiveAd('window-open-returned'), 1500);
+      return decision.launchResult ?? null;
     };
+  }
+
+  try {
+    originalLocationAssign = window.location?.assign?.bind(window.location);
+    originalLocationReplace = window.location?.replace?.bind(window.location);
+
+    if (originalLocationAssign) {
+      window.location.assign = function guardedLocationAssign(url) {
+        const decision = adScheduler.requestAdRedirect({
+          network: AD_NETWORKS.MONETAG,
+          format: AD_FORMATS.DIRECT_LINK,
+          destinationUrl: typeof url === 'string' ? url : String(url || ''),
+          actionId: 'location-assign',
+          timeoutMs: 1500,
+          launch: () => originalLocationAssign(url),
+        });
+        if (!decision.allowed) return undefined;
+        window.setTimeout(() => adScheduler.finishActiveAd('location-assign-returned'), 1500);
+        return decision.launchResult;
+      };
+    }
+
+    if (originalLocationReplace) {
+      window.location.replace = function guardedLocationReplace(url) {
+        const decision = adScheduler.requestAdRedirect({
+          network: AD_NETWORKS.MONETAG,
+          format: AD_FORMATS.DIRECT_LINK,
+          destinationUrl: typeof url === 'string' ? url : String(url || ''),
+          actionId: 'location-replace',
+          timeoutMs: 1500,
+          launch: () => originalLocationReplace(url),
+        });
+        if (!decision.allowed) return undefined;
+        window.setTimeout(() => adScheduler.finishActiveAd('location-replace-returned'), 1500);
+        return decision.launchResult;
+      };
+    }
+  } catch {
+    originalLocationAssign = null;
+    originalLocationReplace = null;
   }
 
   if (typeof window.Notification === 'function') {
@@ -185,6 +223,24 @@ export const adManager = {
 
   installBrowserAdGuards,
 
+  requestAdRedirect({
+    network = AD_NETWORKS.MONETAG,
+    format = AD_FORMATS.POPUNDER,
+    destinationUrl,
+    actionId,
+    launch,
+    timeoutMs = 1500,
+  } = {}) {
+    return adScheduler.requestAdRedirect({
+      network,
+      format,
+      destinationUrl,
+      actionId,
+      timeoutMs,
+      launch,
+    });
+  },
+
   async loadAdsterraBanner({ unit, container, placementId }) {
     if (adScheduler.hasAdFreeEntitlement()) return false;
     if (!isBrowser() || !unit || !container) return false;
@@ -239,6 +295,7 @@ export const adManager = {
     if (adScheduler.hasAdFreeEntitlement()) return Promise.resolve(null);
     if (!isBrowser()) return Promise.resolve(null);
     this.installBrowserAdGuards();
+    if (!MONETAG_CONFIG.enablePersistentMultiTag) return Promise.resolve(null);
     if (!monetagLoadingPromise) {
       monetagLoadingPromise = loadExternalScript({
         id: `monetag:${MONETAG_CONFIG.zone}`,
@@ -258,30 +315,30 @@ export const adManager = {
 
   canTriggerMonetag(now = Date.now()) {
     if (!isBrowser() || activeBlockingAd || adScheduler.hasAdFreeEntitlement()) return false;
-    const last = Number(sessionStorage.getItem(MONETAG_LAST_TRIGGER_KEY) || 0);
     return (
-      adScheduler.canShowNotificationAd(now) &&
+      MONETAG_CONFIG.enablePersistentMultiTag &&
       adScheduler.canShowMultiTag(now) &&
-      (!last || now - last >= MONETAG_CONFIG.minIntervalMs)
+      adScheduler.canRedirect()
     );
   },
 
   async triggerMonetag() {
     if (!this.canTriggerMonetag()) return false;
-    const decision = adScheduler.startNotificationAd({
+    const decision = adScheduler.requestAdRedirect({
       network: AD_NETWORKS.MONETAG,
       format: AD_FORMATS.MULTITAG,
+      actionId: 'monetag-multitag',
+      timeoutMs: 1500,
     });
     if (!decision.allowed) return false;
 
     try {
       await this.loadMonetag();
-      sessionStorage.setItem(MONETAG_LAST_TRIGGER_KEY, String(Date.now()));
       window.dispatchEvent(new CustomEvent('downloaddash:monetag-ready'));
       return true;
     } finally {
       window.setTimeout(() => {
-        adScheduler.finishNotificationAd('monetag-ready');
+        adScheduler.finishActiveAd('monetag-ready');
       }, 1500);
     }
   },
