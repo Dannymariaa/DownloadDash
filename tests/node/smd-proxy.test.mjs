@@ -154,6 +154,37 @@ const wrongDomainUrl = {
   twitter: validUrls.youtube,
 };
 
+test('critical SMD downloader routes are served by the consolidated catch-all', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify(upstreamSuccess), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const criticalRoutes = [
+      ['youtube', validUrls.youtube],
+      ['instagram', validUrls.instagram],
+      ['facebook', validUrls.facebook],
+      ['twitter', validUrls.twitter],
+      ['x', validUrls.x],
+      ['pinterest', validUrls.pinterest],
+      ['reddit', validUrls.reddit],
+      ['tiktok', validUrls.tiktok],
+    ];
+
+    for (const [platform, url] of criticalRoutes) {
+      const res = await request({ path: `${platform}/download`, body: { url } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, 200, platform);
+      assert.equal(body.success, true, platform);
+      assert.notEqual(body.error?.code, 'UPSTREAM_ROUTE_NOT_FOUND', platform);
+      assert.doesNotMatch(String(res.body), /<!doctype html/i, platform);
+    }
+  });
+});
+
 test('all public SMD platform routes validate input, authenticate server-side, and normalize success responses', async () => {
   await withProxyEnv(async () => {
     const forwarded = [];
@@ -1120,6 +1151,7 @@ test('fallback route inventory keeps SMD consolidated behind one catch-all entry
   const smdFiles = await listJsFiles(new URL('../../api/smd/', import.meta.url));
 
   assert.deepEqual(apiEntries.filter((entry) => entry.isFile()).map((entry) => entry.name).sort(), ['_downloadDashProxy.js']);
+  assert.ok(smdFiles.includes('[...path].js'), 'api/smd/[...path].js must remain the production downloader catch-all');
   assert.deepEqual(smdFiles, ['[...path].js', 'rapid-youtube-file.js', 'rapid-youtube.js']);
 
   const fallbackRoute = await readFile(new URL('../../api/smd/[...path].js', import.meta.url), 'utf8');

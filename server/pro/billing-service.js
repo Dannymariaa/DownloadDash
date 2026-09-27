@@ -10,11 +10,37 @@ const timingSafeEqualString = (a, b) => {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 };
 
+export const normalizeApplicationOrigin = (appUrl) => {
+  const rawAppUrl = String(appUrl || '').trim().replace(/\/+$/, '');
+  if (!rawAppUrl) throw new Error('Invalid application URL');
+
+  const hasScheme = /^[a-z][a-z\d+\-.]*:/i.test(rawAppUrl);
+  let parsed;
+  try {
+    parsed = new URL(hasScheme ? rawAppUrl : `https://${rawAppUrl}`);
+  } catch {
+    throw new Error('Invalid application URL');
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Invalid application URL');
+  }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash || !parsed.hostname) {
+    throw new Error('Invalid application URL');
+  }
+  if (parsed.pathname && parsed.pathname !== '/') {
+    throw new Error('Invalid application URL');
+  }
+
+  return parsed.origin;
+};
+
 export function createBillingService({
   store = getAccountStore(),
   webhookSecret = process.env.DOWNLOADDASH_BILLING_WEBHOOK_SECRET || 'development-webhook-secret-change-me',
   appUrl = process.env.DOWNLOADDASH_APP_URL || process.env.VERCEL_URL || 'http://localhost:5173',
 } = {}) {
+  const appOrigin = normalizeApplicationOrigin(appUrl);
   const signWebhookPayload = (payload) =>
     crypto.createHmac('sha256', webhookSecret).update(String(payload)).digest('hex');
 
@@ -95,14 +121,14 @@ export function createBillingService({
       return {
         provider: 'sandbox',
         mode: 'test',
-        checkoutUrl: `${String(appUrl).replace(/\/+$/, '')}/checkout-status?mode=sandbox&status=pending`,
+        checkoutUrl: `${appOrigin}/checkout-status?mode=sandbox&status=pending`,
       };
     },
     async createPortal({ user }) {
       if (!user?.id) throw new Error('Authentication required');
       return {
         provider: 'sandbox',
-        portalUrl: `${String(appUrl).replace(/\/+$/, '')}/account`,
+        portalUrl: `${appOrigin}/account`,
       };
     },
   };

@@ -180,3 +180,41 @@ test('duplicate webhook is idempotent', async () => {
   assert.equal(second.duplicate, true);
   assert.equal((await store.listBillingEvents()).length, 1);
 });
+
+test('sandbox checkout normalizes host-only Vercel app URLs to HTTPS', async () => {
+  const billing = createBillingService({ store: createMemoryStore(), appUrl: 'preview.example.vercel.app' });
+
+  const checkout = await billing.createCheckout({ user: { id: 'usr_checkout' } });
+
+  assert.equal(checkout.checkoutUrl, 'https://preview.example.vercel.app/checkout-status?mode=sandbox&status=pending');
+});
+
+test('sandbox checkout preserves valid http and https application origins', async () => {
+  const productionBilling = createBillingService({
+    store: createMemoryStore(),
+    appUrl: 'https://www.downloaddash.store',
+  });
+  const localBilling = createBillingService({
+    store: createMemoryStore(),
+    appUrl: 'http://localhost:5173',
+  });
+
+  const productionCheckout = await productionBilling.createCheckout({ user: { id: 'usr_prod' } });
+  const localPortal = await localBilling.createPortal({ user: { id: 'usr_local' } });
+
+  assert.equal(
+    productionCheckout.checkoutUrl,
+    'https://www.downloaddash.store/checkout-status?mode=sandbox&status=pending'
+  );
+  assert.equal(localPortal.portalUrl, 'http://localhost:5173/account');
+});
+
+test('billing rejects unsafe application URLs before creating redirects', async () => {
+  for (const appUrl of ['javascript:alert(1)', 'ftp://www.downloaddash.store', 'https://www.downloaddash.store/path']) {
+    assert.throws(
+      () => createBillingService({ store: createMemoryStore(), appUrl }),
+      /Invalid application URL/,
+      appUrl
+    );
+  }
+});

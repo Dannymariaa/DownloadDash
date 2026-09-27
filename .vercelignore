@@ -3,5 +3,6 @@ DownloadDash-API/
 *.py
 requirements.txt
 mobile/temp/
+.data/
 
 
