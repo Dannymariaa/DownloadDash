@@ -70,6 +70,17 @@ test('session cookies keep HttpOnly and SameSite while Secure follows environmen
   }
 });
 
+test('signed session cookie authenticates across isolated serverless stores', async () => {
+  const signupService = createAccountService({ store: createMemoryStore(), sessionSecret: 'test-secret' });
+  const { cookie } = await signupService.signup({ email: 'isolated@example.com', password: 'Correct Horse 123' });
+  const isolatedService = createAccountService({ store: createMemoryStore(), sessionSecret: 'test-secret' });
+
+  const user = await isolatedService.requireUser(cookie);
+
+  assert.equal(user.email, 'isolated@example.com');
+  assert.equal(user.fullName, 'isolated@example.com');
+});
+
 test('verified active subscription enables Pro ad-free entitlement', async () => {
   const store = createMemoryStore();
   const service = createAccountService({ store, sessionSecret: 'test-secret' });

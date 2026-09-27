@@ -21,6 +21,12 @@ const timingSafeEqualString = (a, b) => {
 const sign = (value, secret) =>
   crypto.createHmac('sha256', secret).update(value).digest('base64url');
 
+const encodeSessionPayload = (payload) =>
+  Buffer.from(JSON.stringify(payload)).toString('base64url');
+
+const decodeSessionPayload = (payload) =>
+  JSON.parse(Buffer.from(String(payload || ''), 'base64url').toString('utf8'));
+
 const serializeCookie = (name, value, { maxAge = SESSION_TTL_MS / 1000 } = {}) => [
   `${name}=${value}`,
   'Path=/',
@@ -73,17 +79,47 @@ export function createAccountService({
   store = getAccountStore(),
   sessionSecret = process.env.DOWNLOADDASH_SESSION_SECRET || 'development-session-secret-change-me',
 } = {}) {
-  const createSessionCookie = async (userId) => {
+  const createSessionCookie = async (user) => {
     const sessionId = randomId();
     const expiresAt = new Date(now() + SESSION_TTL_MS).toISOString();
-    await store.createSession({ id: sessionId, userId, expiresAt });
-    const value = `${sessionId}.${sign(sessionId, sessionSecret)}`;
+    await store.createSession({ id: sessionId, userId: user.id, expiresAt });
+    const payload = encodeSessionPayload({
+      sid: sessionId,
+      uid: user.id,
+      email: user.email,
+      fullName: user.fullName || user.email,
+      createdAt: user.createdAt,
+      emailVerified: Boolean(user.emailVerified),
+      exp: new Date(expiresAt).getTime(),
+    });
+    const value = `v2.${payload}.${sign(payload, sessionSecret)}`;
     return serializeCookie(SESSION_COOKIE, value);
   };
 
   const readSession = async (cookieHeader) => {
     const value = parseCookies(cookieHeader)[SESSION_COOKIE];
     if (!value) return null;
+
+    const [version, payload, payloadSignature] = value.split('.');
+    if (version === 'v2' && payload && payloadSignature && timingSafeEqualString(payloadSignature, sign(payload, sessionSecret))) {
+      try {
+        const session = decodeSessionPayload(payload);
+        if (!session.uid || !session.email || Number(session.exp) <= now()) return null;
+        return {
+          session: { id: session.sid, userId: session.uid, expiresAt: new Date(session.exp).toISOString() },
+          user: {
+            id: session.uid,
+            email: session.email,
+            fullName: session.fullName || session.email,
+            createdAt: session.createdAt,
+            emailVerified: Boolean(session.emailVerified),
+          },
+        };
+      } catch {
+        return null;
+      }
+    }
+
     const [sessionId, signature] = value.split('.');
     if (!sessionId || !signature || !timingSafeEqualString(signature, sign(sessionId, sessionSecret))) return null;
     const session = await store.findSessionById(sessionId);
@@ -141,7 +177,7 @@ export function createAccountService({
     },
     async signup(input) {
       const user = await this.createUser(input);
-      return { user: publicUser(user), cookie: await createSessionCookie(user.id) };
+      return { user: publicUser(user), cookie: await createSessionCookie(user) };
     },
     async login({ email, password }) {
       const user = await store.findUserByEmail(email);
@@ -150,11 +186,19 @@ export function createAccountService({
         error.status = 401;
         throw error;
       }
-      return { user: publicUser(user), cookie: await createSessionCookie(user.id) };
+      return { user: publicUser(user), cookie: await createSessionCookie(user) };
     },
     async logout(cookieHeader) {
       const value = parseCookies(cookieHeader)[SESSION_COOKIE];
-      const sessionId = value?.split('.')?.[0];
+      const parts = value?.split('.') || [];
+      let sessionId = parts[0];
+      if (parts[0] === 'v2' && parts[1]) {
+        try {
+          sessionId = decodeSessionPayload(parts[1]).sid;
+        } catch {
+          sessionId = null;
+        }
+      }
       if (sessionId) await store.deleteSession(sessionId);
       return serializeCookie(SESSION_COOKIE, '', { maxAge: 0 });
     },
