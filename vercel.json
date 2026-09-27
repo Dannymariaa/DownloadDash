@@ -61,6 +61,14 @@
       "destination": "/api/smd/[...path]"
     },
     {
+      "source": "/api/account/:path*",
+      "destination": "/api/account/[...path]"
+    },
+    {
+      "source": "/api/billing/:path*",
+      "destination": "/api/billing/[...path]"
+    },
+    {
       "source": "/((?!api(?:/|$)|downloads/|sw\\.js$).*)",
       "destination": "/index.html"
     }

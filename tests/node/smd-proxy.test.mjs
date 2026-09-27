@@ -1,31 +1,16 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import handler from '../../api/smd/[...path].js';
 
 const intendedApiEntrypoints = [
   '_downloadDashProxy.js',
-  'account/forgot-password.js',
-  'account/login.js',
-  'account/logout.js',
-  'account/me.js',
-  'account/reset-password.js',
-  'account/signup.js',
-  'billing/checkout.js',
-  'billing/portal.js',
-  'billing/webhook.js',
+  'account/[...path].js',
+  'billing/[...path].js',
   'smd/[...path].js',
-  'smd/facebook/download.js',
-  'smd/health.js',
-  'smd/instagram/download.js',
-  'smd/pinterest/download.js',
   'smd/rapid-youtube-file.js',
   'smd/rapid-youtube.js',
-  'smd/reddit/download.js',
-  'smd/tiktok/download.js',
-  'smd/twitter/download.js',
-  'smd/x/download.js',
-  'smd/youtube/download.js',
 ];
 
 const listJsFiles = async (rootUrl, prefix = '') => {
@@ -69,6 +54,26 @@ const createResponse = () => {
 };
 
 const readJson = (res) => JSON.parse(String(res.body || '{}'));
+
+const createJsonRequest = ({ method = 'POST', url, body = {}, headers = {} }) => {
+  const req = Readable.from([Buffer.from(JSON.stringify(body))]);
+  return Object.assign(req, {
+    method,
+    url,
+    query: {},
+    headers: {
+      'content-type': 'application/json',
+      ...headers,
+    },
+    socket: { remoteAddress: '198.51.100.10' },
+  });
+};
+
+const invokeHandler = async (routeHandler, options) => {
+  const res = createResponse();
+  await routeHandler(createJsonRequest(options), res);
+  return res;
+};
 
 const withProxyEnv = async (callback, overrides = {}) => {
   const originalFetch = globalThis.fetch;
@@ -1110,33 +1115,16 @@ test('successful upstream responses without media are treated as unsupported med
   });
 });
 
-test('fallback route inventory preserves all platform endpoints and the Twitter alias', async () => {
+test('fallback route inventory keeps SMD consolidated behind one catch-all entrypoint', async () => {
   const apiEntries = await readdir(new URL('../../api/', import.meta.url), { withFileTypes: true });
-  const smdEntries = await readdir(new URL('../../api/smd/', import.meta.url), { withFileTypes: true });
-  const smdDirectories = smdEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  const smdFiles = await listJsFiles(new URL('../../api/smd/', import.meta.url));
 
-  assert.deepEqual(apiEntries.filter((entry) => entry.isFile()).map((entry) => entry.name).sort(), [
-    '_downloadDashProxy.js',
-  ]);
-  assert.deepEqual(smdDirectories, [
-    'facebook',
-    'instagram',
-    'pinterest',
-    'reddit',
-    'tiktok',
-    'twitter',
-    'x',
-    'youtube',
-  ]);
+  assert.deepEqual(apiEntries.filter((entry) => entry.isFile()).map((entry) => entry.name).sort(), ['_downloadDashProxy.js']);
+  assert.deepEqual(smdFiles, ['[...path].js', 'rapid-youtube-file.js', 'rapid-youtube.js']);
 
   const fallbackRoute = await readFile(new URL('../../api/smd/[...path].js', import.meta.url), 'utf8');
   assert.match(fallbackRoute, /import handler from "\.\.\/_downloadDashProxy\.js";/);
   assert.match(fallbackRoute, /export default handler;/);
-
-  for (const platform of ['youtube', 'instagram', 'tiktok', 'facebook', 'x', 'twitter', 'reddit', 'pinterest']) {
-    const route = await readFile(new URL(`../../api/smd/${platform}/download.js`, import.meta.url), 'utf8');
-    assert.equal(route.trim(), 'import handler from "../../_downloadDashProxy.js";\n\nexport default handler;');
-  }
 });
 
 test('shared proxy entrypoint imports server implementation and can load without server env', async () => {
@@ -1185,6 +1173,74 @@ test('API tree contains only intended JavaScript serverless entrypoints', async 
   assert.deepEqual(apiFiles, intendedApiEntrypoints);
 });
 
+test('Vercel API tree stays within the Hobby serverless function budget', async () => {
+  const apiFiles = await listJsFiles(new URL('../../api/', import.meta.url));
+
+  assert.ok(apiFiles.length <= 10, `expected no more than 10 API functions, found ${apiFiles.length}`);
+});
+
+test('account routes are served by the account catch-all', async () => {
+  const account = (await import('../../api/account/[...path].js')).default;
+
+  const me = await invokeHandler(account, { method: 'GET', url: '/api/account/me' });
+  assert.equal(me.statusCode, 200);
+  assert.equal(readJson(me).authenticated, false);
+
+  const login = await invokeHandler(account, {
+    method: 'POST',
+    url: '/api/account/login',
+    body: { email: 'nobody@example.com', password: 'Incorrect 123' },
+  });
+  assert.equal(login.statusCode, 401);
+  assert.equal(readJson(login).error, 'login_failed');
+
+  const signup = await invokeHandler(account, {
+    method: 'POST',
+    url: '/api/account/signup',
+    body: { email: `route-signup-${Date.now()}@example.com`, password: 'Correct Horse 123' },
+  });
+  assert.equal(signup.statusCode, 201);
+  assert.ok(signup.getHeader('set-cookie'));
+});
+
+test('billing routes are served by the billing catch-all', async () => {
+  const billing = (await import('../../api/billing/[...path].js')).default;
+
+  const checkout = await invokeHandler(billing, { method: 'POST', url: '/api/billing/checkout' });
+  assert.equal(checkout.statusCode, 401);
+  assert.equal(readJson(checkout).error, 'checkout_failed');
+
+  const webhook = await invokeHandler(billing, {
+    method: 'POST',
+    url: '/api/billing/webhook',
+    body: { id: 'evt_route_test', type: 'checkout.completed', userId: 'usr_route_test' },
+    headers: { 'x-downloaddash-signature': 'bad-signature' },
+  });
+  assert.equal(webhook.statusCode, 401);
+  assert.equal(readJson(webhook).error, 'webhook_rejected');
+});
+
+test('Pro catch-all routes reject unknown paths and wrong HTTP methods', async () => {
+  const account = (await import('../../api/account/[...path].js')).default;
+  const billing = (await import('../../api/billing/[...path].js')).default;
+
+  const unknownAccount = await invokeHandler(account, { method: 'GET', url: '/api/account/unknown' });
+  assert.equal(unknownAccount.statusCode, 404);
+  assert.equal(readJson(unknownAccount).error, 'not_found');
+
+  const unknownBilling = await invokeHandler(billing, { method: 'POST', url: '/api/billing/unknown' });
+  assert.equal(unknownBilling.statusCode, 404);
+  assert.equal(readJson(unknownBilling).error, 'not_found');
+
+  const wrongAccountMethod = await invokeHandler(account, { method: 'POST', url: '/api/account/me' });
+  assert.equal(wrongAccountMethod.statusCode, 405);
+  assert.equal(readJson(wrongAccountMethod).error, 'method_not_allowed');
+
+  const wrongBillingMethod = await invokeHandler(billing, { method: 'GET', url: '/api/billing/webhook' });
+  assert.equal(wrongBillingMethod.statusCode, 405);
+  assert.equal(readJson(wrongBillingMethod).error, 'method_not_allowed');
+});
+
 test('frontend clients keep DownloadDash secrets out of browser requests', async () => {
   const webClient = await readFile(new URL('../../src/api/downloadDashClient.js', import.meta.url), 'utf8');
   const mobileClient = await readFile(new URL('../../mobile/utils/api.js', import.meta.url), 'utf8');
@@ -1201,6 +1257,8 @@ test('frontend clients keep DownloadDash secrets out of browser requests', async
 test('Vercel SPA rewrite excludes API paths so functions can handle requests', async () => {
   const config = JSON.parse(await readFile(new URL('../../vercel.json', import.meta.url), 'utf8'));
   const smdRewriteIndex = config.rewrites.findIndex((rewrite) => rewrite.destination === '/api/smd/[...path]');
+  const accountRewriteIndex = config.rewrites.findIndex((rewrite) => rewrite.destination === '/api/account/[...path]');
+  const billingRewriteIndex = config.rewrites.findIndex((rewrite) => rewrite.destination === '/api/billing/[...path]');
   const spaRewrite = config.rewrites.find((rewrite) => rewrite.destination === '/index.html');
   const spaRewriteIndex = config.rewrites.indexOf(spaRewrite);
 
@@ -1208,8 +1266,14 @@ test('Vercel SPA rewrite excludes API paths so functions can handle requests', a
   assert.equal(config.framework, 'vite');
   assert.equal(config.outputDirectory, 'dist');
   assert.ok(smdRewriteIndex >= 0);
+  assert.ok(accountRewriteIndex >= 0);
+  assert.ok(billingRewriteIndex >= 0);
+  assert.ok(accountRewriteIndex < spaRewriteIndex);
+  assert.ok(billingRewriteIndex < spaRewriteIndex);
   assert.ok(smdRewriteIndex < spaRewriteIndex);
   assert.equal(config.rewrites[smdRewriteIndex].source, '/api/smd/:path*');
+  assert.equal(config.rewrites[accountRewriteIndex].source, '/api/account/:path*');
+  assert.equal(config.rewrites[billingRewriteIndex].source, '/api/billing/:path*');
   assert.ok(spaRewrite);
   assert.match(spaRewrite.source, /\(\?!api/);
 });
