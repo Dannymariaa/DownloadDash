@@ -2,8 +2,25 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { createAccountService } from '../../server/pro/account-service.js';
-import { createMemoryStore } from '../../server/pro/account-store.js';
+import { createMemoryStore, defaultAccountStorePath } from '../../server/pro/account-store.js';
 import { createBillingService } from '../../server/pro/billing-service.js';
+
+test('Vercel account store default uses writable tmp storage', () => {
+  const originalVercel = process.env.VERCEL;
+  const originalDbPath = process.env.DOWNLOADDASH_ACCOUNT_DB_PATH;
+
+  try {
+    process.env.VERCEL = '1';
+    delete process.env.DOWNLOADDASH_ACCOUNT_DB_PATH;
+
+    assert.match(defaultAccountStorePath(), /^\/tmp\/downloaddash\/accounts\.json$/);
+  } finally {
+    if (originalVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = originalVercel;
+    if (originalDbPath === undefined) delete process.env.DOWNLOADDASH_ACCOUNT_DB_PATH;
+    else process.env.DOWNLOADDASH_ACCOUNT_DB_PATH = originalDbPath;
+  }
+});
 
 test('logged-out user receives safe Free account response', async () => {
   const service = createAccountService({ store: createMemoryStore(), sessionSecret: 'test-secret' });

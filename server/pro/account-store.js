@@ -136,7 +136,13 @@ export function createMemoryStore(initialState = emptyState()) {
   };
 }
 
-export function createJsonFileStore(filePath = process.env.DOWNLOADDASH_ACCOUNT_DB_PATH || path.join(process.cwd(), '.data', 'accounts.json')) {
+export function defaultAccountStorePath() {
+  if (process.env.DOWNLOADDASH_ACCOUNT_DB_PATH) return process.env.DOWNLOADDASH_ACCOUNT_DB_PATH;
+  if (process.env.VERCEL) return path.posix.join('/tmp', 'downloaddash', 'accounts.json');
+  return path.join(process.cwd(), '.data', 'accounts.json');
+}
+
+export function createJsonFileStore(filePath = defaultAccountStorePath()) {
   let memoryStorePromise;
   const load = async () => {
     if (memoryStorePromise) return memoryStorePromise;
