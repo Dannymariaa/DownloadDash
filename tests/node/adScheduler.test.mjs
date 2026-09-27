@@ -194,6 +194,30 @@ test('100 notification triggers in one second allow at most one notification', (
   assert.equal(allowed, 1);
 });
 
+test('notification stress test never exceeds two in any rolling five minute window', () => {
+  let now = 0;
+  const scheduler = createAdScheduler({ now: () => now });
+  const allowedAt = [];
+
+  for (let second = 0; second <= 10 * 60; second += 1) {
+    now = second * 1000;
+    const decision = scheduler.startNotificationAd();
+    if (decision.allowed) {
+      allowedAt.push(now);
+      scheduler.finishNotificationAd('closed');
+    }
+  }
+
+  for (const timestamp of allowedAt) {
+    const countInWindow = allowedAt.filter((other) => other >= timestamp && other < timestamp + 5 * 60 * 1000).length;
+    assert.ok(countInWindow <= 2);
+  }
+
+  for (let index = 1; index < allowedAt.length; index += 1) {
+    assert.ok(allowedAt[index] - allowedAt[index - 1] >= 2 * 60 * 1000);
+  }
+});
+
 test('notification route changes preserve limiter history', () => {
   const scheduler = createAdScheduler({ now: () => 0 });
 
@@ -203,6 +227,64 @@ test('notification route changes preserve limiter history', () => {
 
   scheduler.setNow(() => 60_000);
   assert.equal(scheduler.startNotificationAd().allowed, false);
+});
+
+test('notification history survives scheduler recreation through storage', () => {
+  const storage = new Map();
+  const localStorage = {
+    getItem: (key) => storage.get(key) ?? null,
+    setItem: (key, value) => storage.set(key, String(value)),
+    removeItem: (key) => storage.delete(key),
+  };
+
+  const firstScheduler = createAdScheduler({ now: () => 0, localStorage });
+  assert.equal(firstScheduler.startNotificationAd().allowed, true);
+  firstScheduler.finishNotificationAd('closed');
+
+  const remountedScheduler = createAdScheduler({ now: () => 60_000, localStorage });
+  assert.equal(remountedScheduler.startNotificationAd().allowed, false);
+  assert.deepEqual(remountedScheduler.snapshot().notificationHistory, [0]);
+});
+
+test('redirect limit is per app page session and resets for fresh scheduler instances', () => {
+  const scheduler = createAdScheduler({ now: () => 0 });
+
+  assert.equal(scheduler.startInterruptiveAd({
+    network: AD_NETWORKS.MONETAG,
+    format: AD_FORMATS.POPUNDER,
+  }).allowed, true);
+  scheduler.finishActiveAd('closed');
+  scheduler.noteSpaNavigation('/download');
+
+  scheduler.setNow(() => 30 * 60 * 1000);
+  assert.equal(scheduler.startInterruptiveAd({
+    network: AD_NETWORKS.MONETAG,
+    format: AD_FORMATS.POPUNDER,
+  }).reason, 'redirect-limit');
+
+  const afterFullReload = createAdScheduler({ now: () => 0 });
+  assert.equal(afterFullReload.canRedirect(), true);
+});
+
+test('redirect stress test allows one popunder attempt across repeated clicks and route changes', () => {
+  let now = 0;
+  const scheduler = createAdScheduler({ now: () => now });
+  let allowed = 0;
+
+  for (let index = 0; index < 100; index += 1) {
+    now = index * 1000;
+    const decision = scheduler.startInterruptiveAd({
+      network: AD_NETWORKS.MONETAG,
+      format: AD_FORMATS.POPUNDER,
+    });
+    if (decision.allowed) {
+      allowed += 1;
+      scheduler.finishActiveAd('closed');
+    }
+    if (index === 20) scheduler.noteSpaNavigation('/another-route');
+  }
+
+  assert.equal(allowed, 1);
 });
 
 test('notification scheduler creates only one timer across rerenders', () => {

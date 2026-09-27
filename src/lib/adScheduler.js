@@ -4,6 +4,7 @@ export const NOTIFICATION_MIN_GAP_MS = 2 * 60 * 1000;
 export const NOTIFICATION_WINDOW_MS = 5 * 60 * 1000;
 export const NOTIFICATION_MAX_PER_WINDOW = 2;
 export const ACTIVE_AD_TIMEOUT_MS = 45 * 1000;
+export const NOTIFICATION_HISTORY_STORAGE_KEY = 'downloaddash:ads:notification-history:v1';
 
 export const AD_NETWORKS = {
   ADSTERRA: 'adsterra',
@@ -78,6 +79,7 @@ export function createAdScheduler({
   now = () => Date.now(),
   setTimer = typeof window !== 'undefined' ? window.setTimeout.bind(window) : setTimeout,
   clearTimer = typeof window !== 'undefined' ? window.clearTimeout.bind(window) : clearTimeout,
+  localStorage = typeof window !== 'undefined' ? window.localStorage : null,
   deniedDomains = DEFAULT_DENIED_AD_DOMAINS,
   entitlements = {},
 } = {}) {
@@ -96,6 +98,28 @@ export function createAdScheduler({
   const startedDownloadActions = new Set();
 
   const currentTime = () => Number(nowFn());
+
+  const readStoredNotificationHistory = () => {
+    if (!localStorage) return [];
+    try {
+      const parsed = JSON.parse(localStorage.getItem(NOTIFICATION_HISTORY_STORAGE_KEY) || '[]');
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((timestamp) => Number.isFinite(timestamp) && timestamp >= 0).sort((a, b) => a - b);
+    } catch {
+      return [];
+    }
+  };
+
+  const writeStoredNotificationHistory = () => {
+    if (!localStorage) return;
+    try {
+      localStorage.setItem(NOTIFICATION_HISTORY_STORAGE_KEY, JSON.stringify(notificationHistory));
+    } catch {
+      // Storage can be unavailable in private browsing or embedded contexts.
+    }
+  };
+
+  notificationHistory.push(...readStoredNotificationHistory());
 
   const clearActiveTimer = () => {
     if (activeTimer) {
@@ -117,6 +141,7 @@ export function createAdScheduler({
     while (notificationHistory.length > 0 && at - notificationHistory[0] >= NOTIFICATION_WINDOW_MS) {
       notificationHistory.shift();
     }
+    writeStoredNotificationHistory();
   };
 
   const hasAdFreeEntitlement = () => Boolean(adEntitlements.adFree);
@@ -224,6 +249,7 @@ export function createAdScheduler({
       lastMultiTagAt = at;
     }
     notificationHistory.push(at);
+    writeStoredNotificationHistory();
     notificationActive = true;
     activeAd = {
       network,
@@ -325,6 +351,7 @@ export function createAdScheduler({
       return injectedScripts.has(id);
     },
     snapshot() {
+      pruneNotificationHistory();
       return {
         lastAnyAdAt,
         lastMultiTagAt,
