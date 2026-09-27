@@ -31,6 +31,8 @@ const REDIRECT_FORMATS = new Set([
   AD_FORMATS.INTERSTITIAL,
 ]);
 
+const REDIRECT_ADS_ENABLED = false;
+
 const DEFAULT_DENIED_AD_DOMAINS = [
   'pornhub.com',
   'xvideos.com',
@@ -193,11 +195,12 @@ export function createAdScheduler({
   };
 
   const canShowMultiTag = (at = currentTime()) => {
+    if (!REDIRECT_ADS_ENABLED) return false;
     if (!canShowAnyAd(at)) return false;
     return lastMultiTagAt === null || at - lastMultiTagAt >= MULTITAG_MAIN_COOLDOWN_MS;
   };
 
-  const canRedirect = () => !hasAdFreeEntitlement() && !redirectState.redirectUsedThisPage;
+  const canRedirect = () => REDIRECT_ADS_ENABLED && !hasAdFreeEntitlement() && !redirectState.redirectUsedThisPage;
 
   const startInterruptiveAd = ({
     network,
@@ -211,6 +214,9 @@ export function createAdScheduler({
     const at = currentTime();
     const isRedirect = REDIRECT_FORMATS.has(format);
 
+    if (isRedirect && !REDIRECT_ADS_ENABLED) {
+      return { allowed: false, reason: 'redirect-format-disabled' };
+    }
     if (activeAd) return { allowed: false, reason: 'active-ad' };
     if (isRedirect && !canRedirect()) {
       return { allowed: false, reason: 'redirect-limit' };

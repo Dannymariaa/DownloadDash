@@ -17,6 +17,8 @@ export const ERROR_MESSAGES = {
   UNSUPPORTED_PLATFORM: "Downloader platform is not supported.",
   BLOCKED_HOST: "This URL is not allowed.",
   PAYLOAD_TOO_LARGE: "Request body is too large.",
+  PRO_UPGRADE_REQUIRED: "DownloadDash Pro is required for batch downloads.",
+  BATCH_LIMIT_EXCEEDED: "Too many URLs for this batch.",
   SERVICE_CONFIGURATION_ERROR: "Download service is temporarily unavailable.",
   UPSTREAM_TIMEOUT: "Download service timed out. Please try again.",
   UPSTREAM_UNAVAILABLE: "Download service is temporarily unavailable.",
@@ -38,7 +40,7 @@ export const ERROR_MESSAGES = {
   EXTRACTOR_OUTDATED: "Download service could not resolve this media.",
   EXTRACTOR_FAILED: "Download service could not resolve this media.",
   MEDIA_NOT_FOUND: "Media was not found or is no longer available.",
-  PRIVATE_MEDIA: "This media is private, restricted, or unavailable.",
+  PRIVATE_MEDIA: "This media is private, login-only, paid, deleted, DRM-protected, restricted, or unavailable.",
   UNSUPPORTED_MEDIA: "This media is not supported for download.",
   INTERNAL_ERROR: "Something went wrong. Please try again.",
 };

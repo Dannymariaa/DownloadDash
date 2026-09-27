@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import downloadDash from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
 import HDVideoAdModal from './HDVideoAdModal';
@@ -15,7 +14,19 @@ import { useAuth } from '@/lib/AuthContext';
 import adScheduler from '@/lib/adScheduler';
 import { getPlatformIcon } from '@/components/PlatformIcons';
 import { createPageUrl } from '@/utils';
-import { mediaDisplayLabel, prepareZipDownload } from '@/utils/downloadZip';
+import { downloadItemsWithQueue, mediaQueueLabel } from '@/utils/downloadQueue';
+import { MAX_BATCH_URLS, normalizeBatchUrls } from '@/utils/batchLinks';
+
+const PRO_PROMO_FEATURES = [
+  'Ad-free downloads',
+  'No countdown',
+  'Up to 7 public links at once',
+  'Mixed-platform batches',
+  'Batch download manager',
+  'Saved quality preferences',
+];
+
+const SUPPORTED_BATCH_PLATFORMS = ['YouTube', 'TikTok', 'Instagram', 'Facebook', 'X/Twitter', 'Pinterest', 'Reddit'];
 
 // Platform URL validation
 const urlPatterns = {
@@ -345,11 +356,16 @@ export default function DownloaderTemplate({
   const { t } = useI18n();
   const { entitlements } = useAuth();
   const adFree = Boolean(entitlements?.adFree);
+  const isPro = adFree;
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [batchResult, setBatchResult] = useState(null);
   const [error, setError] = useState('');
-  const [progress, setProgress] = useState(0);
+  const [selectedBatchIds, setSelectedBatchIds] = useState([]);
+  const [downloadQueue, setDownloadQueue] = useState([]);
+  const [preferredVideoQuality, setPreferredVideoQuality] = useState(() => localStorage.getItem('ddPreferredVideoQuality') || 'best');
+  const [autoSelectSoundtrack, setAutoSelectSoundtrack] = useState(() => localStorage.getItem('ddAutoSelectSoundtrack') !== 'off');
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
@@ -362,30 +378,92 @@ export default function DownloaderTemplate({
     ? React.cloneElement(platformIcon, { className: platformIcon.props.className || 'h-12 w-12' })
     : getPlatformIcon(platform === 'whatsappbusiness' ? 'whatsapp' : platform, 88, 'drop-shadow-2xl');
 
+  function expandBatchDownloadItems(items = []) {
+    return items.flatMap((item, itemIndex) => {
+      if (item?.type !== 'video' || !Array.isArray(item.variants) || item.variants.length === 0) {
+        return [{ ...item, itemIndex }];
+      }
+
+      const seen = new Set();
+      const variants = item.variants
+        .filter((variant) => variant?.url)
+        .filter((variant) => {
+          if (seen.has(variant.url)) return false;
+          seen.add(variant.url);
+          return true;
+        })
+        .map((variant, variantIndex) => ({
+          ...item,
+          ...variant,
+          type: 'video',
+          id: `${item.id || `media-${itemIndex}`}-${variant.quality || variant.height || variantIndex}`,
+          index: item.index ?? itemIndex,
+          itemIndex,
+          thumbnail: item.thumbnail || variant.thumbnail,
+          hasAudio: variant.hasAudio ?? item.hasAudio,
+        }));
+
+      return variants.length ? variants : [{ ...item, itemIndex }];
+    });
+  }
+
+  function collectBatchSelectableItems(batch = batchResult) {
+    return (batch?.results || []).flatMap((entry, linkIndex) => {
+      if (entry.status !== 'complete') return [];
+      const items = Array.isArray(entry.result?.downloads?.items) ? entry.result.downloads.items : [];
+      return expandBatchDownloadItems(items)
+        .filter((item) => item?.url && item.type !== 'unknown')
+        .map((item, itemIndex) => ({
+          ...item,
+          sourceUrl: entry.url,
+          platform: entry.platform,
+          linkIndex,
+          batchId: `${linkIndex}:${item.id || item.index || itemIndex}:${item.url}`,
+        }));
+    });
+  }
+
   const handleFetch = async () => {
-    const validation = validateUrl(url, platform, t);
+    const normalizedBatch = normalizeBatchUrls(url, { maxUrls: MAX_BATCH_URLS + 1 });
+    const isBatchRequest = isPro && normalizedBatch.length > 0;
+    const validation = isBatchRequest ? { valid: true, url } : validateUrl(url, platform, t);
     if (!validation.valid) { setError(validation.error); return; }
+    if (isBatchRequest && normalizedBatch.some((entry) => !entry.platform)) {
+      setError('Paste public links from supported DownloadDash platforms.');
+      return;
+    }
     setIsLoading(true);
     setError('');
     setResult(null);
+    setBatchResult(null);
     setSelectedMediaIds([]);
-    setProgress(0);
-
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setProgress(prev => Math.min(prev + Math.random() * 15, 90));
-    }, 200);
+    setSelectedBatchIds([]);
 
     try {
-      const response = await downloadDash.functions.invoke('downloadVideo', { url: validation.url, platform });
-      clearInterval(progressInterval);
-      setProgress(100);
+      if (isBatchRequest) {
+        const response = await downloadDash.batchDownload({
+          urls: normalizedBatch.map((entry) => entry.url),
+          quality: preferredVideoQuality === 'sd' ? 'sd' : 'highest',
+        });
+        setBatchResult(response);
+        const selectable = collectBatchSelectableItems(response);
+        setSelectedBatchIds(selectable.filter((item) => autoSelectSoundtrack || item.type !== 'audio').map((item) => item.batchId));
+        return;
+      }
+
+      const response = await downloadDash.functions.invoke('downloadVideo', {
+        url: validation.url,
+        platform,
+        quality: preferredVideoQuality === 'sd' ? 'sd' : 'highest',
+      });
       if (!response.success) throw new Error(response.error || t('errors.processFailed'));
       setResult(response);
       const returnedItems = Array.isArray(response.downloads?.items)
         ? response.downloads.items.filter((item) => item?.url && item.type !== 'unknown')
         : [];
-      setSelectedMediaIds(returnedItems.map((item, index) => item.id || `media-${item.index ?? index}`));
+      setSelectedMediaIds(returnedItems
+        .filter((item) => autoSelectSoundtrack || item.type !== 'audio')
+        .map((item, index) => item.id || `media-${item.index ?? index}`));
       if (user?.email) {
         await downloadDash.entities.DownloadHistory.create({
           user_email: user.email,
@@ -398,12 +476,10 @@ export default function DownloaderTemplate({
         }).catch(() => {});
       }
     } catch (err) {
-      clearInterval(progressInterval);
       setError(err.message || t('errors.fetchFailed'));
     } finally {
       setTimeout(() => {
         setIsLoading(false);
-        setProgress(0);
       }, 500);
     }
   };
@@ -413,7 +489,7 @@ export default function DownloaderTemplate({
     const match = cleanUrl.match(/\.([a-z0-9]{2,5})$/);
     if (match) return match[1];
     if (type === 'audio') return 'mp3';
-    if (type === 'image' || type === 'album' || type === 'zip') return 'jpg';
+    if (type === 'image' || type === 'album') return 'jpg';
     return 'mp4';
   };
 
@@ -423,7 +499,7 @@ export default function DownloaderTemplate({
     return `DownloadDash${randomDigits}${suffix}.${getDownloadExtension(type, urlValue)}`;
   };
 
-  const startDownload = async (downloadUrl, type, index = null) => {
+  const startDownload = async (downloadUrl, type, index = null, filenameOverride = '') => {
     if (!downloadUrl) return;
 
     try {
@@ -431,7 +507,7 @@ export default function DownloaderTemplate({
       setIsLoading(true);
       setIsDownloading(true);
 
-      const filename = buildFilename(type, downloadUrl, index);
+      const filename = filenameOverride || buildFilename(type, downloadUrl, index);
 
       // Use the client's downloadToDevice function which handles CORS and proxy fallback
       await downloadDash.downloadToDevice(downloadUrl, filename, result?.original_url || url, type);
@@ -463,46 +539,39 @@ export default function DownloaderTemplate({
   const startAlbumDownload = async (items) => {
     if (!items?.length) return;
 
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      const itemType = item.type === 'video' ? 'videoHD' : item.type === 'audio' ? 'audio' : 'image';
-      await startDownload(item.url, itemType, index);
-    }
-  };
-
-  const startZipDownload = async (items) => {
-    if (!items?.length) return;
-
     try {
       setIsLoading(true);
       setIsDownloading(true);
+      setDownloadQueue(items.map((item, index) => ({
+        index,
+        item,
+        label: mediaQueueLabel(item, index),
+        status: 'waiting',
+        retryable: false,
+      })));
 
-      const zip = await prepareZipDownload({
+      const queue = await downloadItemsWithQueue({
         items,
         platform,
-        sourceUrl: result?.original_url || url,
-        fetchMediaBlob: downloadDash.fetchMediaBlob,
+        delayMs: 550,
+        concurrency: 2,
+        onProgress: setDownloadQueue,
+        downloadOne: async (item, filename, index) => {
+          const itemType = item.type === 'video' ? 'video' : item.type === 'audio' ? 'audio' : 'image';
+          await downloadDash.downloadToDevice(item.url, filename, item.sourceUrl || result?.original_url || url, itemType);
+          return index;
+        },
       });
 
-      if (!zip.files.length) {
-        const failedLabels = zip.failed.map((item) => item.label).join(', ');
-        throw new Error(failedLabels ? `Could not fetch selected items: ${failedLabels}.` : 'Could not fetch selected items.');
+      if (!queue.completed.length) {
+        const failedLabels = queue.failed.map((item) => item.label).join(', ');
+        throw new Error(failedLabels ? `Could not download selected items: ${failedLabels}.` : 'Could not download selected items.');
       }
 
-      const objectUrl = URL.createObjectURL(zip.blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = `DownloadDash-${platform}-media.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(objectUrl);
-      const message = zip.failed.length
-        ? `${t('alerts.downloadStarted', { filename: link.download })}\n\n${zip.failureMessage}`
-        : t('alerts.downloadStarted', { filename: link.download });
+      const message = [queue.multipleDownloadNotice, queue.summary].filter(Boolean).join('\n\n');
       alert(message);
     } catch (error) {
-      console.error('ZIP download failed:', error);
+      console.error('Batch download failed:', error);
       alert(t('errors.downloadFailed', { message: error.message || 'Unknown error' }));
     } finally {
       setIsLoading(false);
@@ -510,12 +579,14 @@ export default function DownloaderTemplate({
     }
   };
 
-  const beginDownloadAfterGate = async (downloadUrl, type, label, items = null) => {
-    if (type === 'zip') {
-      await startZipDownload(items);
-      return;
-    }
+  const retryFailedDownloads = () => {
+    const failedItems = downloadQueue
+      .filter((entry) => entry.status === 'failed' && entry.retryable && entry.item?.url)
+      .map((entry) => entry.item);
+    if (failedItems.length) startAlbumDownload(failedItems);
+  };
 
+  const beginDownloadAfterGate = async (downloadUrl, type, label, items = null) => {
     if (!downloadUrl && !items?.length) {
       setError(t('errors.processFailed'));
       return;
@@ -632,10 +703,53 @@ export default function DownloaderTemplate({
         : [...current, itemId]
     );
   };
+
+  const batchSelectableItems = collectBatchSelectableItems();
+  const selectedBatchItems = batchSelectableItems.filter((item) => selectedBatchIds.includes(item.batchId));
+  const failedBatchUrls = (batchResult?.results || []).filter((entry) => entry.status === 'failed').map((entry) => entry.url);
+  const previewBatchLinks = normalizeBatchUrls(url, { maxUrls: MAX_BATCH_URLS + 1 });
+  const previewBatchCount = previewBatchLinks.length;
+  const isPreviewingBatchInput = isPro && previewBatchCount > 0;
+  const isOverBatchLimit = previewBatchCount > MAX_BATCH_URLS;
+  const batchTotalLinks = batchResult?.totalUrls || batchResult?.results?.length || 0;
+  const completedBatchLinks = batchResult?.results?.filter((entry) => entry.status === 'complete').length || 0;
+  const toggleBatchSelection = (batchId) => {
+    setSelectedBatchIds((current) =>
+      current.includes(batchId)
+        ? current.filter((selectedId) => selectedId !== batchId)
+        : [...current, batchId]
+    );
+  };
+  const selectAllBatchItems = () => setSelectedBatchIds(batchSelectableItems.map((item) => item.batchId));
+  const clearBatchSelection = () => setSelectedBatchIds([]);
+  const retryFailedBatch = async () => {
+    if (!failedBatchUrls.length) return;
+    setIsLoading(true);
+    setError('');
+    try {
+      const response = await downloadDash.batchDownload({
+        urls: (batchResult?.results || []).map((entry) => entry.url),
+        retryFailed: true,
+        failedUrls: failedBatchUrls,
+        quality: preferredVideoQuality === 'sd' ? 'sd' : 'highest',
+      });
+      const retryByUrl = new Map(response.results.map((entry) => [entry.url, entry]));
+      const merged = {
+        ...batchResult,
+        results: (batchResult?.results || []).map((entry) => retryByUrl.get(entry.url) || entry),
+      };
+      setBatchResult(merged);
+      setSelectedBatchIds(collectBatchSelectableItems(merged).filter((item) => autoSelectSoundtrack || item.type !== 'audio').map((item) => item.batchId));
+    } catch (err) {
+      setError(err.message || t('errors.fetchFailed'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const selectAllMedia = () => setSelectedMediaIds(selectableMediaItems.map((item) => item.id));
   const clearMediaSelection = () => setSelectedMediaIds([]);
   const mediaLabel = (item, index) => {
-    const type = mediaDisplayLabel(item, index);
+    const type = mediaQueueLabel(item, index);
     const parts = [item.quality, item.width && item.height ? `${item.width}x${item.height}` : '', item.format || item.extension || '', item.hasAudio ? 'audio' : '']
       .filter(Boolean);
     return `${type}${parts.length ? ` - ${parts.join(' - ')}` : ''}`;
@@ -676,10 +790,49 @@ export default function DownloaderTemplate({
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
-          className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-3"
+          className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-[min(92vw,520px)] bg-gray-950 text-white px-4 py-3 rounded-2xl shadow-lg border border-green-500/30"
         >
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="font-medium">{t('downloader.downloading')}</span>
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-5 w-5 animate-spin text-green-300" />
+            <span className="font-medium">
+              {downloadQueue.length
+                ? `${downloadQueue.filter((entry) => entry.status === 'completed').length}/${downloadQueue.length} completed`
+                : t('downloader.downloading')}
+            </span>
+          </div>
+          {downloadQueue.length > 0 && (
+            <div className="mt-3 max-h-40 overflow-y-auto space-y-2">
+              {downloadQueue.slice(0, 6).map((entry) => (
+                <div key={`${entry.index}-${entry.item?.url || entry.label}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 text-xs">
+                  <span className="truncate text-gray-200">{entry.index + 1}. {entry.label}</span>
+                  <span className={
+                    entry.status === 'completed' ? 'text-green-300' :
+                    entry.status === 'failed' ? 'text-red-300' :
+                    entry.status === 'downloading' ? 'text-sky-300' :
+                    'text-gray-400'
+                  }>
+                    {entry.status === 'downloading' ? 'Downloading' :
+                      entry.status === 'completed' ? 'Completed' :
+                      entry.status === 'failed' ? 'Failed' :
+                      entry.status === 'skipped' ? 'Skipped' :
+                      'Waiting'}
+                  </span>
+                </div>
+              ))}
+              {downloadQueue.length > 6 && (
+                <p className="text-xs text-gray-400">{downloadQueue.length - 6} more waiting in the queue</p>
+              )}
+              {downloadQueue.some((entry) => entry.status === 'failed' && entry.retryable) && (
+                <button
+                  type="button"
+                  onClick={retryFailedDownloads}
+                  className="mt-1 rounded-lg border border-red-400/30 px-3 py-1 text-xs font-semibold text-red-100 hover:bg-red-500/20"
+                >
+                  Retry failed files
+                </button>
+              )}
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -759,13 +912,16 @@ export default function DownloaderTemplate({
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400 h-5 w-5" />
-              <Input
+              <textarea
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleFetch()}
-                placeholder={placeholderUrl === 'Paste your link here...' ? t('downloader.placeholder') : placeholderUrl}
-                className="pl-12 h-14 bg-black/50 border-purple-500/30 text-white placeholder:text-gray-500 focus:border-purple-500 rounded-xl text-lg"
-                maxLength={2048}
+                onKeyDown={(e) => {
+                  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleFetch();
+                }}
+                placeholder={isPro ? 'Paste public media links\nURL 1\nURL 2\nURL 3' : (placeholderUrl === 'Paste your link here...' ? t('downloader.placeholder') : placeholderUrl)}
+                className="w-full min-h-14 pl-12 pr-4 py-4 bg-black/50 border border-purple-500/30 text-white placeholder:text-gray-500 focus:border-purple-500 rounded-xl text-lg outline-none resize-y"
+                maxLength={isPro ? 14000 : 2048}
+                rows={isPro ? 4 : 1}
               />
             </div>
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
@@ -774,15 +930,74 @@ export default function DownloaderTemplate({
                 disabled={isLoading}
                 className={`h-14 px-8 bg-gradient-to-r ${gradientFrom} ${gradientTo} hover:opacity-90 text-white font-semibold rounded-xl shadow-lg shadow-purple-500/25`}
               >
-                {isLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />{t('downloader.processing')}</> : <><Download className="mr-2 h-5 w-5" />{t('downloader.process')}</>}
+                {isLoading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />{t('downloader.processing')}</> : <><Download className="mr-2 h-5 w-5" />{isPreviewingBatchInput ? 'Process All' : t('downloader.process')}</>}
               </Button>
             </motion.div>
           </div>
 
+          {isPro && (
+            <div className="mt-4 space-y-3">
+              <div className="rounded-xl border border-purple-500/20 bg-purple-500/10 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-semibold text-white">Paste public media links</p>
+                  <p className={`text-sm font-semibold ${isOverBatchLimit ? 'text-red-300' : 'text-purple-200'}`}>
+                    {previewBatchCount} / {MAX_BATCH_URLS} links
+                  </p>
+                </div>
+                <p className="mt-2 text-xs text-gray-400">
+                  Up to {MAX_BATCH_URLS} unique links. Supports {SUPPORTED_BATCH_PLATFORMS.join(', ')}.
+                </p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Saved on this browser.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+                <label className="rounded-xl border border-white/10 bg-black/30 p-3">
+                  <span className="block text-xs text-gray-400 mb-2">Preferred video quality</span>
+                  <select
+                    value={preferredVideoQuality}
+                    onChange={(event) => {
+                      setPreferredVideoQuality(event.target.value);
+                      localStorage.setItem('ddPreferredVideoQuality', event.target.value);
+                    }}
+                    className="w-full bg-gray-950 text-white border border-gray-700 rounded-lg px-3 py-2"
+                  >
+                    <option value="best">Best/HD</option>
+                    <option value="sd">SD</option>
+                  </select>
+                </label>
+                <label className="rounded-xl border border-white/10 bg-black/30 p-3">
+                  <span className="block text-xs text-gray-400 mb-2">Preferred audio</span>
+                  <select className="w-full bg-gray-950 text-white border border-gray-700 rounded-lg px-3 py-2" value="best" disabled>
+                    <option value="best">Best available</option>
+                  </select>
+                </label>
+                <label className="rounded-xl border border-white/10 bg-black/30 p-3">
+                  <span className="block text-xs text-gray-400 mb-2">Include audio with video</span>
+                  <select className="w-full bg-gray-950 text-white border border-gray-700 rounded-lg px-3 py-2" value="always" disabled>
+                    <option value="always">Always when source contains audio</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-gray-200">
+                  <input
+                    type="checkbox"
+                    checked={autoSelectSoundtrack}
+                    onChange={(event) => {
+                      setAutoSelectSoundtrack(event.target.checked);
+                      localStorage.setItem('ddAutoSelectSoundtrack', event.target.checked ? 'on' : 'off');
+                    }}
+                    className="h-5 w-5 accent-purple-500"
+                  />
+                  Auto-select soundtrack
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* Ad between input and results */}
-          <div className="mt-6">
+          {!adFree && <div className="mt-6">
             <AdBanner position="middle" size="medium" />
-          </div>
+          </div>}
 
           <AnimatePresence>
             {error && (
@@ -805,17 +1020,146 @@ export default function DownloaderTemplate({
               >
                 <div className="flex items-center gap-3 text-purple-400 mb-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>{t('downloader.processingContent', { platformName })}</span>
+                  <span>{isPreviewingBatchInput ? 'Processing batch...' : t('downloader.processingContent', { platformName })}</span>
                 </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <motion.div
-                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full"
-                    initial={{ width: 0 }}
-                    animate={{ width: `${progress}%` }}
-                    transition={{ duration: 0.5 }}
-                  />
+                {isPreviewingBatchInput ? (
+                  <p className="text-xs text-gray-500 mt-1">Waiting for {previewBatchCount} {previewBatchCount === 1 ? 'link' : 'links'} to finish.</p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">Waiting for the downloader response.</p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Batch Result */}
+          <AnimatePresence>
+            {batchResult && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                className="mt-6 p-6 bg-gradient-to-br from-purple-900/30 to-black rounded-2xl border border-purple-500/30"
+              >
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-5">
+                  <div>
+                    <div className="flex items-center gap-2 text-green-400">
+                      <CheckCircle className="h-5 w-5" />
+                      <span className="font-medium">Batch: {batchTotalLinks} {batchTotalLinks === 1 ? 'link' : 'links'}</span>
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {completedBatchLinks} complete, {failedBatchUrls.length} failed
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="ghost" size="sm" onClick={selectAllBatchItems} className="text-purple-200 hover:text-white">
+                      Select Everything
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={clearBatchSelection} className="text-gray-300 hover:text-white">
+                      Clear
+                    </Button>
+                    {failedBatchUrls.length > 0 && (
+                      <Button type="button" size="sm" onClick={retryFailedBatch} className="bg-amber-500 hover:bg-amber-400 text-gray-950">
+                        Retry Failed
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">{t('downloader.complete', { progress: Math.round(progress) })}</p>
+
+                <div className="grid gap-4">
+                  {(batchResult.results || []).map((entry, linkIndex) => {
+                    const items = batchSelectableItems.filter((item) => item.linkIndex === linkIndex);
+                    const platformLabel = entry.platform === 'x' ? 'X' : String(entry.platform || 'Link').replace(/^\w/, (letter) => letter.toUpperCase());
+                    const entryTitle = entry.result?.title || entry.data?.title || `${platformLabel} media`;
+                    const safeErrorMessage = entry.error?.code
+                      ? `${entry.error.code}${entry.error.message ? `: ${entry.error.message}` : ''}`
+                      : (entry.error?.message || 'Failed');
+                    return (
+                      <div key={`${entry.url}-${linkIndex}`} className="rounded-2xl border border-white/10 bg-gray-950/80 p-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-white">Link {linkIndex + 1} - {platformLabel}</p>
+                            <p className="mt-1 text-sm text-gray-300 truncate">{entryTitle}</p>
+                            <p className="text-xs text-gray-500 truncate">{entry.url}</p>
+                            <p className={`mt-1 text-xs ${entry.status === 'complete' ? 'text-green-300' : 'text-red-300'}`}>
+                              {entry.status === 'complete' ? `Complete - ${items.length} ${items.length === 1 ? 'file' : 'files'} ready` : `Failed: ${safeErrorMessage}`}
+                            </p>
+                          </div>
+                          {items.length > 0 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => requestDownload(items[0]?.url, 'batch', `Download ${platformLabel}`, items)}
+                              className="bg-sky-600 hover:bg-sky-500 text-white"
+                            >
+                              <Download className="mr-2 h-4 w-4" />
+                              Download This Link
+                            </Button>
+                          )}
+                        </div>
+
+                        {items.length > 0 && (
+                          <div className="mt-4 grid gap-2">
+                            {items.map((item, itemIndex) => {
+                              const checked = selectedBatchIds.includes(item.batchId);
+                              const itemType = item.type === 'video' ? 'video' : item.type === 'audio' ? 'audio' : 'image';
+                              return (
+                                <label
+                                  key={item.batchId}
+                                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-3 items-center rounded-xl border border-gray-800 bg-black/30 p-3 hover:border-purple-500/50"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleBatchSelection(item.batchId)}
+                                    className="h-5 w-5 accent-purple-500"
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-white truncate">{mediaLabel(item, itemIndex)}</p>
+                                    <p className="text-xs text-gray-500 truncate">
+                                      {(item.format || item.extension || getDownloadExtension(itemType, item.url)).toUpperCase()}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      requestDownload(item.url, itemType, `Download ${mediaQueueLabel(item, itemIndex)}`, [item]);
+                                    }}
+                                    className="bg-gray-800 hover:bg-gray-700 text-white"
+                                  >
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Download
+                                  </Button>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {batchSelectableItems.length > 0 && (
+                  <div className="mt-4 grid gap-2 md:grid-cols-2">
+                    <Button
+                      type="button"
+                      disabled={!selectedBatchItems.length}
+                      onClick={() => requestDownload(selectedBatchItems[0]?.url, 'batch', `Download Selected (${selectedBatchItems.length})`, selectedBatchItems)}
+                      className="bg-purple-600 hover:bg-purple-500 text-white"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Selected
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => requestDownload(batchSelectableItems[0]?.url, 'batch', `Download Everything (${batchSelectableItems.length})`, batchSelectableItems)}
+                      className="bg-green-600 hover:bg-green-500 text-white"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download Everything
+                    </Button>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -831,6 +1175,39 @@ export default function DownloaderTemplate({
                   <CheckCircle className="h-5 w-5" />
                   <span className="font-medium">{t('downloader.contentFound')}</span>
                 </div>
+
+                {!isPro && (
+                  <motion.div
+                    variants={downloadOptionVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="mb-4 rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-4"
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-yellow-500/20 flex items-center justify-center flex-shrink-0">
+                          <Crown className="h-5 w-5 text-yellow-300" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-white">DownloadDash Pro</p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {PRO_PROMO_FEATURES.map((feature) => (
+                              <span key={feature} className="rounded-full border border-yellow-300/20 bg-black/20 px-2 py-1 text-xs text-yellow-100/85">
+                                {feature}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <Link
+                        to={createPageUrl('Pricing')}
+                        className="inline-flex justify-center rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-yellow-300"
+                      >
+                        Upgrade to Pro
+                      </Link>
+                    </div>
+                  </motion.div>
+                )}
 
                 {/* Preview Button */}
                 <motion.button
@@ -893,7 +1270,7 @@ export default function DownloaderTemplate({
                           return (
                             <label
                               key={item.id}
-                              className="grid grid-cols-[auto_72px_1fr] gap-3 items-center rounded-xl border border-gray-800 bg-black/30 p-3 hover:border-purple-500/50"
+                              className="grid grid-cols-[auto_72px_minmax(0,1fr)_auto] gap-3 items-center rounded-xl border border-gray-800 bg-black/30 p-3 hover:border-purple-500/50"
                             >
                               <input
                                 type="checkbox"
@@ -917,6 +1294,18 @@ export default function DownloaderTemplate({
                                   {item.mimeType ? ` - ${item.mimeType}` : ''}
                                 </p>
                               </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  requestDownload(item.url, itemType, `Download ${mediaQueueLabel(item, index)}`);
+                                }}
+                                className="bg-gray-800 hover:bg-gray-700 text-white"
+                              >
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                              </Button>
                             </label>
                           );
                         })}
@@ -926,7 +1315,7 @@ export default function DownloaderTemplate({
                         <Button
                           type="button"
                           disabled={!selectedMediaItems.length}
-                          onClick={() => requestDownload(selectedMediaItems[0]?.url, 'zip', `Download Selected (${selectedMediaItems.length})`, selectedMediaItems)}
+                          onClick={() => requestDownload(selectedMediaItems[0]?.url, 'batch', `Download Selected (${selectedMediaItems.length})`, selectedMediaItems)}
                           className="bg-purple-600 hover:bg-purple-500 text-white"
                         >
                           <Download className="mr-2 h-4 w-4" />
@@ -934,7 +1323,7 @@ export default function DownloaderTemplate({
                         </Button>
                         <Button
                           type="button"
-                          onClick={() => requestDownload(selectableMediaItems[0]?.url, 'zip', `Download All (${selectableMediaItems.length})`, selectableMediaItems)}
+                          onClick={() => requestDownload(selectableMediaItems[0]?.url, 'batch', `Download All (${selectableMediaItems.length})`, selectableMediaItems)}
                           className="bg-sky-600 hover:bg-sky-500 text-white"
                         >
                           <Download className="mr-2 h-4 w-4" />
@@ -1030,7 +1419,7 @@ export default function DownloaderTemplate({
                         requestDownload(
                           photoDownloadUrl,
                           hasAlbumItems ? 'album' : 'image',
-                          hasAlbumItems ? `Download All Images (${photoItems.length})` : 'HD Photo',
+                          hasAlbumItems ? `Download Photos (${photoItems.length})` : 'HD Photo',
                           hasAlbumItems ? photoItems : null
                         )
                       }
@@ -1042,7 +1431,7 @@ export default function DownloaderTemplate({
                         </div>
                         <div className="text-left">
                           <p className="font-bold text-white">
-                            {hasAlbumItems ? `Download All Images (${photoItems.length})` : t('downloader.photoDownload')}
+                            {hasAlbumItems ? `Download Photos (${photoItems.length})` : t('downloader.photoDownload')}
                           </p>
                           <p className="text-xs text-gray-400">{t('downloader.fullResolutionImage')}</p>
                         </div>
@@ -1051,28 +1440,6 @@ export default function DownloaderTemplate({
                         <span className="text-xs bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded-full">{t('downloader.fullResolution')}</span>
                       </div>
                     </motion.button>
-
-                    {hasMultiplePhotos && (
-                      <motion.button
-                        variants={downloadOptionVariants}
-                        whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(14, 165, 233, 0.3)' }}
-                        whileTap={{ scale: 0.99 }}
-                        onClick={() => requestDownload(photoDownloadUrl, 'zip', `Download ZIP (${photoItems.length} Images)`, photoItems)}
-                        className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-sky-500/40 hover:border-sky-500/70 transition-all group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-sky-900/60 flex items-center justify-center flex-shrink-0">
-                            <Download className="h-5 w-5 text-sky-300" />
-                          </div>
-                          <div className="text-left">
-                            <p className="font-semibold text-white">Download All Images as ZIP</p>
-                            <p className="text-xs text-gray-400">Creates one archive with every returned image</p>
-                          </div>
-                        </div>
-                        <span className="text-xs bg-sky-500/20 text-sky-300 border border-sky-500/30 px-2 py-1 rounded-full">ZIP</span>
-                      </motion.button>
-                    )}
-
                     {hasMultiplePhotos && photoItems.map((item, index) => (
                       <motion.button
                         key={`${item.url}-${index}`}
@@ -1122,9 +1489,9 @@ export default function DownloaderTemplate({
         </motion.div>
 
         {/* Ad between results and feature pills */}
-        <div className="mt-8">
+        {!adFree && <div className="mt-8">
           <AdBanner position="middle" size="large" />
-        </div>
+        </div>}
 
         {/* Platform Overview */}
         <motion.section
@@ -1301,12 +1668,12 @@ export default function DownloaderTemplate({
           </div>
         </motion.div>
 
-        <div className="mt-8">
+        {!adFree && <div className="mt-8">
           <AdBanner position="bottom" size="large" />
-        </div>
-        <div className="mt-4">
+        </div>}
+        {!adFree && <div className="mt-4">
           <AdBanner position="bottom" size="medium" />
-        </div>
+        </div>}
       </div>
 
       {/* Reward ad gate */}

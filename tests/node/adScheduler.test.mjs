@@ -8,52 +8,34 @@ import {
   isSafeAdDestination,
 } from '../../src/lib/adScheduler.js';
 
-test('MultiTag cannot run twice inside 5 minutes', () => {
+test('MultiTag redirects are permanently disabled', () => {
   const scheduler = createAdScheduler({ now: () => 0 });
 
-  assert.equal(scheduler.startInterruptiveAd({
+  const decision = scheduler.startInterruptiveAd({
     network: AD_NETWORKS.MONETAG,
     format: AD_FORMATS.MULTITAG,
-  }).allowed, true);
-  scheduler.finishActiveAd('done');
+  });
 
-  scheduler.setNow(() => 2 * 60 * 1000);
-  assert.equal(scheduler.startInterruptiveAd({
-    network: AD_NETWORKS.MONETAG,
-    format: AD_FORMATS.MULTITAG,
-  }).allowed, false);
-
-  scheduler.setNow(() => 5 * 60 * 1000);
-  assert.equal(scheduler.startInterruptiveAd({
-    network: AD_NETWORKS.MONETAG,
-    format: AD_FORMATS.MULTITAG,
-  }).reason, 'redirect-limit');
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.reason, 'redirect-format-disabled');
+  assert.equal(scheduler.canShowMultiTag(), false);
 });
 
-test('Monetag 5 minute cooldown eligibility is still overridden by page redirect limit', () => {
+test('Monetag redirect requests never launch provider code', () => {
   const scheduler = createAdScheduler({ now: () => 0 });
+  let launched = false;
 
-  assert.equal(scheduler.requestAdRedirect({
+  const decision = scheduler.requestAdRedirect({
     network: AD_NETWORKS.MONETAG,
     format: AD_FORMATS.MULTITAG,
-  }).allowed, true);
-  scheduler.finishActiveAd('closed');
+    launch: () => {
+      launched = true;
+    },
+  });
 
-  for (const blockedAt of [1_000, 60_000, 299_000]) {
-    scheduler.setNow(() => blockedAt);
-    assert.equal(scheduler.canShowMultiTag(blockedAt), false);
-    assert.equal(scheduler.requestAdRedirect({
-      network: AD_NETWORKS.MONETAG,
-      format: AD_FORMATS.MULTITAG,
-    }).allowed, false);
-  }
-
-  scheduler.setNow(() => 300_000);
-  assert.equal(scheduler.canShowMultiTag(300_000), true);
-  assert.equal(scheduler.requestAdRedirect({
-    network: AD_NETWORKS.MONETAG,
-    format: AD_FORMATS.MULTITAG,
-  }).reason, 'redirect-limit');
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.reason, 'redirect-format-disabled');
+  assert.equal(launched, false);
 });
 
 test('Monetag cooldown eligibility opens after 5 minutes when redirect was not used', () => {
@@ -71,7 +53,7 @@ test('Monetag cooldown eligibility opens after 5 minutes when redirect was not u
   }
 
   scheduler.setNow(() => 300_000);
-  assert.equal(scheduler.canShowMultiTag(300_000), true);
+  assert.equal(scheduler.canShowMultiTag(300_000), false);
 });
 
 test('normal interruptive ads cannot run twice inside 2 minutes', () => {
@@ -96,7 +78,7 @@ test('normal interruptive ads cannot run twice inside 2 minutes', () => {
   }).allowed, true);
 });
 
-test('Adsterra and Monetag cannot launch simultaneously', () => {
+test('Adsterra rewarded gate blocks Monetag redirect attempts while active', () => {
   const scheduler = createAdScheduler({ now: () => 0 });
 
   assert.equal(scheduler.startInterruptiveAd({
@@ -111,14 +93,13 @@ test('Adsterra and Monetag cannot launch simultaneously', () => {
   assert.equal(scheduler.snapshot().activeAd.network, AD_NETWORKS.ADSTERRA);
 });
 
-test('only one redirect or popunder is allowed per page load', () => {
+test('zero redirects or popunders are allowed per page load', () => {
   const scheduler = createAdScheduler({ now: () => 0 });
 
   assert.equal(scheduler.startInterruptiveAd({
     network: AD_NETWORKS.MONETAG,
     format: AD_FORMATS.POPUNDER,
-  }).allowed, true);
-  scheduler.finishActiveAd('closed');
+  }).reason, 'redirect-format-disabled');
 
   scheduler.setNow(() => 10 * 60 * 1000);
   assert.equal(scheduler.startInterruptiveAd({
@@ -134,29 +115,28 @@ test('SPA route change does not reset redirect limit', () => {
   assert.equal(scheduler.startInterruptiveAd({
     network: AD_NETWORKS.MONETAG,
     format: AD_FORMATS.POPUP,
-  }).allowed, true);
-  scheduler.finishActiveAd('closed');
+  }).reason, 'redirect-format-disabled');
   scheduler.noteSpaNavigation('/next-page');
 
   scheduler.setNow(() => 10 * 60 * 1000);
   assert.equal(scheduler.canRedirect(), false);
 });
 
-test('full reload creates a new page-instance redirect allowance', () => {
+test('full reload still keeps redirects disabled', () => {
   const pageState = {};
   const scheduler = createAdScheduler({ now: () => 0, pageState });
 
   assert.equal(scheduler.startInterruptiveAd({
     network: AD_NETWORKS.MONETAG,
     format: AD_FORMATS.POPUP,
-  }).allowed, true);
+  }).reason, 'redirect-format-disabled');
   assert.equal(scheduler.canRedirect(), false);
 
   const remountedScheduler = createAdScheduler({ now: () => 0, pageState });
   assert.equal(remountedScheduler.canRedirect(), false);
 
   const freshPageScheduler = createAdScheduler({ now: () => 0, pageState: {} });
-  assert.equal(freshPageScheduler.canRedirect(), true);
+  assert.equal(freshPageScheduler.canRedirect(), false);
 });
 
 test('double-click creates at most one ad', () => {
@@ -315,31 +295,30 @@ test('notification history survives scheduler recreation through storage', () =>
   assert.deepEqual(remountedScheduler.snapshot().notificationHistory, [0]);
 });
 
-test('redirect limit is per app page session and resets for fresh scheduler instances', () => {
+test('redirect disablement is per product policy and does not reset for fresh scheduler instances', () => {
   const pageState = {};
   const scheduler = createAdScheduler({ now: () => 0, pageState });
 
   assert.equal(scheduler.startInterruptiveAd({
     network: AD_NETWORKS.MONETAG,
     format: AD_FORMATS.POPUNDER,
-  }).allowed, true);
-  scheduler.finishActiveAd('closed');
+  }).reason, 'redirect-format-disabled');
   scheduler.noteSpaNavigation('/download');
 
   scheduler.setNow(() => 30 * 60 * 1000);
   assert.equal(scheduler.startInterruptiveAd({
     network: AD_NETWORKS.MONETAG,
     format: AD_FORMATS.POPUNDER,
-  }).reason, 'redirect-limit');
+  }).reason, 'redirect-format-disabled');
 
   const remountedScheduler = createAdScheduler({ now: () => 30 * 60 * 1000, pageState });
   assert.equal(remountedScheduler.canRedirect(), false);
 
   const afterFullReload = createAdScheduler({ now: () => 0, pageState: {} });
-  assert.equal(afterFullReload.canRedirect(), true);
+  assert.equal(afterFullReload.canRedirect(), false);
 });
 
-test('redirect stress test allows one popunder attempt across repeated clicks and route changes', () => {
+test('redirect stress test allows zero popunder attempts across repeated clicks and route changes', () => {
   let now = 0;
   const scheduler = createAdScheduler({ now: () => now });
   let allowed = 0;
@@ -357,10 +336,10 @@ test('redirect stress test allows one popunder attempt across repeated clicks an
     if (index === 20) scheduler.noteSpaNavigation('/another-route');
   }
 
-  assert.equal(allowed, 1);
+  assert.equal(allowed, 0);
 });
 
-test('requestAdRedirect marks redirect used before launching provider code', () => {
+test('requestAdRedirect blocks before launching provider code', () => {
   const scheduler = createAdScheduler({ now: () => 0 });
   const observed = [];
 
@@ -373,13 +352,14 @@ test('requestAdRedirect marks redirect used before launching provider code', () 
     },
   });
 
-  assert.equal(decision.allowed, true);
-  assert.equal(decision.launchResult, 'opened');
-  assert.deepEqual(observed, [false]);
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.reason, 'redirect-format-disabled');
+  assert.equal(decision.launchResult, undefined);
+  assert.deepEqual(observed, []);
   assert.equal(scheduler.canRedirect(), false);
 });
 
-test('requestAdRedirect blocks 100 repeated clicks after the first redirect', () => {
+test('requestAdRedirect blocks 100 repeated clicks without any redirect', () => {
   let now = 0;
   const scheduler = createAdScheduler({ now: () => now });
   let redirects = 0;
@@ -396,34 +376,32 @@ test('requestAdRedirect blocks 100 repeated clicks after the first redirect', ()
     if (decision.allowed) scheduler.finishActiveAd('closed');
   }
 
-  assert.equal(redirects, 1);
+  assert.equal(redirects, 0);
 });
 
-test('shared redirect allowance blocks Monetag then Adsterra and reverse order', () => {
+test('shared redirect policy blocks Monetag and Adsterra direct links in either order', () => {
   const monetagFirst = createAdScheduler({ now: () => 0 });
 
   assert.equal(monetagFirst.requestAdRedirect({
     network: AD_NETWORKS.MONETAG,
     format: AD_FORMATS.POPUNDER,
-  }).allowed, true);
-  monetagFirst.finishActiveAd('closed');
+  }).reason, 'redirect-format-disabled');
   monetagFirst.setNow(() => 100);
   assert.equal(monetagFirst.requestAdRedirect({
     network: AD_NETWORKS.ADSTERRA,
     format: AD_FORMATS.DIRECT_LINK,
-  }).reason, 'redirect-limit');
+  }).reason, 'redirect-format-disabled');
 
   const adsterraFirst = createAdScheduler({ now: () => 0 });
   assert.equal(adsterraFirst.requestAdRedirect({
     network: AD_NETWORKS.ADSTERRA,
     format: AD_FORMATS.DIRECT_LINK,
-  }).allowed, true);
-  adsterraFirst.finishActiveAd('closed');
+  }).reason, 'redirect-format-disabled');
   adsterraFirst.setNow(() => 100);
   assert.equal(adsterraFirst.requestAdRedirect({
     network: AD_NETWORKS.MONETAG,
     format: AD_FORMATS.POPUNDER,
-  }).reason, 'redirect-limit');
+  }).reason, 'redirect-format-disabled');
 });
 
 test('notification scheduler creates only one timer across rerenders', () => {
@@ -461,7 +439,7 @@ test('blocked destination does not navigate', () => {
   });
 
   assert.equal(decision.allowed, false);
-  assert.equal(decision.reason, 'unsafe-destination');
+  assert.equal(decision.reason, 'redirect-format-disabled');
 });
 
 test('javascript and data ad URLs are rejected', () => {

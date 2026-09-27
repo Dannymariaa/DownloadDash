@@ -1,4 +1,5 @@
 import asyncio
+import os
 import unittest
 from unittest.mock import AsyncMock, patch
 
@@ -329,6 +330,95 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         self.assertEqual(response.downloads["videoHD"], "https://v.pinimg.com/video.m3u8")
         self.assertEqual(response.downloads["items"][0]["type"], "video")
         self.assertNotIn("image", response.downloads)
+
+    def test_youtube_dash_video_only_formats_use_server_mux_file_endpoints(self):
+        downloader = PublicPlatformDownloader()
+
+        async def fake_extract(*args, **kwargs):
+            return {
+                "title": "DASH sample",
+                "thumbnail": "https://i.ytimg.com/vi/example/hqdefault.jpg",
+                "formats": [
+                    {
+                        "format_id": "137",
+                        "url": "https://rr1---sn.example.googlevideo.com/videoplayback?v=video-only",
+                        "ext": "mp4",
+                        "height": 1080,
+                        "vcodec": "avc1",
+                        "acodec": "none",
+                    },
+                    {
+                        "format_id": "140",
+                        "url": "https://rr1---sn.example.googlevideo.com/videoplayback?v=audio-only",
+                        "ext": "m4a",
+                        "vcodec": "none",
+                        "acodec": "mp4a",
+                    },
+                ],
+            }
+
+        downloader._extract_youtube_with_profiles = fake_extract
+
+        result = asyncio.run(
+            downloader.resolve_media("https://www.youtube.com/watch?v=abc123", Quality.HIGH)
+        )
+
+        self.assertEqual(result["kind"], "video")
+        self.assertTrue(result["downloads"]["videoHD"].startswith("/youtube/file?"))
+        self.assertIn("variant=hd", result["downloads"]["videoHD"])
+        self.assertIn("variant=sd", result["downloads"]["videoSD"])
+        self.assertIn("variant=audio", result["downloads"]["audio"])
+        self.assertNotIn("googlevideo.com", result["downloads"]["videoHD"])
+        self.assertEqual(result["downloads"]["items"][0]["type"], "video")
+        self.assertEqual(result["downloads"]["items"][0]["hasAudio"], True)
+
+    def test_youtube_variant_download_reports_mux_verification_for_long_complete_files(self):
+        downloader = PublicPlatformDownloader(download_path=".")
+
+        with patch.object(downloader, "get_ydl_opts", return_value={}), \
+             patch.object(downloader, "_apply_cookiefile_for_url", side_effect=lambda opts, _url: opts), \
+             patch.object(downloader, "_apply_proxy_for_url", side_effect=lambda opts, _url: opts), \
+             patch.object(downloader, "_cookie_names_for_url", return_value=[]), \
+             patch.object(downloader, "_youtube_client_profiles", return_value=[("test", None, False, False)]), \
+             patch("app.platforms.public_platforms.os.makedirs"), \
+             patch("app.platforms.public_platforms.os.listdir", return_value=["fixed-id.mp4"]), \
+             patch("app.platforms.public_platforms.os.path.getmtime", return_value=1), \
+             patch("app.platforms.public_platforms.os.path.getsize", return_value=5_000_000), \
+             patch("app.platforms.public_platforms.uuid.uuid4", return_value="fixed-id"), \
+             patch.object(
+                 downloader,
+                 "_verify_downloaded_media",
+                 return_value={
+                     "available": True,
+                     "fileSize": 5_000_000,
+                     "containerOpens": True,
+                     "duration": 10800.0,
+                     "durationCloseToExpected": True,
+                     "audioPresent": True,
+                     "videoPresent": True,
+                     "complete": True,
+                 },
+             ) as verify_mock, \
+             patch("app.platforms.public_platforms.yt_dlp.YoutubeDL") as ydl_mock:
+            ydl_mock.return_value.__enter__.return_value.extract_info.return_value = {
+                "title": "Three hour public video",
+                "duration": 10800.0,
+            }
+
+            result = asyncio.run(
+                downloader.download_youtube_variant(
+                    "https://youtu.be/abc123?feature=share",
+                    "hd",
+                )
+            )
+
+        self.assertEqual(result["filename"], "Three hour public video.mp4")
+        self.assertEqual(result["media_type"], "video/mp4")
+        self.assertEqual(result["verification"]["duration"], 10800.0)
+        self.assertTrue(result["verification"]["complete"])
+        self.assertTrue(result["verification"]["audioPresent"])
+        self.assertTrue(result["verification"]["videoPresent"])
+        verify_mock.assert_called_once_with(os.path.join(".", "fixed-id.mp4"), expected_duration=10800.0, expect_audio=True, expect_video=True)
 
 
 if __name__ == "__main__":

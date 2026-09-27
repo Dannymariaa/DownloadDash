@@ -104,7 +104,7 @@ export const USER_SAFE_ERROR_MESSAGES = {
   UNSUPPORTED_PROTOCOL: 'Only HTTP and HTTPS links are supported.',
   BLOCKED_HOST: 'Paste a public platform link.',
   MEDIA_NOT_FOUND: 'Media was not found or is no longer available.',
-  PRIVATE_MEDIA: 'This media is private, restricted, or unavailable.',
+  PRIVATE_MEDIA: 'This media is private, login-only, paid, deleted, DRM-protected, restricted, or unavailable.',
   LOGIN_REQUIRED: 'X is currently requiring an authenticated session for this media. Please try again later.',
   COOKIE_REQUIRED: 'This media currently requires an authenticated platform session. Please try again later.',
   COOKIE_EXPIRED: 'This media currently requires a refreshed platform session. Please try again later.',
@@ -116,6 +116,8 @@ export const USER_SAFE_ERROR_MESSAGES = {
   EXTRACTOR_FAILED: 'This media could not be resolved right now. Please try again later.',
   UNSUPPORTED_MEDIA: 'This media is not supported for download.',
   UPSTREAM_RATE_LIMITED: 'Too many requests. Please try again later.',
+  PRO_UPGRADE_REQUIRED: 'Upgrade to DownloadDash Pro to process multiple links together.',
+  BATCH_LIMIT_EXCEEDED: 'Paste up to 7 public links in one Pro batch.',
 };
 
 const responseErrorCode = (data) => {
@@ -1035,6 +1037,68 @@ const resolveViaApi = async ({ url, platform, quality, extractAudio }) => {
   };
 };
 
+const normalizeBatchResultEntry = (entry = {}) => {
+  if (entry.status !== 'complete') return entry;
+  const data = entry.data || {};
+  const downloads = {};
+  const items = Array.isArray(data.media)
+    ? data.media
+        .map((item, index) => normalizeMediaItem(item, index, item?.type || 'unknown'))
+        .filter((item) => item?.url)
+    : [];
+
+  if (items.length) downloads.items = items;
+  const firstVideo = items.find((item) => item.type === 'video');
+  const firstImage = items.find((item) => item.type === 'image');
+  const firstAudio = items.find((item) => item.type === 'audio');
+  if (firstVideo) {
+    downloads.videoHD = firstVideo.url;
+    downloads.videoSD = firstVideo.variants?.find((variant) => String(variant.quality || '').includes('sd'))?.url || firstVideo.url;
+  }
+  if (firstImage) downloads.image = firstImage.url;
+  if (firstAudio) downloads.audio = firstAudio.url;
+
+  const sourceMediaCount = items.filter((item) => item.type === 'image' || item.type === 'video').length;
+  const type = sourceMediaCount > 1
+    ? 'album'
+    : firstVideo
+      ? 'video'
+      : firstImage
+        ? 'image'
+        : firstAudio
+          ? 'audio'
+          : 'unknown';
+
+  return {
+    ...entry,
+    result: {
+      success: true,
+      title: data.title || `${entry.platform || 'Media'} link`,
+      thumbnail: absolutizeApiUrl(data.thumbnail),
+      platform: entry.platform,
+      type,
+      downloads,
+      original_url: entry.url,
+    },
+  };
+};
+
+const resolveBatchViaApi = async ({ urls, quality, extractAudio, retryFailed = false, failedUrls = [] }) => {
+  const data = await postJson('/batch/download', {
+    urls,
+    quality: quality || 'highest',
+    extract_audio: !!extractAudio,
+    include_metadata: true,
+    retryFailed,
+    failedUrls,
+  });
+
+  return {
+    ...data,
+    results: Array.isArray(data.results) ? data.results.map(normalizeBatchResultEntry) : [],
+  };
+};
+
 export const downloadDash = {
   auth: {
     isAuthenticated: async () => {
@@ -1161,6 +1225,7 @@ export const downloadDash = {
     const { url, quality, extractAudio } = params;
     return resolveViaApi({ url, platform, quality, extractAudio });
   },
+  batchDownload: resolveBatchViaApi,
   downloadToDevice,
   fetchMediaBlob,
 };

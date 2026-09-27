@@ -6,9 +6,6 @@ const SCRIPT_ATTR = 'data-dd-ad-script';
 let activeBlockingAd = null;
 let monetagLoadingPromise = null;
 let browserAdGuardsInstalled = false;
-let originalWindowOpen = null;
-let originalLocationAssign = null;
-let originalLocationReplace = null;
 let originalNotification = null;
 let originalShowNotification = null;
 
@@ -104,64 +101,6 @@ const createBlockedNotification = (title, options) => {
 const installBrowserAdGuards = () => {
   if (!isBrowser() || browserAdGuardsInstalled) return false;
   browserAdGuardsInstalled = true;
-
-  originalWindowOpen = window.open;
-  if (typeof originalWindowOpen === 'function') {
-    window.open = function guardedWindowOpen(url, target, features) {
-      const decision = adScheduler.requestAdRedirect({
-        network: AD_NETWORKS.MONETAG,
-        format: AD_FORMATS.POPUNDER,
-        destinationUrl: typeof url === 'string' && url ? url : undefined,
-        actionId: 'window-open',
-        timeoutMs: 1500,
-        launch: () => originalWindowOpen.call(window, url, target, features),
-      });
-
-      if (!decision.allowed) return null;
-      window.setTimeout(() => adScheduler.finishActiveAd('window-open-returned'), 1500);
-      return decision.launchResult ?? null;
-    };
-  }
-
-  try {
-    originalLocationAssign = window.location?.assign?.bind(window.location);
-    originalLocationReplace = window.location?.replace?.bind(window.location);
-
-    if (originalLocationAssign) {
-      window.location.assign = function guardedLocationAssign(url) {
-        const decision = adScheduler.requestAdRedirect({
-          network: AD_NETWORKS.MONETAG,
-          format: AD_FORMATS.DIRECT_LINK,
-          destinationUrl: typeof url === 'string' ? url : String(url || ''),
-          actionId: 'location-assign',
-          timeoutMs: 1500,
-          launch: () => originalLocationAssign(url),
-        });
-        if (!decision.allowed) return undefined;
-        window.setTimeout(() => adScheduler.finishActiveAd('location-assign-returned'), 1500);
-        return decision.launchResult;
-      };
-    }
-
-    if (originalLocationReplace) {
-      window.location.replace = function guardedLocationReplace(url) {
-        const decision = adScheduler.requestAdRedirect({
-          network: AD_NETWORKS.MONETAG,
-          format: AD_FORMATS.DIRECT_LINK,
-          destinationUrl: typeof url === 'string' ? url : String(url || ''),
-          actionId: 'location-replace',
-          timeoutMs: 1500,
-          launch: () => originalLocationReplace(url),
-        });
-        if (!decision.allowed) return undefined;
-        window.setTimeout(() => adScheduler.finishActiveAd('location-replace-returned'), 1500);
-        return decision.launchResult;
-      };
-    }
-  } catch {
-    originalLocationAssign = null;
-    originalLocationReplace = null;
-  }
 
   if (typeof window.Notification === 'function') {
     originalNotification = window.Notification;

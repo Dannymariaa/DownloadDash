@@ -2,6 +2,8 @@ import { publicError } from "./errors.js";
 import { PLATFORM_HOSTS, isPlatformHost, normalizePlatform } from "./platforms.js";
 
 const MAX_BODY_BYTES = 20_000;
+export const FREE_BATCH_URL_LIMIT = 1;
+export const PRO_BATCH_URL_LIMIT = 7;
 const PRIVATE_HOSTS = new Set(["localhost", "metadata.google.internal"]);
 
 function hostnameLooksPrivate(hostname) {
@@ -95,16 +97,122 @@ export function validateDownloadRequest(platform, req) {
   };
 }
 
+export function detectPlatformFromPublicUrl(url) {
+  const parsed = new URL(validatePublicUrl(url));
+  for (const platform of Object.keys(PLATFORM_HOSTS)) {
+    if (isPlatformHost(platform, parsed.hostname)) return platform;
+  }
+  return null;
+}
+
+function batchErrorEntry(index, rawUrl, error) {
+  return {
+    index,
+    url: String(rawUrl || ""),
+    platform: null,
+    status: "failed",
+    error: {
+      code: error?.code || "INVALID_URL",
+      message: error?.message || "Enter a valid URL.",
+    },
+  };
+}
+
+function uniqueBatchEntries(body) {
+  const rawUrls = Array.isArray(body?.urls)
+    ? body.urls
+    : String(body?.urls || body?.url || "")
+        .split(/\s+/)
+        .filter(Boolean);
+  const seen = new Set();
+  const entries = [];
+  const invalidItems = [];
+  let duplicateUrlsRemoved = 0;
+
+  for (const [sourceIndex, rawUrl] of rawUrls.entries()) {
+    try {
+      const url = validatePublicUrl(rawUrl);
+      if (seen.has(url)) {
+        duplicateUrlsRemoved += 1;
+        continue;
+      }
+      seen.add(url);
+      entries.push({ index: entries.length + invalidItems.length, sourceIndex, url });
+    } catch (error) {
+      invalidItems.push(batchErrorEntry(entries.length + invalidItems.length, rawUrl, error));
+    }
+  }
+
+  return { entries, invalidItems, duplicateUrlsRemoved };
+}
+
+export function validateBatchDownloadRequest(req, { maxUrls = FREE_BATCH_URL_LIMIT } = {}) {
+  const body = parseBody(req);
+  const parsed = uniqueBatchEntries(body);
+  const retryOnly = Boolean(body?.retryFailed);
+  const failedUrlSet = new Set(
+    (Array.isArray(body?.failedUrls) ? body.failedUrls : [])
+      .map((url) => validatePublicUrl(url))
+  );
+  const entries = retryOnly && failedUrlSet.size
+    ? parsed.entries.filter((entry) => failedUrlSet.has(entry.url))
+    : parsed.entries;
+  const invalidItems = retryOnly ? [] : parsed.invalidItems;
+
+  if (!entries.length && !invalidItems.length) throw publicError("URL_REQUIRED", 400);
+  if (!entries.length) throw publicError("INVALID_URL", 400);
+  if (entries.length + invalidItems.length > maxUrls) {
+    throw publicError(maxUrls === FREE_BATCH_URL_LIMIT ? "PRO_UPGRADE_REQUIRED" : "BATCH_LIMIT_EXCEEDED", maxUrls === FREE_BATCH_URL_LIMIT ? 402 : 400);
+  }
+
+  const items = [];
+  for (const entry of entries) {
+    const platform = detectPlatformFromPublicUrl(entry.url);
+    if (!platform) {
+      invalidItems.push(batchErrorEntry(entry.index, entry.url, publicError("UNSUPPORTED_DOMAIN", 400, `unsupported batch URL ${entry.url}`)));
+      continue;
+    }
+    const url = validatePublicUrl(entry.url, platform);
+    items.push({
+      index: entry.index,
+      sourceIndex: entry.sourceIndex,
+      url,
+      platform,
+      quality: body?.quality || "highest",
+      extract_audio: Boolean(body?.extract_audio || body?.extractAudio),
+      include_metadata: body?.include_metadata !== false,
+    });
+  }
+
+  if (!items.length) {
+    const firstError = invalidItems[0]?.error;
+    throw publicError(firstError?.code || "UNSUPPORTED_DOMAIN", 400, firstError?.message);
+  }
+
+  return {
+    items,
+    invalidItems,
+    duplicateUrlsRemoved: parsed.duplicateUrlsRemoved,
+    retryFailed: retryOnly,
+  };
+}
+
 export function validateFileProxyRequest(req) {
   const body = parseBody(req);
-  const url = validatePublicUrl(body?.url);
-  const sourceUrl = validatePublicUrl(body?.sourceUrl);
+  const url = validatePublicUrl(body?.url || req.query?.url);
+  const sourceUrl = validatePublicUrl(
+    body?.sourceUrl ||
+      body?.source_url ||
+      req.query?.sourceUrl ||
+      req.query?.source_url ||
+      req.query?.url
+  );
   const source = new URL(sourceUrl);
   const trustedSource = Object.keys(PLATFORM_HOSTS).some((platform) => isPlatformHost(platform, source.hostname));
   if (!trustedSource) {
     throw publicError("UNSUPPORTED_DOMAIN", 400, `unsupported media source ${source.hostname}`);
   }
-  return { ...body, url, sourceUrl };
+  return { ...body, ...req.query, url, sourceUrl };
 }
 
 export function validateDiagnosticsRequest(req) {
@@ -141,6 +249,10 @@ export function parseRoute(parts) {
 
   if (first === "diagnostics" && second === "provider") {
     return { kind: "diagnostics", forwardPath: ["diagnostics", "provider"] };
+  }
+
+  if (first === "batch" && second === "download") {
+    return { kind: "batch" };
   }
 
   if (first === "youtube" && second === "file") {

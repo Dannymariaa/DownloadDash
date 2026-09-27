@@ -130,7 +130,7 @@ test('client keeps video quality variants inside one selectable source item', ()
 test('client maps backend downloader error codes to user-safe messages', () => {
   const cases = [
     ['MEDIA_NOT_FOUND', 'Media was not found or is no longer available.'],
-    ['PRIVATE_MEDIA', 'This media is private, restricted, or unavailable.'],
+    ['PRIVATE_MEDIA', 'This media is private, login-only, paid, deleted, DRM-protected, restricted, or unavailable.'],
     ['LOGIN_REQUIRED', 'X is currently requiring an authenticated session for this media. Please try again later.'],
     ['COOKIE_REQUIRED', 'This media currently requires an authenticated platform session. Please try again later.'],
     ['COOKIE_EXPIRED', 'This media currently requires a refreshed platform session. Please try again later.'],

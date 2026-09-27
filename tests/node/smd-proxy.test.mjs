@@ -502,6 +502,38 @@ test('normalization removes duplicate YouTube aliases and does not keep unknown 
   });
 });
 
+test('YouTube HD and SD mux endpoints normalize as playable video items with audio', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({
+        success: true,
+        media_info: {
+          title: 'Long YouTube video',
+          duration: 10800,
+          thumbnail_url: 'https://i.ytimg.com/vi_webp/example/maxresdefault.webp',
+        },
+        downloads: {
+          videoHD: '/youtube/file?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dabc123&variant=hd',
+          videoSD: '/youtube/file?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dabc123&variant=sd',
+          audio: '/youtube/file?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dabc123&variant=audio',
+        },
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'youtube/download', body: { url: validUrls.youtube } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.data.media[0].type, 'video');
+    assert.equal(body.data.media[0].hasAudio, true);
+    assert.deepEqual(body.data.media[0].variants.map((variant) => variant.quality), ['hd', 'sd']);
+    assert.equal(body.data.media[1].type, 'audio');
+    assert.equal(body.data.duration, 10800);
+  });
+});
+
 test('all platform routes reject missing URL, malformed URL, and wrong domains before upstream fetch', async () => {
   await withProxyEnv(async () => {
     let fetchCalled = false;
@@ -1129,6 +1161,33 @@ test('file proxy requires a trusted platform source URL and preserves file heade
     assert.equal(res.statusCode, 400);
     assert.equal(readJson(res).error.code, 'UNSUPPORTED_DOMAIN');
     assert.equal(fetchCalled, false);
+  });
+});
+
+test('youtube file downloads redirect to Render instead of buffering through Vercel', async () => {
+  await withProxyEnv(async () => {
+    let fetchCalled = false;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return new Response(new Uint8Array([1, 2, 3]), { status: 200 });
+    };
+
+    const youtubeUrl = validUrls.youtube;
+    const res = await request({
+      path: 'youtube/file',
+      method: 'GET',
+      query: {
+        url: youtubeUrl,
+        variant: 'hd',
+      },
+    });
+
+    assert.equal(res.statusCode, 307);
+    assert.equal(fetchCalled, false);
+    assert.equal(
+      res.getHeader('Location'),
+      `https://render.example/youtube/file?url=${encodeURIComponent(youtubeUrl)}&variant=hd`
+    );
   });
 });
 

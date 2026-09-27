@@ -1,5 +1,7 @@
 # DownloadDash App
 
+DownloadDash is scoped to supported publicly accessible media links: posts, videos, stories, galleries, and similar public URLs that a normal user can view without special access. When a supported public link is viewable, DownloadDash should attempt to resolve and return all actual media items exposed by that link. It must not be used to bypass private, login-only, paid, deleted, DRM-protected, or otherwise restricted content.
+
 ## Setup Instructions
 
 1. Install dependencies:

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 import { createAccountService } from '../../server/pro/account-service.js';
@@ -217,4 +218,35 @@ test('billing rejects unsafe application URLs before creating redirects', async 
       appUrl
     );
   }
+});
+
+test('download results Pro promo states batch download benefits', async () => {
+  const source = await readFile(new URL('../../src/components/DownloaderTemplate.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /Ad-free downloads/);
+  assert.match(source, /No countdown/);
+  assert.match(source, /Up to 7 public links at once/);
+  assert.match(source, /Mixed-platform batches/);
+  assert.match(source, /Batch download manager/);
+  assert.match(source, /Saved quality preferences/);
+});
+
+test('download results place the Free Pro promo before download options with no duplicate lower promo', async () => {
+  const source = await readFile(new URL('../../src/components/DownloaderTemplate.jsx', import.meta.url), 'utf8');
+  const resultSection = source.slice(source.indexOf('{result && ('));
+
+  assert.equal([...source.matchAll(/DownloadDash Pro/g)].length, 1);
+  assert.ok(resultSection.indexOf('DownloadDash Pro') < resultSection.indexOf("{t('downloader.hdDownload')}"));
+  assert.ok(resultSection.indexOf('DownloadDash Pro') < resultSection.indexOf('downloader.photoDownload'));
+  assert.ok(resultSection.indexOf('DownloadDash Pro') < resultSection.indexOf("{t('downloader.audioDownload')}"));
+});
+
+test('Pro batch UI labels batch submission and preference persistence truthfully', async () => {
+  const source = await readFile(new URL('../../src/components/DownloaderTemplate.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /Process All/);
+  assert.match(source, /Saved on this browser/);
+  assert.match(source, /Always when source contains audio/);
+  assert.match(source, /autoSelectSoundtrack \|\| item\.type !== 'audio'/);
+  assert.doesNotMatch(source, /account-saved|saved to your account/i);
 });

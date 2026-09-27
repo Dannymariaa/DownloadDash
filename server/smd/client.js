@@ -301,6 +301,18 @@ export async function proxyFileRequest({ env, forwardPath, payload, method, quer
     });
   });
 
+  if (method === "GET" && forwardPath[0] === "youtube" && forwardPath[1] === "file") {
+    console.info("[DownloadDash SMD] file proxy redirected", {
+      requestId,
+      path: `/${forwardPath.join("/")}`,
+      status: 307,
+    });
+    res.status(307);
+    res.setHeader("Location", target.toString());
+    res.setHeader("Cache-Control", "no-store");
+    return res.end("");
+  }
+
   const startedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

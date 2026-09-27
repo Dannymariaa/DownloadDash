@@ -3,9 +3,20 @@ import { downloadMedia, proxyDiagnosticsRequest, proxyFileRequest } from "./clie
 import { getServerEnv, getServerEnvDiagnostics } from "./env.js";
 import { json, publicError, sendError } from "./errors.js";
 import { enforceRateLimit } from "./rate-limit.js";
-import { parseRoute, validateDiagnosticsRequest, validateDownloadRequest, validateFileProxyRequest } from "./validation.js";
+import {
+  FREE_BATCH_URL_LIMIT,
+  PRO_BATCH_URL_LIMIT,
+  parseRoute,
+  validateBatchDownloadRequest,
+  validateDiagnosticsRequest,
+  validateDownloadRequest,
+  validateFileProxyRequest,
+} from "./validation.js";
+import { getAccountService } from "../pro/account-service.js";
 
 const UPSTREAM_HEALTH_TIMEOUT_MS = 4_000;
+const DEFAULT_BATCH_CONCURRENCY = 3;
+const MAX_BATCH_CONCURRENCY = 3;
 
 function asPathParts(value) {
   if (!value) return [];
@@ -49,6 +60,37 @@ function logStage(stage, details) {
 function wantsUpstreamHealth(req) {
   const value = req.query?.upstream ?? req.query?.checkUpstream;
   return value === "1" || value === "true" || value === true;
+}
+
+async function mapWithConcurrency(items, concurrency, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }));
+
+  return results;
+}
+
+function configuredBatchConcurrency(itemCount) {
+  const requested = Number.parseInt(process.env.SMD_BATCH_CONCURRENCY || "", 10) || DEFAULT_BATCH_CONCURRENCY;
+  return Math.min(Math.max(1, requested), MAX_BATCH_CONCURRENCY, Math.max(1, itemCount));
+}
+
+async function batchEntitlement(req) {
+  const account = await getAccountService().getAccountFromCookie(req.headers.cookie || "");
+  const isPro = account?.plan === "pro" && account?.entitlements?.adFree === true;
+  return {
+    account,
+    isPro,
+    maxBatchUrls: isPro ? PRO_BATCH_URL_LIMIT : FREE_BATCH_URL_LIMIT,
+  };
 }
 
 async function checkUpstreamHealth(upstreamBaseUrl) {
@@ -187,6 +229,89 @@ export async function handleSmdRequest(req, res) {
         upstreamHost: env.upstreamHost,
       });
       return proxyDiagnosticsRequest({ env, payload, requestId, res });
+    }
+
+    if (route.kind === "batch") {
+      if (req.method !== "POST") {
+        throw publicError("UNSUPPORTED_PLATFORM", 405, `method ${req.method} is not supported for batch downloads`);
+      }
+
+      const entitlement = await batchEntitlement(req);
+      let payload;
+      try {
+        payload = validateBatchDownloadRequest(req, { maxUrls: entitlement.maxBatchUrls });
+      } catch (error) {
+        if (error?.code === "PRO_UPGRADE_REQUIRED" || error?.code === "BATCH_LIMIT_EXCEEDED") {
+          return json(res, error.status || 400, {
+            success: false,
+            error: {
+              code: error.code,
+              message: error.message,
+            },
+            maxBatchUrls: entitlement.maxBatchUrls,
+            requestId,
+          });
+        }
+        throw error;
+      }
+      const env = getServerEnv();
+      const concurrency = configuredBatchConcurrency(payload.items.length);
+
+      logStage("validation passed", {
+        requestId,
+        kind: route.kind,
+        count: payload.items.length,
+        maxBatchUrls: entitlement.maxBatchUrls,
+        pro: entitlement.isPro,
+      });
+
+      const resolvedResults = await mapWithConcurrency(payload.items, concurrency, async (item) => {
+        try {
+          const data = await downloadMedia({
+            env,
+            platform: item.platform,
+            payload: {
+              url: item.url,
+              quality: item.quality,
+              extract_audio: item.extract_audio,
+              include_metadata: item.include_metadata,
+            },
+            requestId: `${requestId}:${item.index}`,
+          });
+          return {
+            index: item.index,
+            url: item.url,
+            platform: item.platform,
+            status: "complete",
+            data: data.data,
+          };
+        } catch (error) {
+          return {
+            index: item.index,
+            url: item.url,
+            platform: item.platform,
+            status: "failed",
+            error: {
+              code: error?.code || "INTERNAL_ERROR",
+              message: error?.message || "Resolve failed",
+            },
+          };
+        }
+      });
+
+      const results = resolvedResults
+        .concat(payload.invalidItems || [])
+        .sort((a, b) => a.index - b.index);
+      const failedCount = results.filter((entry) => entry.status === "failed").length;
+      return json(res, failedCount ? 207 : 200, {
+        success: failedCount === 0,
+        maxBatchUrls: entitlement.maxBatchUrls,
+        concurrency,
+        totalUrls: results.length,
+        duplicateUrlsRemoved: payload.duplicateUrlsRemoved || 0,
+        results,
+        requestId,
+      });
     }
 
     if (req.method !== "POST") {

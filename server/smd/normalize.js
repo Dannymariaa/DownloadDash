@@ -208,6 +208,7 @@ function collectMedia(upstreamData) {
       type: "video",
       url: scalarVideoVariants[0].url,
       quality: scalarVideoVariants[0].quality,
+      hasAudio: Boolean(downloads.audio || downloads.audio_url),
       variants: scalarVideoVariants,
     }, "video");
   }
@@ -260,10 +261,12 @@ export function normalizeDownloadResponse(platform, upstreamData) {
     firstValue(mediaInfo, ["author", "author_username", "author_display_name"]);
   const thumbnail = firstValue(upstreamData, ["thumbnail", "thumbnail_url", "preview_url"]) ||
     firstValue(mediaInfo, ["thumbnail", "thumbnail_url", "thumbnailUrl", "preview_url", "previewUrl"]);
+  const duration = firstValue(upstreamData, ["duration"]) || firstValue(mediaInfo, ["duration"]);
 
   if (title) data.title = title;
   if (author) data.author = author;
   if (thumbnail) data.thumbnail = thumbnail;
+  if (duration) data.duration = duration;
   data.media = media;
 
   return {

@@ -3,7 +3,10 @@ import asyncio
 from typing import Dict, Any, Optional
 import base64
 import html as html_lib
+import json
 import os
+import shutil
+import subprocess
 import uuid
 import re
 import httpx
@@ -615,14 +618,16 @@ class PublicPlatformDownloader:
             extension = "m4a"
         elif variant == "sd":
             format_selectors = [
-                "18/best[height<=480][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none][height<=480]/best[vcodec!=none][acodec!=none]/best",
-                "18/best[vcodec!=none][acodec!=none]/best",
+                "18/best[height<=480][ext=mp4][vcodec!=none][acodec!=none]/best[height<=480][vcodec!=none][acodec!=none]",
+                "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=480]+bestaudio",
+                "best[height<=720][ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]",
             ]
             extension = "mp4"
         else:
             format_selectors = [
-                "22/18/best[height<=720][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none][height<=720]/best[vcodec!=none][acodec!=none]/best",
-                "18/best[vcodec!=none][acodec!=none]/best",
+                "22/best[height<=1080][ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]",
+                "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1080]+bestaudio",
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best",
             ]
             extension = "mp4"
 
@@ -646,6 +651,7 @@ class PublicPlatformDownloader:
                 "no_warnings": True,
                 "http_headers": self._build_http_headers(url),
                 "concurrent_fragment_downloads": 4,
+                "merge_output_format": "mp4",
             }
         )
         client_profiles = self._youtube_client_profiles()
@@ -713,10 +719,100 @@ class PublicPlatformDownloader:
         filepath = max(candidates, key=os.path.getmtime)
         actual_ext = os.path.splitext(filepath)[1].lstrip(".") or extension
         title = info.get("title") if isinstance(info, dict) else "youtube"
+        expected_duration = info.get("duration") if isinstance(info, dict) else None
         safe_title = re.sub(r'[\\/:*?"<>|]+', "_", title or "youtube").strip() or "youtube"
         filename = f"{safe_title}.{actual_ext}"
-        media_type = "audio/mp4" if variant == "audio" else "video/mp4"
-        return {"path": filepath, "filename": filename, "media_type": media_type}
+        is_webm = actual_ext.lower() == "webm"
+        media_type = "audio/webm" if variant == "audio" and is_webm else "audio/mp4" if variant == "audio" else "video/webm" if is_webm else "video/mp4"
+        verification = self._verify_downloaded_media(
+            filepath,
+            expected_duration=expected_duration,
+            expect_audio=True,
+            expect_video=variant != "audio",
+        )
+        return {"path": filepath, "filename": filename, "media_type": media_type, "verification": verification}
+
+    def _verify_downloaded_media(
+        self,
+        filepath: str,
+        expected_duration: float | int | None = None,
+        expect_audio: bool = True,
+        expect_video: bool = True,
+    ) -> Dict[str, Any]:
+        """Probe a completed file when ffprobe is available; never reads media into memory."""
+        file_size = os.path.getsize(filepath) if os.path.exists(filepath) else 0
+        result: Dict[str, Any] = {
+            "available": False,
+            "fileSize": file_size,
+            "containerOpens": False,
+            "duration": None,
+            "durationCloseToExpected": None,
+            "audioPresent": False,
+            "videoPresent": False,
+            "complete": False,
+        }
+
+        ffprobe = shutil.which("ffprobe")
+        if not ffprobe or file_size <= 0:
+            result["complete"] = file_size > 0
+            return result
+
+        try:
+            probe = subprocess.run(
+                [
+                    ffprobe,
+                    "-v",
+                    "error",
+                    "-print_format",
+                    "json",
+                    "-show_format",
+                    "-show_streams",
+                    filepath,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            data = json.loads(probe.stdout or "{}")
+        except Exception as exc:
+            result["error"] = type(exc).__name__
+            return result
+
+        streams = data.get("streams") if isinstance(data, dict) else []
+        if not isinstance(streams, list):
+            streams = []
+        format_info = data.get("format") if isinstance(data, dict) else {}
+        duration = None
+        try:
+            duration = float(format_info.get("duration"))
+        except (TypeError, ValueError):
+            duration = None
+
+        audio_present = any(stream.get("codec_type") == "audio" for stream in streams if isinstance(stream, dict))
+        video_present = any(stream.get("codec_type") == "video" for stream in streams if isinstance(stream, dict))
+        close_to_expected = None
+        if expected_duration:
+            tolerance = max(2.0, float(expected_duration) * 0.01)
+            close_to_expected = duration is not None and abs(duration - float(expected_duration)) <= tolerance
+
+        result.update(
+            {
+                "available": True,
+                "containerOpens": True,
+                "duration": duration,
+                "durationCloseToExpected": close_to_expected,
+                "audioPresent": audio_present,
+                "videoPresent": video_present,
+                "complete": (
+                    file_size > 0
+                    and (not expect_audio or audio_present)
+                    and (not expect_video or video_present)
+                    and (close_to_expected is not False)
+                ),
+            }
+        )
+        return result
 
     async def download_tiktok_variant(self, url: str, variant: str = "hd") -> Dict[str, str]:
         """Download a TikTok variant to a temp file when signed CDN URLs reject browsers."""
@@ -1158,6 +1254,44 @@ class PublicPlatformDownloader:
 
         if not direct_url:
             raise Exception("Resolve failed: no direct URL found")
+
+        if is_youtube:
+            if extract_audio:
+                youtube_downloads = self._youtube_api_downloads(url, "audio")
+                direct_url = youtube_downloads["audio"]
+                kind = "audio"
+                item_extension = "m4a"
+            else:
+                youtube_downloads = self._youtube_api_downloads(url)
+                direct_url = youtube_downloads["videoHD"]
+                kind = "video"
+                item_extension = "mp4"
+
+            item_thumbnail = thumbnail
+            youtube_downloads["items"] = [
+                {
+                    "id": "media-0",
+                    "index": 0,
+                    "type": kind,
+                    "url": direct_url,
+                    "downloadableUrl": direct_url,
+                    "thumbnail": item_thumbnail,
+                    "thumbnailUrl": item_thumbnail,
+                    "extension": item_extension,
+                    "width": (primary.get("width") if primary else info.get("width")),
+                    "height": (primary.get("height") if primary else info.get("height")),
+                    "hasAudio": kind == "video",
+                }
+            ]
+            return {
+                "direct_url": direct_url,
+                "title": title,
+                "thumbnail": thumbnail,
+                "ext": item_extension,
+                "filesize": None,
+                "kind": kind,
+                "downloads": youtube_downloads,
+            }
 
         if selected_hd and selected_hd.get("url"):
             downloads["videoHD"] = selected_hd["url"]
