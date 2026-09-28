@@ -79,8 +79,10 @@ const withProxyEnv = async (callback, overrides = {}) => {
   const originalFetch = globalThis.fetch;
   const originalBase = process.env.SMD_API_BASE_URL;
   const originalKey = process.env.DOWNLOADDASH_API_KEY;
+  const originalRateLimit = process.env.SMD_RATE_LIMIT_MAX;
 
   process.env.SMD_API_BASE_URL = overrides.baseUrl ?? 'https://render.example';
+  process.env.SMD_RATE_LIMIT_MAX = overrides.rateLimitMax ?? '10000';
   if (overrides.apiKey === null) {
     delete process.env.DOWNLOADDASH_API_KEY;
   } else {
@@ -96,6 +98,11 @@ const withProxyEnv = async (callback, overrides = {}) => {
       delete process.env.DOWNLOADDASH_API_KEY;
     } else {
       process.env.DOWNLOADDASH_API_KEY = originalKey;
+    }
+    if (originalRateLimit === undefined) {
+      delete process.env.SMD_RATE_LIMIT_MAX;
+    } else {
+      process.env.SMD_RATE_LIMIT_MAX = originalRateLimit;
     }
   }
 };
@@ -346,6 +353,104 @@ test('normalization keeps TikTok five-photo posts before separate soundtrack aud
     assert.equal(res.statusCode, 200);
     assert.deepEqual(body.data.media.map((item) => item.type), ['image', 'image', 'image', 'image', 'image', 'audio']);
     assert.deepEqual(body.data.media.map((item) => item.index), [0, 1, 2, 3, 4, 5]);
+  });
+});
+
+test('TikTok route accepts normal video, photo, and short-link forms before upstream fetch', async () => {
+  await withProxyEnv(async () => {
+    const forwarded = [];
+    globalThis.fetch = async (url, init) => {
+      forwarded.push({ url, init });
+      return new Response(JSON.stringify(upstreamSuccess), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const urls = [
+      'https://www.tiktok.com/@u/video/123?is_from_webapp=1',
+      'https://tiktok.com/@u/video/123?sender_device=pc',
+      'https://www.tiktok.com/@u/photo/123?is_from_webapp=1&sender_device=pc',
+      'https://tiktok.com/@u/photo/123',
+      'https://vm.tiktok.com/ZMabc123/',
+      'https://vt.tiktok.com/ZMabc123/',
+    ];
+
+    for (const url of urls) {
+      const res = await request({ path: 'tiktok/download', body: { url } });
+      assert.equal(res.statusCode, 200, url);
+    }
+
+    const upstreamPosts = forwarded.filter((entry) => entry.init?.method === 'POST');
+    assert.equal(upstreamPosts.length, urls.length);
+    assert.equal(
+      JSON.parse(upstreamPosts[0].init.body).url,
+      'https://www.tiktok.com/@u/video/123?is_from_webapp=1'
+    );
+  });
+});
+
+test('TikTok short links expand safely to canonical TikTok URLs', async () => {
+  await withProxyEnv(async () => {
+    const forwarded = [];
+    globalThis.fetch = async (url, init) => {
+      if (init?.method === 'HEAD') {
+        return new Response('', {
+          status: 302,
+          headers: { location: 'https://www.tiktok.com/@creator/video/123?sender_device=pc' },
+        });
+      }
+      forwarded.push({ url, init });
+      return new Response(JSON.stringify(upstreamSuccess), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const res = await request({ path: 'tiktok/download', body: { url: 'https://vm.tiktok.com/ZMabc123/' } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.success, true);
+    assert.equal(JSON.parse(forwarded[0].init.body).url, 'https://www.tiktok.com/@creator/video/123?sender_device=pc');
+  });
+});
+
+test('TikTok short-link expansion rejects off-platform redirects', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response('', {
+        status: 302,
+        headers: { location: 'https://example.com/@creator/video/123' },
+      });
+
+    const res = await request({ path: 'tiktok/download', body: { url: 'https://vt.tiktok.com/ZMabc123/' } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 400);
+    assert.equal(body.error.code, 'UNSUPPORTED_DOMAIN');
+  });
+});
+
+test('TikTok route rejects wrong domains and malformed URLs before upstream fetch', async () => {
+  await withProxyEnv(async () => {
+    let fetchCalled = false;
+    globalThis.fetch = async () => {
+      fetchCalled = true;
+      return new Response(JSON.stringify(upstreamSuccess), { status: 200 });
+    };
+
+    for (const [url, expectedCode] of [
+      ['https://youtube.com/watch?v=abc123', 'UNSUPPORTED_DOMAIN'],
+      ['https://evil-tiktok.com/@u/video/123', 'UNSUPPORTED_DOMAIN'],
+      ['notaurl', 'INVALID_URL'],
+    ]) {
+      const res = await request({ path: 'tiktok/download', body: { url } });
+      assert.equal(res.statusCode, 400, url);
+      assert.equal(readJson(res).error.code, expectedCode, url);
+    }
+
+    assert.equal(fetchCalled, false);
   });
 });
 
@@ -1161,6 +1266,42 @@ test('file proxy requires a trusted platform source URL and preserves file heade
     assert.equal(res.statusCode, 400);
     assert.equal(readJson(res).error.code, 'UNSUPPORTED_DOMAIN');
     assert.equal(fetchCalled, false);
+  });
+});
+
+test('file proxy allows managed source-only TikTok variant downloads', async () => {
+  await withProxyEnv(async () => {
+    let forwardedUrl = null;
+    let forwardedInit = null;
+    globalThis.fetch = async (url, init) => {
+      forwardedUrl = url;
+      forwardedInit = init;
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: {
+          'content-type': 'video/mp4',
+          'content-disposition': 'attachment; filename="clip.mp4"',
+        },
+      });
+    };
+
+    const sourceUrl = 'https://www.tiktok.com/@creator/video/123';
+    const res = await request({
+      path: 'download/file',
+      method: 'GET',
+      query: {
+        sourceUrl,
+        mediaType: 'hd',
+        filename: 'clip.mp4',
+      },
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.getHeader('Content-Type'), 'video/mp4');
+    assert.equal(res.getHeader('Content-Disposition'), 'attachment; filename="clip.mp4"');
+    assert.equal(forwardedUrl, 'https://render.example/download/file?sourceUrl=https%3A%2F%2Fwww.tiktok.com%2F%40creator%2Fvideo%2F123&mediaType=hd&filename=clip.mp4');
+    assert.equal(forwardedInit.method, 'GET');
+    assert.equal(forwardedInit.body, undefined);
   });
 });
 

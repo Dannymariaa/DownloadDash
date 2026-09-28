@@ -372,6 +372,89 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         self.assertEqual(result["downloads"]["items"][0]["type"], "video")
         self.assertEqual(result["downloads"]["items"][0]["hasAudio"], True)
 
+    def test_progressive_video_audio_format_remains_direct_download(self):
+        downloader = PublicPlatformDownloader()
+
+        with patch("app.platforms.public_platforms.yt_dlp.YoutubeDL") as ydl_mock:
+            ydl_mock.return_value.__enter__.return_value.extract_info.return_value = {
+                "title": "Progressive sample",
+                "thumbnail": "https://cdn.example/thumb.jpg",
+                "formats": [
+                    {
+                        "url": "https://cdn.example/progressive.mp4",
+                        "ext": "mp4",
+                        "height": 720,
+                        "vcodec": "avc1",
+                        "acodec": "aac",
+                    },
+                ],
+            }
+
+            result = asyncio.run(downloader.resolve_media("https://www.instagram.com/reel/abc123/", Quality.HIGH))
+
+        self.assertEqual(result["downloads"]["videoHD"], "https://cdn.example/progressive.mp4")
+        self.assertEqual(result["downloads"]["videoSD"], "https://cdn.example/progressive.mp4")
+        self.assertEqual(result["downloads"]["items"][0]["hasAudio"], True)
+        self.assertNotIn("/download/file", result["downloads"]["videoHD"])
+
+    def test_split_video_audio_formats_use_managed_mux_downloads(self):
+        downloader = PublicPlatformDownloader()
+
+        with patch("app.platforms.public_platforms.yt_dlp.YoutubeDL") as ydl_mock:
+            ydl_mock.return_value.__enter__.return_value.extract_info.return_value = {
+                "title": "Split sample",
+                "thumbnail": "https://cdn.example/thumb.jpg",
+                "formats": [
+                    {
+                        "url": "https://cdn.example/video-only.mp4",
+                        "ext": "mp4",
+                        "height": 1080,
+                        "vcodec": "avc1",
+                        "acodec": "none",
+                    },
+                    {
+                        "url": "https://cdn.example/audio-only.m4a",
+                        "ext": "m4a",
+                        "vcodec": "none",
+                        "acodec": "aac",
+                    },
+                ],
+            }
+
+            result = asyncio.run(downloader.resolve_media("https://www.reddit.com/r/test/comments/abc/title/", Quality.HIGH))
+
+        self.assertTrue(result["downloads"]["videoHD"].startswith("/download/file?"))
+        self.assertIn("mediaType=hd", result["downloads"]["videoHD"])
+        self.assertTrue(result["downloads"]["videoSD"].startswith("/download/file?"))
+        self.assertEqual(result["downloads"]["audio"], "https://cdn.example/audio-only.m4a")
+        self.assertEqual(result["downloads"]["items"][0]["type"], "video")
+        self.assertEqual(result["downloads"]["items"][0]["hasAudio"], True)
+        self.assertNotEqual(result["downloads"]["videoHD"], "https://cdn.example/video-only.mp4")
+
+    def test_silent_video_source_does_not_invent_audio(self):
+        downloader = PublicPlatformDownloader()
+
+        with patch("app.platforms.public_platforms.yt_dlp.YoutubeDL") as ydl_mock:
+            ydl_mock.return_value.__enter__.return_value.extract_info.return_value = {
+                "title": "Silent sample",
+                "thumbnail": "https://cdn.example/thumb.jpg",
+                "formats": [
+                    {
+                        "url": "https://cdn.example/silent.mp4",
+                        "ext": "mp4",
+                        "height": 720,
+                        "vcodec": "avc1",
+                        "acodec": "none",
+                    },
+                ],
+            }
+
+            result = asyncio.run(downloader.resolve_media("https://www.instagram.com/reel/silent/", Quality.HIGH))
+
+        self.assertEqual(result["downloads"]["videoHD"], "https://cdn.example/silent.mp4")
+        self.assertNotIn("audio", result["downloads"])
+        self.assertEqual(result["downloads"]["items"][0]["hasAudio"], False)
+
     def test_youtube_variant_download_reports_mux_verification_for_long_complete_files(self):
         downloader = PublicPlatformDownloader(download_path=".")
 

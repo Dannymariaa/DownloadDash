@@ -318,7 +318,7 @@ export async function handleSmdRequest(req, res) {
       throw publicError("UNSUPPORTED_PLATFORM", 405, `method ${req.method} is not supported`);
     }
 
-    const payload = validateDownloadRequest(route.platform, req);
+    const payload = await validateDownloadRequest(route.platform, req);
     logStage("validation passed", {
       requestId,
       kind: route.kind,

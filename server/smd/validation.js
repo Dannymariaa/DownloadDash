@@ -5,6 +5,9 @@ const MAX_BODY_BYTES = 20_000;
 export const FREE_BATCH_URL_LIMIT = 1;
 export const PRO_BATCH_URL_LIMIT = 7;
 const PRIVATE_HOSTS = new Set(["localhost", "metadata.google.internal"]);
+const TIKTOK_SHORT_HOSTS = new Set(["vm.tiktok.com", "vt.tiktok.com"]);
+const SHORT_LINK_TIMEOUT_MS = 6_000;
+const SHORT_LINK_REDIRECT_LIMIT = 5;
 
 function hostnameLooksPrivate(hostname) {
   const host = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
@@ -85,9 +88,81 @@ export function validatePublicUrl(rawUrl, platform = null) {
   return parsed.toString();
 }
 
-export function validateDownloadRequest(platform, req) {
+function isTikTokShortUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && TIKTOK_SHORT_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+function redirectLocation(currentUrl, location) {
+  try {
+    return new URL(location, currentUrl).toString();
+  } catch {
+    throw publicError("INVALID_URL", 400, "short-link redirect location was invalid");
+  }
+}
+
+async function fetchTikTokRedirect(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SHORT_LINK_TIMEOUT_MS);
+  try {
+    return await fetch(url, {
+      method: "HEAD",
+      redirect: "manual",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function normalizeDownloadUrl(rawUrl, platform = null) {
+  let url = validatePublicUrl(rawUrl, platform);
+  if (platform !== "tiktok" || !isTikTokShortUrl(url)) return url;
+
+  let current = url;
+  for (let redirects = 0; redirects < SHORT_LINK_REDIRECT_LIMIT; redirects += 1) {
+    const parsed = new URL(current);
+    if (parsed.protocol !== "https:") {
+      throw publicError("UNSUPPORTED_PROTOCOL", 400, "TikTok short-link redirects must remain HTTPS");
+    }
+    if (!isPlatformHost("tiktok", parsed.hostname)) {
+      throw publicError("UNSUPPORTED_DOMAIN", 400, `TikTok short-link redirected to ${parsed.hostname}`);
+    }
+
+    let response;
+    try {
+      response = await fetchTikTokRedirect(current);
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw publicError("UPSTREAM_TIMEOUT", 504, "TikTok short-link expansion timed out");
+      }
+      throw publicError("UPSTREAM_UNAVAILABLE", 503, "TikTok short-link expansion failed");
+    }
+
+    const location = response.headers.get("location");
+    if (response.status >= 300 && response.status < 400 && location) {
+      current = validatePublicUrl(redirectLocation(current, location), "tiktok");
+      if (!isTikTokShortUrl(current)) return current;
+      continue;
+    }
+
+    return validatePublicUrl(current, "tiktok");
+  }
+
+  throw publicError("INVALID_URL", 400, "TikTok short-link redirect limit exceeded");
+}
+
+export async function validateDownloadRequest(platform, req) {
   const body = parseBody(req);
-  const url = validatePublicUrl(body?.url, platform);
+  const url = await normalizeDownloadUrl(body?.url, platform);
 
   return {
     url,
@@ -199,14 +274,15 @@ export function validateBatchDownloadRequest(req, { maxUrls = FREE_BATCH_URL_LIM
 
 export function validateFileProxyRequest(req) {
   const body = parseBody(req);
-  const url = validatePublicUrl(body?.url || req.query?.url);
-  const sourceUrl = validatePublicUrl(
+  const rawUrl = body?.url || req.query?.url;
+  const rawSourceUrl =
     body?.sourceUrl ||
-      body?.source_url ||
-      req.query?.sourceUrl ||
-      req.query?.source_url ||
-      req.query?.url
-  );
+    body?.source_url ||
+    req.query?.sourceUrl ||
+    req.query?.source_url ||
+    req.query?.url;
+  const sourceUrl = validatePublicUrl(rawSourceUrl);
+  const url = rawUrl ? validatePublicUrl(rawUrl) : undefined;
   const source = new URL(sourceUrl);
   const trustedSource = Object.keys(PLATFORM_HOSTS).some((platform) => isPlatformHost(platform, source.hostname));
   if (!trustedSource) {

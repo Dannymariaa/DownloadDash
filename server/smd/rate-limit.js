@@ -4,6 +4,11 @@ const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 120;
 const buckets = new Map();
 
+function maxRequests() {
+  const configured = Number.parseInt(process.env.SMD_RATE_LIMIT_MAX || "", 10);
+  return Number.isFinite(configured) && configured > 0 ? configured : MAX_REQUESTS;
+}
+
 function clientId(req) {
   const forwardedFor = req.headers["x-forwarded-for"];
   if (typeof forwardedFor === "string" && forwardedFor.trim()) {
@@ -23,7 +28,7 @@ export function enforceRateLimit(req) {
   }
 
   bucket.count += 1;
-  if (bucket.count > MAX_REQUESTS) {
+  if (bucket.count > maxRequests()) {
     throw publicError("UPSTREAM_RATE_LIMITED", 429, `rate limit exceeded for ${key}`);
   }
 }

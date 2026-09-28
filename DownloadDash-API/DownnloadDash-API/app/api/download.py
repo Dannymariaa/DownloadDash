@@ -133,18 +133,17 @@ async def _serve_download_file(
     source_url = source_url if isinstance(source_url, str) else ""
     url = url if isinstance(url, str) else ""
 
-    if not url and "tiktok.com" in source_url.lower():
+    if not url and source_url:
         variant = _tiktok_variant_for_media_type(media_type)
         try:
-            fallback = await public_downloader.download_tiktok_variant(source_url, variant)
+            fallback = await public_downloader.download_tiktok_variant(source_url, variant) if "tiktok.com" in source_url.lower() else await public_downloader.download_platform_variant(source_url, variant)
         except Exception as exc:
             raw_error = re.sub(r"\s+", " ", str(exc)).strip()
             raise HTTPException(
                 status_code=502,
                 detail=(
-                    "TikTok server-side download failed. The original signed CDN URL was not reused; "
-                    "the API tried to fetch a fresh file from the source URL instead. "
-                    "If this persists, refresh SMD_YTDLP_COOKIE_DATA_TIKTOK or configure SMD_YTDLP_PROXY_TIKTOK on Render. "
+                    "Server-side media assembly failed. The original signed media URL was not reused; "
+                    "the API tried to fetch a fresh combined file from the public source URL instead. "
                     f"Fallback error: {raw_error}"
                 ),
             )

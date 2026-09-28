@@ -29,17 +29,34 @@ const PRO_PROMO_FEATURES = [
 const SUPPORTED_BATCH_PLATFORMS = ['YouTube', 'TikTok', 'Instagram', 'Facebook', 'X/Twitter', 'Pinterest', 'Reddit'];
 
 // Platform URL validation
-const urlPatterns = {
-  tiktok: /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\/.+/i,
-  instagram: /^https?:\/\/(www\.)?instagram\.com\/(p|reel|stories|tv)\/.+/i,
-  facebook: /^https?:\/\/(www\.|m\.|mbasic\.|web\.)?facebook\.com\/.+|^https?:\/\/fb\.watch\/.+/i,
-  twitter: /^https?:\/\/(www\.|mobile\.)?(twitter\.com|x\.com)\/.+\/status\/.+/i,
-  youtube: /^https?:\/\/(www\.|m\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/).+/i,
-  telegram: /^https?:\/\/(t\.me|telegram\.me)\/.+/i,
-  snapchat: /^https?:\/\/(www\.)?snapchat\.com\/(spotlight|add|story)\/.+/i,
-  pinterest: /^https?:\/\/((www\.)?pinterest\.(com|co\.uk|ca|de|fr)\/.+|pin\.it\/.+)/i,
-  reddit: /^https?:\/\/((www\.|old\.|new\.|m\.)?reddit\.com\/.+|redd\.it\/.+)/i,
-  whatsapp: /^https?:\/\/.+/i,
+const platformHosts = {
+  tiktok: ['tiktok.com', 'www.tiktok.com', 'm.tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com'],
+  instagram: ['instagram.com', 'www.instagram.com', 'm.instagram.com'],
+  facebook: ['facebook.com', 'www.facebook.com', 'm.facebook.com', 'mbasic.facebook.com', 'web.facebook.com', 'fb.watch'],
+  twitter: ['twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com', 'mobile.x.com'],
+  youtube: ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'],
+  telegram: ['t.me', 'telegram.me'],
+  snapchat: ['snapchat.com', 'www.snapchat.com'],
+  pinterest: ['pin.it'],
+  reddit: ['reddit.com', 'www.reddit.com', 'old.reddit.com', 'new.reddit.com', 'm.reddit.com', 'redd.it'],
+};
+
+const hostnameMatchesPlatform = (platform, hostname) => {
+  const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
+  if (platform === 'whatsapp') return true;
+  if (platform === 'pinterest') return host === 'pin.it' || host === 'pinterest.com' || host.endsWith('.pinterest.com');
+  return (platformHosts[platform] || []).includes(host);
+};
+
+const pathMatchesPlatform = (platform, parsed) => {
+  const path = parsed.pathname || '/';
+  if (platform === 'tiktok') return path.length > 1;
+  if (platform === 'instagram') return /^\/(p|reel|stories|tv)\//i.test(path);
+  if (platform === 'twitter') return /\/status\//i.test(path);
+  if (platform === 'youtube') return parsed.hostname === 'youtu.be' || path === '/watch' || path.startsWith('/shorts/');
+  if (platform === 'telegram') return path.length > 1;
+  if (platform === 'snapchat') return /^\/(spotlight|add|story)\//i.test(path);
+  return path.length > 1 || parsed.search.length > 1;
 };
 
 const sanitizeUrl = (url) => {
@@ -51,9 +68,12 @@ const sanitizeUrl = (url) => {
 const validateUrl = (url, platform, t) => {
   if (!url || url.length < 10 || url.length > 2048) return { valid: false, error: t('errors.validUrl') };
   const sanitized = sanitizeUrl(url);
-  try { new URL(sanitized); } catch { return { valid: false, error: t('errors.invalidUrl') }; }
-  const pattern = urlPatterns[platform];
-  if (pattern && !pattern.test(sanitized)) return { valid: false, error: t('errors.platformUrl', { platform }) };
+  let parsed;
+  try { parsed = new URL(sanitized); } catch { return { valid: false, error: t('errors.invalidUrl') }; }
+  if (!['http:', 'https:'].includes(parsed.protocol)) return { valid: false, error: t('errors.invalidUrl') };
+  if (!hostnameMatchesPlatform(platform, parsed.hostname) || !pathMatchesPlatform(platform, parsed)) {
+    return { valid: false, error: t('errors.platformUrl', { platform }) };
+  }
   return { valid: true, url: sanitized };
 };
 

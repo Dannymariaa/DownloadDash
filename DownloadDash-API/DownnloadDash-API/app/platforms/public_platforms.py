@@ -816,8 +816,13 @@ class PublicPlatformDownloader:
 
     async def download_tiktok_variant(self, url: str, variant: str = "hd") -> Dict[str, str]:
         """Download a TikTok variant to a temp file when signed CDN URLs reject browsers."""
+        return await self.download_platform_variant(url, variant, label="tiktok")
+
+    async def download_platform_variant(self, url: str, variant: str = "hd", label: str | None = None) -> Dict[str, str]:
+        """Download a combined playable provider variant to a temp file."""
         loop = asyncio.get_event_loop()
         variant = (variant or "hd").lower()
+        label = label or self._platform_key_for_url(url)
 
         if variant == "audio":
             format_selectors = ["bestaudio[ext=m4a]/bestaudio/best", "bestaudio/best", "best"]
@@ -858,13 +863,14 @@ class PublicPlatformDownloader:
                 "no_warnings": True,
                 "http_headers": self._build_http_headers(url),
                 "merge_output_format": "mp4",
-                "extractor_args": {
-                    "tiktok": {
-                        "api_hostname": ["api22-normal-c-useast1a.tiktokv.com"],
-                    }
-                },
             }
         )
+        if label == "tiktok":
+            opts["extractor_args"] = {
+                "tiktok": {
+                    "api_hostname": ["api22-normal-c-useast1a.tiktokv.com"],
+                }
+            }
 
         def run_download(download_opts: Dict[str, Any]):
             with yt_dlp.YoutubeDL(download_opts) as ydl:
@@ -877,16 +883,16 @@ class PublicPlatformDownloader:
             attempt_opts["format"] = format_selector
             if index > 0:
                 attempt_opts["ignore_no_formats_error"] = True
-            self._log_ydl_context(f"tiktok.download.{variant}.{format_selector}", url, attempt_opts)
+            self._log_ydl_context(f"{label}.download.{variant}.{format_selector}", url, attempt_opts)
             try:
                 info = await loop.run_in_executor(None, lambda attempt_opts=attempt_opts: run_download(attempt_opts))
                 break
             except Exception as e:
                 last_error = e
-                print(f"Warning: yt-dlp tiktok.download.{variant} failed with {format_selector}: {e}")
+                print(f"Warning: yt-dlp {label}.download.{variant} failed with {format_selector}: {e}")
 
         if info is None:
-            raise last_error or Exception("TikTok download failed")
+            raise last_error or Exception(f"{label} download failed")
 
         candidates = [
             os.path.join(self.download_path, name)
@@ -909,9 +915,18 @@ class PublicPlatformDownloader:
             "webm": "video/webm",
         }
         title = info.get("title") if isinstance(info, dict) else "tiktok"
-        safe_title = re.sub(r'[\\/:*?"<>|]+', "_", title or "tiktok").strip() or "tiktok"
+        expected_duration = info.get("duration") if isinstance(info, dict) else None
+        safe_title = re.sub(r'[\\/:*?"<>|]+', "_", title or label).strip() or label
         filename = f"{safe_title}.{actual_ext}"
-        return {"path": filepath, "filename": filename, "media_type": media_type_by_ext.get(actual_ext, media_type)}
+        verification = self._verify_downloaded_media(
+            filepath,
+            expected_duration=expected_duration,
+            expect_audio=variant != "image",
+            expect_video=variant not in {"audio", "image"},
+        )
+        if verification.get("available") and not verification.get("complete"):
+            raise Exception(f"{label} {variant} download failed media verification: {verification}")
+        return {"path": filepath, "filename": filename, "media_type": media_type_by_ext.get(actual_ext, media_type), "verification": verification}
     
     async def resolve_media(self, url: str, quality: Quality, extract_audio: bool = False) -> Dict[str, Any]:
         """Resolve a direct media URL without downloading or saving files."""
@@ -1320,6 +1335,25 @@ class PublicPlatformDownloader:
             downloads.update(api_downloads)
             direct_url = downloads["audio"] if kind == "audio" else downloads["videoHD"]
 
+        selected_hd_has_audio = bool(selected_hd and selected_hd.get("acodec") and selected_hd.get("acodec") != "none")
+        selected_sd_has_audio = bool(selected_sd and selected_sd.get("acodec") and selected_sd.get("acodec") != "none")
+        split_audio_available = bool(selected_audio and selected_audio.get("url"))
+        needs_managed_mux = (
+            kind == "video"
+            and split_audio_available
+            and not ("youtube.com" in url or "youtu.be" in url)
+            and "tiktok.com" not in url.lower()
+            and (
+                (downloads.get("videoHD") and not selected_hd_has_audio)
+                or (downloads.get("videoSD") and not selected_sd_has_audio)
+            )
+        )
+        if needs_managed_mux:
+            safe_title = re.sub(r'[\\/:*?"<>|]+', "_", title or "video").strip() or "video"
+            downloads["videoHD"] = self._api_file_download_url(url, "hd", f"{safe_title}.mp4")
+            downloads["videoSD"] = self._api_file_download_url(url, "sd", f"{safe_title}.mp4")
+            direct_url = downloads["videoHD"]
+
         if "items" not in downloads and direct_url:
             item_thumbnail = thumbnail if kind != "image" else (thumbnail or direct_url)
             item = {
@@ -1334,7 +1368,7 @@ class PublicPlatformDownloader:
                 "width": (primary.get("width") if primary else info.get("width")),
                 "height": (primary.get("height") if primary else info.get("height")),
                 "hasAudio": kind == "video" and bool(
-                    (primary or {}).get("acodec") and (primary or {}).get("acodec") != "none"
+                    needs_managed_mux or ((primary or {}).get("acodec") and (primary or {}).get("acodec") != "none")
                 ),
             }
             downloads["items"] = [item]
