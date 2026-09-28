@@ -124,6 +124,7 @@ async function checkUpstreamHealth(upstreamBaseUrl) {
 export async function handleSmdRequest(req, res) {
   const requestId = req.headers["x-request-id"] || randomUUID();
   const startedAt = Date.now();
+  let validationMs = 0;
   const context = {
     platform: null,
     kind: null,
@@ -189,11 +190,14 @@ export async function handleSmdRequest(req, res) {
     }
 
     if (route.kind === "file") {
+      const validationStartedAt = Date.now();
       const payload = validateFileProxyRequest(req);
+      validationMs = Date.now() - validationStartedAt;
       logStage("validation passed", {
         requestId,
         kind: route.kind,
         path: `/${route.forwardPath.join("/")}`,
+        validationMs,
       });
       const env = getServerEnv();
       logStage("environment loaded", {
@@ -216,11 +220,14 @@ export async function handleSmdRequest(req, res) {
       if (req.method !== "GET" && req.method !== "HEAD") {
         throw publicError("UNSUPPORTED_PLATFORM", 405, `method ${req.method} is not supported for diagnostics`);
       }
+      const validationStartedAt = Date.now();
       const payload = validateDiagnosticsRequest(req);
+      validationMs = Date.now() - validationStartedAt;
       logStage("validation passed", {
         requestId,
         kind: route.kind,
         path: `/${route.forwardPath.join("/")}`,
+        validationMs,
       });
       const env = getServerEnv();
       logStage("environment loaded", {
@@ -239,7 +246,9 @@ export async function handleSmdRequest(req, res) {
       const entitlement = await batchEntitlement(req);
       let payload;
       try {
+        const validationStartedAt = Date.now();
         payload = validateBatchDownloadRequest(req, { maxUrls: entitlement.maxBatchUrls });
+        validationMs = Date.now() - validationStartedAt;
       } catch (error) {
         if (error?.code === "PRO_UPGRADE_REQUIRED" || error?.code === "BATCH_LIMIT_EXCEEDED") {
           return json(res, error.status || 400, {
@@ -263,6 +272,7 @@ export async function handleSmdRequest(req, res) {
         count: payload.items.length,
         maxBatchUrls: entitlement.maxBatchUrls,
         pro: entitlement.isPro,
+        validationMs,
       });
 
       const resolvedResults = await mapWithConcurrency(payload.items, concurrency, async (item) => {
@@ -318,11 +328,14 @@ export async function handleSmdRequest(req, res) {
       throw publicError("UNSUPPORTED_PLATFORM", 405, `method ${req.method} is not supported`);
     }
 
+    const validationStartedAt = Date.now();
     const payload = await validateDownloadRequest(route.platform, req);
+    validationMs = Date.now() - validationStartedAt;
     logStage("validation passed", {
       requestId,
       kind: route.kind,
       platform: route.platform,
+      validationMs,
     });
     const env = getServerEnv();
     logStage("environment loaded", {
@@ -331,12 +344,22 @@ export async function handleSmdRequest(req, res) {
       upstreamHost: env.upstreamHost,
     });
     const result = await downloadMedia({ env, platform: route.platform, payload, requestId });
+    const responseMs = Date.now() - startedAt;
+    const timing = {
+      ...(result.timing || {}),
+      requestId,
+      platform: route.platform,
+      validationMs,
+      proxyMs: result.timing?.proxyMs ?? 0,
+      responseMs,
+      totalMs: responseMs,
+    };
     logStage("response normalized", {
       requestId,
       platform: route.platform,
-      latencyMs: Date.now() - startedAt,
+      ...timing,
     });
-    return json(res, 200, { ...result, requestId });
+    return json(res, 200, { ...result, timing, requestId });
   } catch (error) {
     const code = error?.code || "INTERNAL_ERROR";
     console.error("[DownloadDash SMD] request failed", {

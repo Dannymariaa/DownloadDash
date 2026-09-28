@@ -3,7 +3,7 @@ import { normalizeDownloadResponse } from "./normalize.js";
 import { upstreamPlatform } from "./platforms.js";
 
 const REQUEST_TIMEOUT_MS = 55_000;
-const MAX_TRANSIENT_RETRIES = 2;
+const MAX_TRANSIENT_RETRIES = 1;
 const RETRY_BASE_DELAY_MS = 40;
 
 function sanitizeFilename(name) {
@@ -260,7 +260,14 @@ export async function downloadMedia({ env, platform, payload, requestId }) {
         throw error;
       }
 
-      return normalizeDownloadResponse(platform, data);
+      const normalized = normalizeDownloadResponse(platform, data);
+      const upstreamTiming = data?.timing || data?.downloads?.timing || {};
+      normalized.timing = {
+        ...(upstreamTiming && typeof upstreamTiming === "object" ? upstreamTiming : {}),
+        platform,
+        proxyMs: latencyMs,
+      };
+      return normalized;
     } catch (error) {
       if (error?.name === "AbortError") {
         throw publicError("UPSTREAM_TIMEOUT", 504, "upstream request timed out");

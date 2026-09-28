@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import handler from '../../api/smd/[...path].js';
+import { normalizePublicUrl } from '../../shared/publicUrl.js';
 
 const intendedApiEntrypoints = [
   '_downloadDashProxy.js',
@@ -229,6 +230,42 @@ test('all public SMD platform routes validate input, authenticate server-side, a
   });
 });
 
+test('successful proxy responses include structured lightweight timing fields', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () =>
+      new Response(JSON.stringify({
+        success: true,
+        downloads: {
+          videoHD: 'https://cdn.example/video.mp4',
+          timing: {
+            cacheHit: false,
+            providerResolveMs: 7,
+            normalizationMs: 2,
+            totalMs: 12,
+            resultCount: 1,
+          },
+        },
+      }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const res = await request({ path: 'tiktok/download', body: { url: validUrls.tiktok } });
+    const body = readJson(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.success, true);
+    assert.equal(body.timing.platform, 'tiktok');
+    assert.equal(body.timing.cacheHit, false);
+    assert.equal(body.timing.providerResolveMs, 7);
+    assert.equal(body.timing.resultCount, 1);
+    assert.equal(typeof body.timing.validationMs, 'number');
+    assert.equal(typeof body.timing.proxyMs, 'number');
+    assert.equal(typeof body.timing.responseMs, 'number');
+    assert.equal(typeof body.timing.totalMs, 'number');
+  });
+});
+
 test('normalization keeps signed extensionless image metadata as image', async () => {
   await withProxyEnv(async () => {
     globalThis.fetch = async () =>
@@ -452,6 +489,128 @@ test('TikTok route rejects wrong domains and malformed URLs before upstream fetc
 
     assert.equal(fetchCalled, false);
   });
+});
+
+test('shared URL normalization accepts supported copied public URL forms and rejects unsafe input', () => {
+  const accepted = [
+    ['tiktok', ' "https:\\/\\/www.tiktok.com\\/@user\\/video\\/123?utm_source=x&is_from_webapp=1" ', 'https://www.tiktok.com/@user/video/123?is_from_webapp=1'],
+    ['tiktok', 'https://www.tiktok.com/@user/photo/123'],
+    ['tiktok', 'https://vm.tiktok.com/ZMabc123/'],
+    ['tiktok', 'https://vt.tiktok.com/ZMabc123/'],
+    ['youtube', 'https://www.youtube.com/watch?v=abc123&utm_campaign=x', 'https://www.youtube.com/watch?v=abc123'],
+    ['youtube', 'https://youtu.be/abc123'],
+    ['youtube', 'https://youtube.com/shorts/abc123'],
+    ['instagram', 'https://instagram.com/p/ABC123/'],
+    ['instagram', 'https://instagram.com/reels/ABC123/'],
+    ['instagram', 'https://instagram.com/stories/user/123/'],
+    ['facebook', 'https://www.facebook.com/share/p/abc123/'],
+    ['facebook', 'https://m.facebook.com/reel/123'],
+    ['facebook', 'https://web.facebook.com/watch/?v=123'],
+    ['reddit', 'https://www.reddit.com/r/test/comments/abc/title/'],
+    ['reddit', 'https://redd.it/abc123'],
+    ['pinterest', 'https://www.pinterest.com/pin/123/'],
+    ['pinterest', 'https://pin.it/abc123'],
+    ['x', 'https://x.com/user/status/123'],
+    ['x', 'https://www.twitter.com/user/status/123'],
+  ];
+
+  for (const [platform, rawUrl, expectedUrl] of accepted) {
+    const normalized = normalizePublicUrl(rawUrl, { platform });
+    assert.equal(normalized.ok, true, rawUrl);
+    assert.equal(normalized.platform, platform === 'twitter' ? 'x' : platform, rawUrl);
+    if (expectedUrl) assert.equal(normalized.url, expectedUrl, rawUrl);
+  }
+
+  for (const rawUrl of [
+    'javascript:alert(1)',
+    'file:///etc/passwd',
+    'data:text/html,hi',
+    'http://localhost:3000/media',
+    'http://127.0.0.1/media',
+    'https://evil-tiktok.com/@user/video/123',
+  ]) {
+    const normalized = normalizePublicUrl(rawUrl, { requireSupported: true });
+    assert.equal(normalized.ok, false, rawUrl);
+  }
+});
+
+test('all seven platform video fixtures expose playable video with audio and separate audio', async () => {
+  const cases = [
+    ['tiktok', validUrls.tiktok],
+    ['instagram', validUrls.instagram],
+    ['facebook', validUrls.facebook],
+    ['youtube', validUrls.youtube],
+    ['reddit', validUrls.reddit],
+    ['pinterest', validUrls.pinterest],
+    ['x', validUrls.x],
+  ];
+
+  for (const [platform, url] of cases) {
+    await withProxyEnv(async () => {
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({
+          success: true,
+          downloads: {
+            videoHD: `https://cdn.${platform}.example/video-hd.mp4`,
+            videoSD: `https://cdn.${platform}.example/video-sd.mp4`,
+            audio: `https://cdn.${platform}.example/audio.m4a`,
+          },
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+      const res = await request({ path: `${platform}/download`, body: { url } });
+      const body = readJson(res);
+
+      assert.equal(res.statusCode, 200, platform);
+      assert.deepEqual(body.data.media.map((item) => item.type), ['video', 'audio'], platform);
+      assert.equal(body.data.media[0].hasAudio, true, platform);
+      assert.equal(body.data.media[0].variants.length, 2, platform);
+      assert.equal(body.data.media[1].type, 'audio', platform);
+    });
+  }
+});
+
+test('photo and gallery fixtures keep exact canonical counts plus soundtrack audio', async () => {
+  const cases = [
+    ['tiktok', validUrls.tiktok, 10, true],
+    ['instagram', validUrls.instagram, 4, false],
+    ['facebook', validUrls.facebook, 6, true],
+    ['reddit', validUrls.reddit, 3, false],
+    ['x', validUrls.x, 4, false],
+    ['pinterest', validUrls.pinterest, 1, false],
+  ];
+
+  for (const [platform, url, photoCount, withAudio] of cases) {
+    await withProxyEnv(async () => {
+      const photos = Array.from({ length: photoCount }, (_, index) => ({
+        type: 'image',
+        url: `https://cdn.${platform}.example/photo-${index + 1}.jpg`,
+        mimeType: 'image/jpeg',
+      }));
+      globalThis.fetch = async () =>
+        new Response(JSON.stringify({
+          success: true,
+          media: withAudio
+            ? [...photos, { type: 'audio', url: `https://cdn.${platform}.example/sound.m4a`, mimeType: 'audio/mp4' }]
+            : photos,
+          thumbnail: `https://cdn.${platform}.example/preview.mp4`,
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+
+      const res = await request({ path: `${platform}/download`, body: { url } });
+      const body = readJson(res);
+      const mediaTypes = body.data.media.map((item) => item.type);
+
+      assert.equal(res.statusCode, 200, platform);
+      assert.equal(mediaTypes.filter((type) => type === 'image').length, photoCount, platform);
+      assert.equal(mediaTypes.filter((type) => type === 'video').length, 0, platform);
+      assert.equal(mediaTypes.filter((type) => type === 'audio').length, withAudio ? 1 : 0, platform);
+    });
+  }
 });
 
 test('normalization keeps quality variants nested under one source video', async () => {
@@ -1100,7 +1259,7 @@ test('transient upstream failures are retried briefly for read-only extraction r
     let attempts = 0;
     globalThis.fetch = async () => {
       attempts += 1;
-      if (attempts < 3) {
+      if (attempts < 2) {
         return new Response(JSON.stringify({ success: false, error: 'temporarily unavailable' }), {
           status: 503,
           headers: { 'content-type': 'application/json' },
@@ -1118,7 +1277,7 @@ test('transient upstream failures are retried briefly for read-only extraction r
 
     assert.equal(res.statusCode, 200);
     assert.equal(body.success, true);
-    assert.equal(attempts, 3);
+    assert.equal(attempts, 2);
   });
 });
 

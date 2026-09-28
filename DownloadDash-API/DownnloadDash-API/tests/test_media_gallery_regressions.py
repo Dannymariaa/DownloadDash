@@ -1,12 +1,21 @@
 import asyncio
+import io
 import os
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import AsyncMock, patch
 
 from fastapi import BackgroundTasks
 
-from app.api.shared import _gallery_result_is_richer, _should_try_gallery_enrichment, download_public
-from app.models.schemas import DownloadRequest
+from app.api.shared import (
+    _gallery_result_is_richer,
+    _resolve_cache,
+    _resolve_inflight,
+    _should_try_gallery_enrichment,
+    download_public,
+)
+from app.api.download import _filename_for_fallback
+from app.models.schemas import DownloadRequest, UserAuth
 from app.models.schemas import MediaType, Platform, Quality
 from app.platforms.public_platforms import PublicPlatformDownloader
 from app.platforms.universal_downloader import UniversalMediaDownloader
@@ -330,6 +339,129 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         self.assertEqual(response.downloads["videoHD"], "https://v.pinimg.com/video.m3u8")
         self.assertEqual(response.downloads["items"][0]["type"], "video")
         self.assertNotIn("image", response.downloads)
+
+    def test_concurrent_identical_public_resolves_share_one_provider_call(self):
+        calls = 0
+
+        class SlowUniversalStub:
+            async def resolve_media(self, *args, **kwargs):
+                nonlocal calls
+                calls += 1
+                await asyncio.sleep(0.01)
+                return {
+                    "direct_url": "https://cdn.example/video.mp4",
+                    "title": "Shared resolve",
+                    "thumbnail": "https://cdn.example/thumb.jpg",
+                    "ext": "mp4",
+                    "kind": "video",
+                    "downloads": {
+                        "videoHD": "https://cdn.example/video.mp4",
+                        "videoSD": "https://cdn.example/video.mp4",
+                    },
+                }
+
+        async def run_requests():
+            request = DownloadRequest(
+                url="https://www.tiktok.com/@creator/video/1234567890123456789",
+                platform=Platform.TIKTOK,
+                quality=Quality.HIGHEST,
+                include_metadata=True,
+            )
+            return await asyncio.gather(
+                download_public(Platform.TIKTOK, request, BackgroundTasks()),
+                download_public(Platform.TIKTOK, request, BackgroundTasks()),
+                download_public(Platform.TIKTOK, request, BackgroundTasks()),
+            )
+
+        _resolve_cache.clear()
+        _resolve_inflight.clear()
+        with patch("app.api.shared.universal_downloader", SlowUniversalStub()):
+            responses = asyncio.run(run_requests())
+
+        self.assertEqual(calls, 1)
+        self.assertTrue(all(response.success for response in responses))
+        self.assertTrue(any(response.downloads["timing"]["singleFlight"] for response in responses))
+
+    def test_public_resolve_timing_is_structured_and_does_not_log_full_url(self):
+        class UniversalStub:
+            async def resolve_media(self, *args, **kwargs):
+                return {
+                    "direct_url": "https://cdn.example/video.mp4?secret_token=do-not-log",
+                    "title": "Timed resolve",
+                    "thumbnail": "https://cdn.example/thumb.jpg",
+                    "ext": "mp4",
+                    "kind": "video",
+                    "downloads": {
+                        "videoHD": "https://cdn.example/video.mp4?secret_token=do-not-log",
+                        "videoSD": "https://cdn.example/video.mp4?secret_token=do-not-log",
+                    },
+                }
+
+        request = DownloadRequest(
+            url="https://www.tiktok.com/@creator/video/9876543210987654321?token=do-not-log",
+            platform=Platform.TIKTOK,
+            quality=Quality.HIGHEST,
+            include_metadata=True,
+        )
+
+        _resolve_cache.clear()
+        _resolve_inflight.clear()
+        stdout = io.StringIO()
+        with patch("app.api.shared.universal_downloader", UniversalStub()), redirect_stdout(stdout):
+            response = asyncio.run(download_public(Platform.TIKTOK, request, BackgroundTasks()))
+
+        timing = response.downloads["timing"]
+        self.assertEqual(timing["platform"], "tiktok")
+        self.assertFalse(timing["cacheHit"])
+        self.assertGreaterEqual(timing["providerResolveMs"], 0)
+        self.assertGreaterEqual(timing["normalizationMs"], 0)
+        self.assertGreaterEqual(timing["totalMs"], 0)
+        self.assertEqual(timing["resultCount"], 1)
+        self.assertNotIn("do-not-log", stdout.getvalue())
+
+    def test_authenticated_requests_bypass_public_cache_and_singleflight(self):
+        calls = 0
+
+        class UniversalStub:
+            async def resolve_media(self, *args, **kwargs):
+                nonlocal calls
+                calls += 1
+                return {
+                    "direct_url": f"https://cdn.example/video-{calls}.mp4",
+                    "title": "Private resolve",
+                    "thumbnail": "https://cdn.example/thumb.jpg",
+                    "ext": "mp4",
+                    "kind": "video",
+                    "downloads": {
+                        "videoHD": f"https://cdn.example/video-{calls}.mp4",
+                    },
+                }
+
+        request = DownloadRequest(
+            url="https://www.instagram.com/stories/creator/1234567890/",
+            platform=Platform.INSTAGRAM,
+            quality=Quality.HIGHEST,
+            include_metadata=True,
+            user_auth=UserAuth(session_id="private-session"),
+        )
+
+        _resolve_cache.clear()
+        _resolve_inflight.clear()
+        with patch("app.api.shared.universal_downloader", UniversalStub()):
+            first = asyncio.run(download_public(Platform.INSTAGRAM, request, BackgroundTasks()))
+            second = asyncio.run(download_public(Platform.INSTAGRAM, request, BackgroundTasks()))
+
+        self.assertEqual(calls, 2)
+        self.assertFalse(first.downloads["timing"]["cacheHit"])
+        self.assertFalse(second.downloads["timing"]["cacheHit"])
+
+    def test_fallback_download_uses_actual_extension_when_requested_filename_is_stale(self):
+        filename = _filename_for_fallback(
+            requested_filename="TikTok sound.m4a",
+            fallback_filename="TikTok sound.mp3",
+        )
+
+        self.assertEqual(filename, "TikTok sound.mp3")
 
     def test_youtube_dash_video_only_formats_use_server_mux_file_endpoints(self):
         downloader = PublicPlatformDownloader()

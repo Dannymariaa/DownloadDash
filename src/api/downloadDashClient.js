@@ -515,6 +515,15 @@ const primaryMediaUrl = (entry, key = '') => {
   ]);
 };
 
+const isLikelyPreviewEntry = (entry, url) => {
+  const explicitType = normalizeMediaType(entry?.type || entry?.media_type || entry?.mediaType || entry?.kind);
+  if (explicitType) return false;
+  const role = String(entry?.role || entry?.purpose || entry?.label || '').toLowerCase();
+  if (role.includes('thumb') || role.includes('preview') || role.includes('poster')) return true;
+  return ['thumbnail', 'thumbnail_url', 'thumbnailUrl', 'preview_url', 'previewUrl', 'display_url', 'displayUrl']
+    .some((key) => entry?.[key] && entry[key] === url);
+};
+
 export const normalizeMediaItem = (item, index, fallbackType = 'unknown', key = '') => {
   const entry = item?.node ? item.node : item;
   if (!entry) return null;
@@ -533,6 +542,7 @@ export const normalizeMediaItem = (item, index, fallbackType = 'unknown', key = 
   const url = primaryMediaUrl(entry, key || fallbackType);
 
   if (!url) return null;
+  if (isLikelyPreviewEntry(entry, url)) return null;
 
   const mimeType = firstValue(entry, ['mimeType', 'mime_type', 'contentType', 'content_type', 'mimetype']);
   const explicitTypeValue = entry.type || entry.media_type || entry.mediaType || entry.kind;
@@ -643,6 +653,12 @@ const collectMediaItems = (data, downloads) => {
 export const getSelectableMediaItems = (items = []) =>
   (Array.isArray(items) ? items : []).filter((item) => item?.url && item.type !== 'unknown');
 
+export const isSingleCanonicalVideoResult = (downloads = {}) => {
+  const items = Array.isArray(downloads.items) ? downloads.items : [];
+  const canonical = items.filter((item) => item?.type === 'image' || item?.type === 'video');
+  return canonical.length === 1 && canonical[0]?.type === 'video';
+};
+
 export const normalizeResolvedDownloads = (data = {}) => {
   const downloads = { ...(data.downloads || {}) };
   const items = Array.isArray(downloads.items)
@@ -669,6 +685,8 @@ export const normalizeResolvedDownloads = (data = {}) => {
   let type = normalizeMediaType(data.type || data.kind || data.media_type) || data.type || 'unknown';
   if (type === 'carousel') type = 'album';
   if (sourceMediaCount > 1) type = 'album';
+  if (sourceMediaCount === 1 && items.find((item) => item.type === 'video')) type = 'video';
+  if (sourceMediaCount === 1 && items.find((item) => item.type === 'image')) type = 'image';
 
   return {
     ...data,

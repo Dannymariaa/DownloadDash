@@ -1,38 +1,13 @@
 import { publicError } from "./errors.js";
 import { PLATFORM_HOSTS, isPlatformHost, normalizePlatform } from "./platforms.js";
+import { normalizePublicUrl } from "../../shared/publicUrl.js";
 
 const MAX_BODY_BYTES = 20_000;
 export const FREE_BATCH_URL_LIMIT = 1;
 export const PRO_BATCH_URL_LIMIT = 7;
-const PRIVATE_HOSTS = new Set(["localhost", "metadata.google.internal"]);
 const TIKTOK_SHORT_HOSTS = new Set(["vm.tiktok.com", "vt.tiktok.com"]);
 const SHORT_LINK_TIMEOUT_MS = 6_000;
 const SHORT_LINK_REDIRECT_LIMIT = 5;
-
-function hostnameLooksPrivate(hostname) {
-  const host = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
-  if (!host) return true;
-  if (PRIVATE_HOSTS.has(host)) return true;
-  if (host === "::1" || host === "0:0:0:0:0:0:0:1") return true;
-  if (host === "169.254.169.254") return true;
-
-  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (!ipv4) return false;
-
-  const parts = ipv4.slice(1).map(Number);
-  if (parts.some((part) => part < 0 || part > 255)) return true;
-  const [a, b] = parts;
-
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168)
-  );
-}
 
 export function parseBody(req) {
   if (req.method === "GET" || req.method === "HEAD") return {};
@@ -62,30 +37,9 @@ export function parseBody(req) {
 }
 
 export function validatePublicUrl(rawUrl, platform = null) {
-  if (typeof rawUrl !== "string" || !rawUrl.trim()) {
-    throw publicError("URL_REQUIRED", 400);
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(rawUrl.trim());
-  } catch {
-    throw publicError("INVALID_URL", 400);
-  }
-
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw publicError("UNSUPPORTED_PROTOCOL", 400);
-  }
-
-  if (hostnameLooksPrivate(parsed.hostname)) {
-    throw publicError("BLOCKED_HOST", 400, `blocked private host ${parsed.hostname}`);
-  }
-
-  if (platform && !isPlatformHost(platform, parsed.hostname)) {
-    throw publicError("UNSUPPORTED_DOMAIN", 400, `wrong domain ${parsed.hostname} for ${platform}`);
-  }
-
-  return parsed.toString();
+  const normalized = normalizePublicUrl(rawUrl, { platform });
+  if (!normalized.ok) throw publicError(normalized.code, 400, normalized.message);
+  return normalized.url;
 }
 
 function isTikTokShortUrl(url) {

@@ -59,6 +59,16 @@ def _safe_filename(name: str) -> str:
     return value[:160] if value else 'download'
 
 
+def _filename_for_fallback(requested_filename: str | None, fallback_filename: str | None) -> str:
+    safe_fallback = _safe_filename(fallback_filename or "download")
+    safe_requested = _safe_filename(requested_filename or safe_fallback)
+    requested_ext = os.path.splitext(safe_requested)[1].lower()
+    fallback_ext = os.path.splitext(safe_fallback)[1].lower()
+    if fallback_ext and requested_ext and fallback_ext != requested_ext:
+        return safe_fallback
+    return safe_requested or safe_fallback
+
+
 def _httpx_client_kwargs(**kwargs):
     # Final media bytes must not travel through residential proxies. This helper is
     # intentionally direct-only; proxy use is limited to metadata/signature resolve.
@@ -152,7 +162,7 @@ async def _serve_download_file(
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail="Downloaded TikTok file not found")
 
-        safe_name = _safe_filename(filename or fallback["filename"])
+        safe_name = _filename_for_fallback(filename, fallback["filename"])
         background_tasks.add_task(os.remove, path)
         return FileResponse(
             path,

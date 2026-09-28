@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   getSelectableMediaItems,
   inferMediaTypeFromUrl,
+  isSingleCanonicalVideoResult,
   normalizeMediaItem,
   normalizeResolvedDownloads,
   responseErrorMessage,
@@ -125,6 +126,53 @@ test('client keeps video quality variants inside one selectable source item', ()
   assert.equal(normalized.downloads.videoSD, 'https://cdn.example/video-480.mp4');
   assert.equal(normalized.downloads.audio, 'https://cdn.example/audio.m4a');
   assert.deepEqual(normalized.downloads.items[0].variants.map((variant) => variant.height), [1080, 480]);
+});
+
+test('client distinguishes one video plus audio from real post galleries', () => {
+  const singleVideo = normalizeResolvedDownloads({
+    type: 'video',
+    downloads: {
+      videoHD: 'https://cdn.example/video.mp4',
+      videoSD: 'https://cdn.example/video-sd.mp4',
+      audio: 'https://cdn.example/audio.m4a',
+      items: [
+        { type: 'video', url: 'https://cdn.example/video.mp4', hasAudio: true },
+        { type: 'audio', url: 'https://cdn.example/audio.m4a' },
+      ],
+    },
+  });
+
+  const photoSoundtrack = normalizeResolvedDownloads({
+    type: 'image',
+    downloads: {
+      items: [
+        { type: 'image', url: 'https://cdn.example/photo.jpg' },
+        { type: 'audio', url: 'https://cdn.example/sound.m4a' },
+      ],
+    },
+  });
+
+  assert.equal(singleVideo.type, 'video');
+  assert.equal(isSingleCanonicalVideoResult(singleVideo.downloads), true);
+  assert.equal(photoSoundtrack.type, 'image');
+  assert.equal(isSingleCanonicalVideoResult(photoSoundtrack.downloads), false);
+  assert.deepEqual(photoSoundtrack.downloads.items.map((item) => item.type), ['image', 'audio']);
+});
+
+test('client ignores preview-only media entries when canonical gallery photos are present', () => {
+  const normalized = normalizeResolvedDownloads({
+    type: 'album',
+    downloads: {
+      items: [
+        { type: 'image', url: 'https://cdn.example/photo-1.jpg' },
+        { type: 'image', url: 'https://cdn.example/photo-2.jpg' },
+        { url: 'https://cdn.example/preview.mp4', preview_url: 'https://cdn.example/preview.mp4' },
+      ],
+    },
+  });
+
+  assert.equal(normalized.type, 'album');
+  assert.deepEqual(normalized.downloads.items.map((item) => item.type), ['image', 'image']);
 });
 
 test('client maps backend downloader error codes to user-safe messages', () => {

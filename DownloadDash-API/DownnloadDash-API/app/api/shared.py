@@ -1,3 +1,6 @@
+import asyncio
+import hashlib
+import json
 import uuid
 from datetime import datetime, timedelta
 import time
@@ -32,6 +35,7 @@ GALLERY_FALLBACK_PLATFORMS = {
 
 RESOLVE_CACHE_TTL_SECONDS = 600
 _resolve_cache: Dict[str, tuple[float, Dict[str, Any]]] = {}
+_resolve_inflight: Dict[str, asyncio.Task] = {}
 
 
 def _resolve_cache_key(platform: Platform, request: DownloadRequest) -> str:
@@ -46,6 +50,10 @@ def _resolve_cache_key(platform: Platform, request: DownloadRequest) -> str:
     )
 
 
+def _is_public_cacheable_request(request: DownloadRequest) -> bool:
+    return request.user_auth is None
+
+
 def _get_resolve_cache(key: str) -> Optional[Dict[str, Any]]:
     cached = _resolve_cache.get(key)
     if not cached:
@@ -54,7 +62,7 @@ def _get_resolve_cache(key: str) -> Optional[Dict[str, Any]]:
     if expires_at <= time.time():
         _resolve_cache.pop(key, None)
         return None
-    print(f"Info: resolve_cache_hit key={key[:120]}")
+    print(f"Info: resolve_cache_hit cacheKeyHash={_cache_key_hash(key)}")
     return value
 
 
@@ -67,6 +75,56 @@ def _set_resolve_cache(key: str, value: Dict[str, Any]) -> None:
         while len(_resolve_cache) > 384:
             _resolve_cache.pop(next(iter(_resolve_cache)))
     _resolve_cache[key] = (time.time() + RESOLVE_CACHE_TTL_SECONDS, value)
+
+
+def _cache_key_hash(key: str) -> str:
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+
+
+def _elapsed_ms(started_at: float) -> int:
+    return max(0, int((time.perf_counter() - started_at) * 1000))
+
+
+def _result_count(result: Optional[Dict[str, Any]]) -> int:
+    return _download_item_count(result)
+
+
+def _timing_payload(
+    *,
+    platform: Platform,
+    cache_hit: bool,
+    single_flight: bool,
+    queue_wait_ms: int,
+    provider_resolve_ms: int,
+    normalization_ms: int,
+    total_ms: int,
+    result_count: int,
+    error_code: str | None = None,
+) -> Dict[str, Any]:
+    return {
+        "platform": platform.value,
+        "cacheHit": cache_hit,
+        "singleFlight": single_flight,
+        "backendQueueMs": queue_wait_ms,
+        "queueWaitMs": queue_wait_ms,
+        "extractorStartupMs": 0,
+        "providerResolveMs": provider_resolve_ms,
+        "resolveMs": provider_resolve_ms,
+        "normalizationMs": normalization_ms,
+        "responseMs": total_ms,
+        "totalMs": total_ms,
+        "resultCount": result_count,
+        "errorCode": error_code,
+    }
+
+
+def _log_timing(event: str, *, cache_key: str, timing: Dict[str, Any]) -> None:
+    payload = {
+        "event": event,
+        "cacheKeyHash": _cache_key_hash(cache_key),
+        **timing,
+    }
+    print("Info: public_resolve_timing " + json.dumps(payload, separators=(",", ":")))
 
 
 def _promote_x_cookie_error(platform: Platform, url: str, error_code: str) -> str:
@@ -241,18 +299,17 @@ async def _resolve_with_gallery_fallback(
     return _gallery_result_to_universal(platform, url, gallery_result, extract_audio=extract_audio)
 
 
-async def download_public(
-    platform: Platform, request: DownloadRequest, background_tasks: BackgroundTasks
-) -> DownloadResponse:
+async def _resolve_public_metadata(
+    *,
+    platform: Platform,
+    request: DownloadRequest,
+    cache_key: str,
+) -> tuple[Optional[Dict[str, Any]], Optional[Exception], bool, int, int, bool]:
     url_str = str(request.url)
-    cache_key = _resolve_cache_key(platform, request)
-    result = _get_resolve_cache(cache_key)
-    resolve_error: Optional[Exception] = None
-
-    if result is None:
-        print(f"Info: resolve_cache_miss platform={platform.value} url={url_str}")
+    if not _is_public_cacheable_request(request):
+        resolve_started = time.perf_counter()
         try:
-            result = await universal_downloader.resolve_media(
+            resolved = await universal_downloader.resolve_media(
                 url=url_str,
                 platform=platform,
                 quality=request.quality,
@@ -260,29 +317,85 @@ async def download_public(
                 media_type=request.media_type,
                 user_auth=request.user_auth,
             )
-        except Exception as e:
-            resolve_error = e
-            result = None
+            return resolved, None, False, _elapsed_ms(resolve_started), 0, False
+        except Exception as exc:
+            return None, exc, False, _elapsed_ms(resolve_started), 0, False
+
+    cached = _get_resolve_cache(cache_key)
+    if cached is not None:
+        return cached, None, True, 0, 0, False
+
+    async def resolve_once() -> tuple[Optional[Dict[str, Any]], Optional[Exception], int]:
+        resolve_started = time.perf_counter()
+        try:
+            resolved = await universal_downloader.resolve_media(
+                url=url_str,
+                platform=platform,
+                quality=request.quality,
+                extract_audio=request.extract_audio,
+                media_type=request.media_type,
+                user_auth=request.user_auth,
+            )
+            return resolved, None, _elapsed_ms(resolve_started)
+        except Exception as exc:
+            return None, exc, _elapsed_ms(resolve_started)
+
+    task = _resolve_inflight.get(cache_key)
+    single_flight = task is not None
+    if task is None:
+        print(
+            "Info: resolve_cache_miss "
+            f"platform={platform.value} cacheKeyHash={_cache_key_hash(cache_key)}"
+        )
+        task = asyncio.create_task(resolve_once())
+        _resolve_inflight[cache_key] = task
+
+    queue_started = time.perf_counter()
+    try:
+        result, resolve_error, provider_resolve_ms = await task
+    finally:
+        if _resolve_inflight.get(cache_key) is task:
+            _resolve_inflight.pop(cache_key, None)
+
+    queue_wait_ms = _elapsed_ms(queue_started) if single_flight else 0
+    return result, resolve_error, False, provider_resolve_ms, queue_wait_ms, single_flight
+
+
+async def download_public(
+    platform: Platform, request: DownloadRequest, background_tasks: BackgroundTasks
+) -> DownloadResponse:
+    total_started = time.perf_counter()
+    url_str = str(request.url)
+    cache_key = _resolve_cache_key(platform, request)
+    result, resolve_error, cache_hit, provider_resolve_ms, queue_wait_ms, single_flight = await _resolve_public_metadata(
+        platform=platform,
+        request=request,
+        cache_key=cache_key,
+    )
 
     if _should_try_gallery_enrichment(platform, url_str, result, request.extract_audio):
+        gallery_started = time.perf_counter()
         gallery_result = await _resolve_with_gallery_fallback(
             platform=platform,
             url=url_str,
             extract_audio=request.extract_audio,
         )
+        provider_resolve_ms += _elapsed_ms(gallery_started)
         if _gallery_result_is_richer(result, gallery_result):
             result = gallery_result
 
     if not result or not result.get("direct_url"):
+        gallery_started = time.perf_counter()
         gallery_result = await _resolve_with_gallery_fallback(
             platform=platform,
             url=url_str,
             extract_audio=request.extract_audio,
         )
+        provider_resolve_ms += _elapsed_ms(gallery_started)
         if gallery_result:
             result = gallery_result
 
-    if result and result.get("direct_url"):
+    if result and result.get("direct_url") and _is_public_cacheable_request(request):
         _set_resolve_cache(cache_key, result)
 
     if not result:
@@ -290,6 +403,18 @@ async def download_public(
         error_code = classify_resolver_error(platform, raw_error)
         error_code = _promote_x_cookie_error(platform, url_str, error_code)
         sanitized_error = sanitize_provider_error(raw_error)
+        timing = _timing_payload(
+            platform=platform,
+            cache_hit=cache_hit,
+            single_flight=single_flight,
+            queue_wait_ms=queue_wait_ms,
+            provider_resolve_ms=provider_resolve_ms,
+            normalization_ms=0,
+            total_ms=_elapsed_ms(total_started),
+            result_count=0,
+            error_code=error_code,
+        )
+        _log_timing("failed", cache_key=cache_key, timing=timing)
         print(
             "Warning: resolver_failed "
             f"platform={platform.value} error_code={error_code} "
@@ -304,6 +429,7 @@ async def download_public(
             warnings=[],
         )
 
+    normalization_started = time.perf_counter()
     max_size_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
     if result.get("filesize") and result.get("filesize", 0) > max_size_bytes:
         raise HTTPException(status_code=413, detail="File too large")
@@ -382,6 +508,18 @@ async def download_public(
         direct_url = downloads.get("videoHD") or downloads.get("videoSD") or downloads.get("audio") or downloads.get("image")
 
     if not direct_url:
+        timing = _timing_payload(
+            platform=platform,
+            cache_hit=cache_hit,
+            single_flight=single_flight,
+            queue_wait_ms=queue_wait_ms,
+            provider_resolve_ms=provider_resolve_ms,
+            normalization_ms=_elapsed_ms(normalization_started),
+            total_ms=_elapsed_ms(total_started),
+            result_count=0,
+            error_code="NO_DIRECT_URL",
+        )
+        _log_timing("failed", cache_key=cache_key, timing=timing)
         return DownloadResponse(
             success=False,
             message="Resolve failed",
@@ -428,6 +566,18 @@ async def download_public(
         file_size=result.get("filesize"),
         file_format=result.get("ext"),
     )
+    timing = _timing_payload(
+        platform=platform,
+        cache_hit=cache_hit,
+        single_flight=single_flight,
+        queue_wait_ms=queue_wait_ms,
+        provider_resolve_ms=provider_resolve_ms,
+        normalization_ms=_elapsed_ms(normalization_started),
+        total_ms=_elapsed_ms(total_started),
+        result_count=_result_count({"direct_url": direct_url, "downloads": downloads}),
+    )
+    downloads["timing"] = timing
+    _log_timing("complete", cache_key=cache_key, timing=timing)
 
     return DownloadResponse(
         success=True,

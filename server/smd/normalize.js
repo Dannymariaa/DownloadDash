@@ -93,6 +93,18 @@ function mediaIdentity(_entry, url) {
   return `url:${url}`;
 }
 
+function canonicalSourceKind(item) {
+  const type = item?.type;
+  return type === "image" || type === "video";
+}
+
+function isLikelyPreviewEntry(entry, url) {
+  const role = String(entry?.role || entry?.purpose || entry?.label || "").toLowerCase();
+  if (role.includes("thumb") || role.includes("preview") || role.includes("poster")) return true;
+  const keys = ["thumbnail", "thumbnail_url", "thumbnailUrl", "preview_url", "previewUrl", "display_url", "displayUrl"];
+  return keys.some((key) => entry?.[key] && entry[key] === url);
+}
+
 function primaryUrlForEntry(entry, key = "") {
   const explicitType = normalizeType(entry.type || entry.media_type || entry.mediaType || entry.kind);
   if (explicitType === "video" || entry.is_video === true || entry.isVideo === true) {
@@ -128,6 +140,7 @@ function pushMedia(media, seen, item, key = "") {
   const entry = typeof item === "string" ? { url: item } : item || {};
   const url = primaryUrlForEntry(entry, key);
   if (!url) return;
+  if (isLikelyPreviewEntry(entry, url) && !normalizeType(entry.type || entry.media_type || entry.mediaType || entry.kind)) return;
   const identity = mediaIdentity(entry, url);
   if (seen.has(identity)) return;
   seen.add(identity);
@@ -238,7 +251,15 @@ function collectMedia(upstreamData) {
     return 2;
   };
 
+  const canonicalCount = media.filter(canonicalSourceKind).length;
+
   return media
+    .filter((item) => {
+      if (canonicalCount > 1 && item.type === "video" && item.url === item.thumbnail && !item.hasAudio && !item.audioUrl) {
+        return false;
+      }
+      return true;
+    })
     .map((item, originalIndex) => ({ item, originalIndex }))
     .sort((a, b) => orderWeight(a.item) - orderWeight(b.item) || a.originalIndex - b.originalIndex)
     .map(({ item }, index) => ({ ...item, index }));

@@ -16,6 +16,7 @@ import { getPlatformIcon } from '@/components/PlatformIcons';
 import { createPageUrl } from '@/utils';
 import { downloadItemsWithQueue, mediaQueueLabel } from '@/utils/downloadQueue';
 import { MAX_BATCH_URLS, normalizeBatchUrls } from '@/utils/batchLinks';
+import { normalizePublicUrl, isPlatformHost } from '../../shared/publicUrl.js';
 
 const PRO_PROMO_FEATURES = [
   'Ad-free downloads',
@@ -29,52 +30,48 @@ const PRO_PROMO_FEATURES = [
 const SUPPORTED_BATCH_PLATFORMS = ['YouTube', 'TikTok', 'Instagram', 'Facebook', 'X/Twitter', 'Pinterest', 'Reddit'];
 
 // Platform URL validation
-const platformHosts = {
-  tiktok: ['tiktok.com', 'www.tiktok.com', 'm.tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com'],
-  instagram: ['instagram.com', 'www.instagram.com', 'm.instagram.com'],
-  facebook: ['facebook.com', 'www.facebook.com', 'm.facebook.com', 'mbasic.facebook.com', 'web.facebook.com', 'fb.watch'],
-  twitter: ['twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'x.com', 'www.x.com', 'mobile.x.com'],
-  youtube: ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'],
-  telegram: ['t.me', 'telegram.me'],
-  snapchat: ['snapchat.com', 'www.snapchat.com'],
-  pinterest: ['pin.it'],
-  reddit: ['reddit.com', 'www.reddit.com', 'old.reddit.com', 'new.reddit.com', 'm.reddit.com', 'redd.it'],
-};
-
 const hostnameMatchesPlatform = (platform, hostname) => {
-  const host = String(hostname || '').toLowerCase().replace(/\.$/, '');
   if (platform === 'whatsapp') return true;
-  if (platform === 'pinterest') return host === 'pin.it' || host === 'pinterest.com' || host.endsWith('.pinterest.com');
-  return (platformHosts[platform] || []).includes(host);
+  return isPlatformHost(platform === 'twitter' ? 'x' : platform, hostname);
 };
 
 const pathMatchesPlatform = (platform, parsed) => {
   const path = parsed.pathname || '/';
   if (platform === 'tiktok') return path.length > 1;
-  if (platform === 'instagram') return /^\/(p|reel|stories|tv)\//i.test(path);
+  if (platform === 'instagram') return /^\/(p|reel|reels|stories|tv)\//i.test(path);
   if (platform === 'twitter') return /\/status\//i.test(path);
   if (platform === 'youtube') return parsed.hostname === 'youtu.be' || path === '/watch' || path.startsWith('/shorts/');
+  if (platform === 'facebook') {
+    return /^\/(share\/(p|v)|reel|watch|stories|story\.php|photo|photo\.php|permalink\.php|posts|videos)\b/i.test(path) ||
+      parsed.searchParams.has('v') ||
+      parsed.searchParams.has('story_fbid') ||
+      parsed.searchParams.has('fbid');
+  }
+  if (platform === 'reddit') return parsed.hostname === 'redd.it' || /^\/r\/[^/]+\/comments\//i.test(path);
+  if (platform === 'pinterest') return parsed.hostname === 'pin.it' || /^\/pin\//i.test(path);
   if (platform === 'telegram') return path.length > 1;
   if (platform === 'snapchat') return /^\/(spotlight|add|story)\//i.test(path);
   return path.length > 1 || parsed.search.length > 1;
 };
 
 const sanitizeUrl = (url) => {
-  let s = url.trim();
-  s = s.replace(/<[^>]*>/g, '').replace(/[<>"'`]/g, '');
+  let s = String(url || '').trim();
+  s = s.replace(/^\s*[<"'`]+|[>"'`]+\s*$/g, '');
   return s;
 };
 
 const validateUrl = (url, platform, t) => {
   if (!url || url.length < 10 || url.length > 2048) return { valid: false, error: t('errors.validUrl') };
   const sanitized = sanitizeUrl(url);
+  const shared = normalizePublicUrl(sanitized, { platform: platform === 'twitter' ? 'x' : platform });
+  if (!shared.ok) return { valid: false, error: shared.message || t('errors.invalidUrl') };
   let parsed;
-  try { parsed = new URL(sanitized); } catch { return { valid: false, error: t('errors.invalidUrl') }; }
+  try { parsed = new URL(shared.url); } catch { return { valid: false, error: t('errors.invalidUrl') }; }
   if (!['http:', 'https:'].includes(parsed.protocol)) return { valid: false, error: t('errors.invalidUrl') };
   if (!hostnameMatchesPlatform(platform, parsed.hostname) || !pathMatchesPlatform(platform, parsed)) {
     return { valid: false, error: t('errors.platformUrl', { platform }) };
   }
-  return { valid: true, url: sanitized };
+  return { valid: true, url: shared.url };
 };
 
 const downloaderInternalLinks = [
@@ -647,8 +644,7 @@ export default function DownloaderTemplate({
       return;
     }
 
-    const countdownSeconds = type === 'videoHD' ? 30 : 5;
-    setAdGate({ actionId, downloadUrl, type, label, items, countdownSeconds });
+    setAdGate({ actionId, downloadUrl, type, label, items, countdownSeconds: 5 });
   };
 
   const handleAdGateComplete = async () => {
@@ -689,7 +685,16 @@ export default function DownloaderTemplate({
         .filter((item) => item?.url)
         .map((item, index) => ({ ...item, id: item.id || `media-${item.index ?? index}`, index: item.index ?? index }))
     : [];
-  const hasAlbumItems = albumItems.length > 1;
+  const canonicalMediaItems = albumItems.filter((item) => item.type === 'image' || item.type === 'video');
+  const audioOnlyItems = albumItems.filter((item) => item.type === 'audio');
+  const isSingleVideoWithOptionalAudio =
+    canonicalMediaItems.length === 1 &&
+    canonicalMediaItems[0]?.type === 'video' &&
+    albumItems.every((item) => item.type === 'video' || item.type === 'audio');
+  const hasPostMediaList =
+    canonicalMediaItems.length > 1 ||
+    (canonicalMediaItems.length === 1 && canonicalMediaItems[0]?.type === 'image' && audioOnlyItems.length > 0);
+  const hasAlbumItems = hasPostMediaList;
   const selectableMediaItems = albumItems.filter((item) => item.type !== 'unknown');
   const selectedMediaItems = selectableMediaItems.filter((item) => selectedMediaIds.includes(item.id));
   
@@ -712,10 +717,12 @@ export default function DownloaderTemplate({
   const effectiveHasAudio = hasAudio || albumHasAudio;
   
   const hasImage = !!result?.downloads?.image;
-  const hasPhotoDownload = (hasAlbumItems && photoItems.length > 0) || hasImage;
+  const hasPhotoDownload = (hasAlbumItems && photoItems.length > 0) || (!hasPostMediaList && hasImage);
   const photoDownloadUrl = hasAlbumItems ? photoItems[0]?.url : result?.downloads?.image;
   const hasMultiplePhotos = photoItems.length > 1;
-  const hasVideoOrAudio = hasVideoHD || hasVideoSD || effectiveHasAudio;
+  const showStandaloneVideoOptions = !hasPostMediaList && (hasVideoHD || hasVideoSD || isSingleVideoWithOptionalAudio);
+  const showStandaloneAudioOption = effectiveHasAudio && (!hasPostMediaList || audioItems.length > 0);
+  const hasVideoOrAudio = showStandaloneVideoOptions || showStandaloneAudioOption;
   const toggleMediaSelection = (itemId) => {
     setSelectedMediaIds((current) =>
       current.includes(itemId)
@@ -1263,7 +1270,7 @@ export default function DownloaderTemplate({
                   initial="hidden"
                   animate="visible"
                 >
-                  {selectableMediaItems.length > 1 && (
+                  {hasPostMediaList && selectableMediaItems.length > 1 && (
                     <motion.div
                       variants={downloadOptionVariants}
                       className="rounded-2xl border border-white/10 bg-gray-950/80 p-4"
@@ -1361,7 +1368,7 @@ export default function DownloaderTemplate({
                         whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(147, 51, 234, 0.3)' }}
                         whileTap={{ scale: 0.99 }}
                         onClick={() => requestDownload(result.downloads?.videoHD, 'videoHD', 'HD Video')}
-                        className={`${hasVideoHD ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/40 hover:border-purple-500/70 transition-all group`}
+                        className={`${showStandaloneVideoOptions && hasVideoHD ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-purple-600/20 to-pink-600/20 border border-purple-500/40 hover:border-purple-500/70 transition-all group`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center flex-shrink-0">
@@ -1383,7 +1390,7 @@ export default function DownloaderTemplate({
                         whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)' }}
                         whileTap={{ scale: 0.99 }}
                         onClick={() => requestDownload(result.downloads?.videoSD, 'videoSD', 'SD Video')}
-                        className={`${hasVideoSD ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-purple-500/40 transition-all group`}
+                        className={`${showStandaloneVideoOptions && hasVideoSD ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-purple-500/40 transition-all group`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-gray-700 flex items-center justify-center flex-shrink-0">
@@ -1410,7 +1417,7 @@ export default function DownloaderTemplate({
                            audioItems.length > 1 ? `All Audio (${audioItems.length})` : 'Audio / MP3',
                            audioItems.length > 0 ? audioItems : null
                          )}
-                        className={`${effectiveHasAudio ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-green-500/40 transition-all group`}
+                        className={`${showStandaloneAudioOption ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-green-500/40 transition-all group`}
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-green-900/60 flex items-center justify-center flex-shrink-0">
