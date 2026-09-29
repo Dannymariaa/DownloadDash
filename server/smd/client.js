@@ -2,7 +2,8 @@ import { publicError } from "./errors.js";
 import { normalizeDownloadResponse } from "./normalize.js";
 import { upstreamPlatform } from "./platforms.js";
 
-const REQUEST_TIMEOUT_MS = 55_000;
+const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.SMD_RESOLVE_TIMEOUT_MS || "", 10) || 25_000;
+const FILE_REQUEST_TIMEOUT_MS = Number.parseInt(process.env.SMD_FILE_TIMEOUT_MS || "", 10) || 10 * 60_000;
 const MAX_TRANSIENT_RETRIES = 1;
 const RETRY_BASE_DELAY_MS = 40;
 
@@ -14,11 +15,25 @@ function sanitizeFilename(name) {
     .slice(0, 160) || "download";
 }
 
-function buildHeaders(apiKey) {
+function safeContentDisposition(value, fallbackFilename) {
+  const text = String(value || "");
+  const disposition = /^\s*(attachment|inline)\b/i.exec(text)?.[1]?.toLowerCase() || "attachment";
+  const filenameMatch = /filename\*?=(?:UTF-8''|"?)([^";\r\n]+)/i.exec(text);
+  let filename = filenameMatch?.[1] || fallbackFilename || "download";
+  try {
+    filename = decodeURIComponent(filename);
+  } catch {
+    // Keep the encoded text and sanitize it below.
+  }
+  return `${disposition}; filename="${sanitizeFilename(filename)}"`;
+}
+
+function buildHeaders(apiKey, requestId) {
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
     "X-DownloadDash-Key": apiKey,
+    ...(requestId ? { "X-Request-ID": requestId } : {}),
   };
 }
 
@@ -99,6 +114,7 @@ const PROVIDER_ERROR_STATUS = {
   PRIVATE_MEDIA: 403,
   EXTRACTOR_OUTDATED: 502,
   EXTRACTOR_FAILED: 502,
+  PROVIDER_TIMEOUT: 504,
   UNSUPPORTED_MEDIA: 422,
 };
 
@@ -205,7 +221,7 @@ export async function downloadMedia({ env, platform, payload, requestId }) {
 
       const upstream = await fetch(target, {
         method: "POST",
-        headers: buildHeaders(env.apiKey),
+        headers: buildHeaders(env.apiKey, requestId),
         body: JSON.stringify({
           ...payload,
           platform: upstreamName,
@@ -322,7 +338,11 @@ export async function proxyFileRequest({ env, forwardPath, payload, method, quer
 
   const startedAt = Date.now();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), FILE_REQUEST_TIMEOUT_MS);
+  const abortOnClientClose = () => {
+    if (!res.writableEnded) controller.abort();
+  };
+  res.on?.("close", abortOnClientClose);
 
   try {
     const upstream = await fetch(target.toString(), {
@@ -332,7 +352,6 @@ export async function proxyFileRequest({ env, forwardPath, payload, method, quer
       signal: controller.signal,
     });
 
-    const buffer = Buffer.from(await upstream.arrayBuffer());
     console.info("[DownloadDash SMD] file proxy response", {
       requestId,
       path: `/${forwardPath.join("/")}`,
@@ -341,18 +360,45 @@ export async function proxyFileRequest({ env, forwardPath, payload, method, quer
     });
 
     const contentType = upstream.headers.get("content-type") || "application/octet-stream";
-    const disposition = upstream.headers.get("content-disposition");
+    const disposition = safeContentDisposition(
+      upstream.headers.get("content-disposition"),
+      payload?.filename
+    );
     res.status(upstream.status);
     res.setHeader("Content-Type", contentType);
-    res.setHeader("Content-Disposition", disposition || `attachment; filename="${sanitizeFilename(payload?.filename)}"`);
-    return res.end(buffer);
+    res.setHeader("Content-Disposition", disposition);
+    if (upstream.headers.get("content-length")) {
+      res.setHeader("Content-Length", upstream.headers.get("content-length"));
+    }
+    if (!upstream.body) return res.end("");
+    if (typeof res.write !== "function") throw new Error("streaming response is unavailable");
+    for await (const chunk of upstream.body) {
+      if (!res.write(chunk)) {
+        await new Promise((resolve, reject) => {
+          const onDrain = () => { cleanup(); resolve(); };
+          const onError = (error) => { cleanup(); reject(error); };
+          const cleanup = () => {
+            res.off?.("drain", onDrain);
+            res.off?.("error", onError);
+          };
+          res.once?.("drain", onDrain);
+          res.once?.("error", onError);
+        });
+      }
+    }
+    return res.end();
   } catch (error) {
+    if (res.headersSent) {
+      res.destroy?.(error);
+      return;
+    }
     if (error?.name === "AbortError") {
       throw publicError("UPSTREAM_TIMEOUT", 504, "file proxy request timed out");
     }
     throw error;
   } finally {
     clearTimeout(timeout);
+    res.off?.("close", abortOnClientClose);
   }
 }
 

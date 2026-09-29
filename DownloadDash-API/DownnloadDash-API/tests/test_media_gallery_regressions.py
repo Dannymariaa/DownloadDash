@@ -11,6 +11,7 @@ from app.api.shared import (
     _gallery_result_is_richer,
     _resolve_cache,
     _resolve_inflight,
+    _timing_payload,
     _should_try_gallery_enrichment,
     download_public,
 )
@@ -382,6 +383,37 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         self.assertTrue(all(response.success for response in responses))
         self.assertTrue(any(response.downloads["timing"]["singleFlight"] for response in responses))
 
+    def test_public_cache_hit_skips_provider_work(self):
+        calls = 0
+
+        class UniversalStub:
+            async def resolve_media(self, *args, **kwargs):
+                nonlocal calls
+                calls += 1
+                return {
+                    "direct_url": "https://cdn.example/cached.mp4",
+                    "title": "Cached resolve",
+                    "ext": "mp4",
+                    "kind": "video",
+                    "downloads": {"videoHD": "https://cdn.example/cached.mp4"},
+                }
+
+        request = DownloadRequest(
+            url="https://www.tiktok.com/@creator/video/cache-hit",
+            platform=Platform.TIKTOK,
+            quality=Quality.HIGHEST,
+            include_metadata=True,
+        )
+        _resolve_cache.clear()
+        _resolve_inflight.clear()
+        with patch("app.api.shared.universal_downloader", UniversalStub()):
+            first = asyncio.run(download_public(Platform.TIKTOK, request, BackgroundTasks()))
+            second = asyncio.run(download_public(Platform.TIKTOK, request, BackgroundTasks()))
+
+        self.assertEqual(calls, 1)
+        self.assertFalse(first.downloads["timing"]["cacheHit"])
+        self.assertTrue(second.downloads["timing"]["cacheHit"])
+
     def test_public_resolve_timing_is_structured_and_does_not_log_full_url(self):
         class UniversalStub:
             async def resolve_media(self, *args, **kwargs):
@@ -454,6 +486,59 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         self.assertEqual(calls, 2)
         self.assertFalse(first.downloads["timing"]["cacheHit"])
         self.assertFalse(second.downloads["timing"]["cacheHit"])
+
+    def test_public_resolve_timeout_returns_controlled_provider_error(self):
+        class SlowUniversalStub:
+            async def resolve_media(self, *args, **kwargs):
+                await asyncio.sleep(0.05)
+                return {
+                    "direct_url": "https://cdn.example/video.mp4",
+                    "kind": "video",
+                    "downloads": {"videoHD": "https://cdn.example/video.mp4"},
+                }
+
+        request = DownloadRequest(
+            url="https://www.tiktok.com/@creator/video/1234567890123456789",
+            platform=Platform.TIKTOK,
+            quality=Quality.HIGHEST,
+            include_metadata=True,
+        )
+
+        _resolve_cache.clear()
+        _resolve_inflight.clear()
+        with patch("app.api.shared.universal_downloader", SlowUniversalStub()), \
+             patch("app.api.shared.settings.RESOLVER_TIMEOUT_SECONDS", 0.01):
+            response = asyncio.run(download_public(Platform.TIKTOK, request, BackgroundTasks()))
+
+        self.assertFalse(response.success)
+        self.assertEqual(response.error_code, "PROVIDER_TIMEOUT")
+        self.assertEqual(response.status, "failed")
+
+    def test_timing_payload_exposes_performance_slo_fields(self):
+        timing = _timing_payload(
+            platform=Platform.YOUTUBE,
+            cache_hit=False,
+            single_flight=False,
+            queue_wait_ms=3,
+            provider_resolve_ms=40,
+            normalization_ms=2,
+            total_ms=50,
+            result_count=3,
+        )
+
+        for key in (
+            "validationMs",
+            "routingMs",
+            "vercelMs",
+            "renderQueueMs",
+            "extractorStartupMs",
+            "providerMs",
+            "providerResolveMs",
+            "normalizationMs",
+            "responseMs",
+            "totalMs",
+        ):
+            self.assertIn(key, timing)
 
     def test_fallback_download_uses_actual_extension_when_requested_filename_is_stale(self):
         filename = _filename_for_fallback(

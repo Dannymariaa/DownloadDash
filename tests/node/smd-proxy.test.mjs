@@ -32,6 +32,7 @@ const listJsFiles = async (rootUrl, prefix = '') => {
 
 const createResponse = () => {
   const headers = {};
+  const chunks = [];
   return {
     statusCode: 200,
     body: null,
@@ -47,8 +48,14 @@ const createResponse = () => {
     getHeader(key) {
       return headers[key.toLowerCase()];
     },
+    write(chunk) {
+      chunks.push(Buffer.from(chunk));
+      return true;
+    },
     end(body = '') {
-      this.body = body;
+      if (body !== '') chunks.push(Buffer.from(body));
+      this.body = chunks.length ? Buffer.concat(chunks) : body;
+      this.writableEnded = true;
       return this;
     },
   };
@@ -1425,6 +1432,48 @@ test('file proxy requires a trusted platform source URL and preserves file heade
     assert.equal(res.statusCode, 400);
     assert.equal(readJson(res).error.code, 'UNSUPPORTED_DOMAIN');
     assert.equal(fetchCalled, false);
+  });
+});
+
+test('generic file proxy streams upstream chunks progressively without full body buffering', async () => {
+  await withProxyEnv(async () => {
+    let emittedChunks = 0;
+    globalThis.fetch = async () => new Response(new ReadableStream({
+      async start(controller) {
+        controller.enqueue(new Uint8Array([1, 2]));
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        assert.equal(emittedChunks, 1, 'first chunk reached the response before upstream finished');
+        controller.enqueue(new Uint8Array([3, 4]));
+        controller.close();
+      },
+    }), {
+      status: 206,
+      headers: {
+        'content-type': 'video/mp4',
+        'content-disposition': 'attachment; filename="clip.mp4"',
+      },
+    });
+
+    const res = createResponse();
+    const originalWrite = res.write;
+    res.write = function (chunk) {
+      emittedChunks += 1;
+      return originalWrite.call(this, chunk);
+    };
+    await handler({
+      method: 'GET',
+      url: '/api/smd/download/file',
+      query: { url: 'https://cdn.example/clip.mp4', sourceUrl: validUrls.tiktok, filename: 'clip.mp4' },
+      headers: {},
+      socket: { remoteAddress: '198.51.100.10' },
+    }, res);
+
+    assert.equal(res.statusCode, 206);
+    assert.equal(res.getHeader('Content-Type'), 'video/mp4');
+    assert.equal(res.getHeader('Content-Disposition'), 'attachment; filename="clip.mp4"');
+    assert.deepEqual([...res.body], [1, 2, 3, 4]);
+    const clientSource = await readFile(new URL('../../server/smd/client.js', import.meta.url), 'utf8');
+    assert.doesNotMatch(clientSource, /upstream\.arrayBuffer\(\)/);
   });
 });
 

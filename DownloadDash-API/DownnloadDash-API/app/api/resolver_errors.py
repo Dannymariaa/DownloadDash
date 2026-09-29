@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlsplit
 from typing import Optional
 
 from app.models.schemas import Platform
@@ -19,6 +20,7 @@ PROVIDER_ERROR_CODES = {
     "PROXY_BLOCKED",
     "EXTRACTOR_OUTDATED",
     "EXTRACTOR_FAILED",
+    "PROVIDER_TIMEOUT",
 }
 
 SECRET_PATTERNS = (
@@ -45,7 +47,21 @@ def sanitize_provider_error(raw_error: Optional[str]) -> str:
             text = pattern.sub(lambda match: f"{match.group(1)}=<redacted>", text)
         else:
             text = pattern.sub(lambda match: f"{match.group(1)}<redacted>:<redacted>@", text)
+    text = re.sub(
+        r"https?://[^\s\"'<>]+",
+        lambda match: _redact_url(match.group(0)),
+        text,
+        flags=re.IGNORECASE,
+    )
     return text
+
+
+def _redact_url(value: str) -> str:
+    try:
+        parsed = urlsplit(value.rstrip(")]},.!"))
+        return f"{parsed.scheme}://{parsed.netloc}/<redacted>"
+    except ValueError:
+        return "<redacted-url>"
 
 
 def classify_resolver_error(platform: Platform | str | None, raw_error: Optional[str]) -> str:
@@ -54,6 +70,9 @@ def classify_resolver_error(platform: Platform | str | None, raw_error: Optional
 
     if not text:
         return "EXTRACTOR_FAILED"
+
+    if any(token in text for token in ("provider metadata resolve timed out", "resolver timed out", "timed out")):
+        return "PROVIDER_TIMEOUT"
 
     if "407" in text or "proxy authentication" in text or "proxy auth" in text:
         return "PROXY_AUTH_FAILED"

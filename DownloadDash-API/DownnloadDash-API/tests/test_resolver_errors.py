@@ -7,13 +7,22 @@ from unittest.mock import patch
 from fastapi import BackgroundTasks
 
 from app.api.cookie_state import inspect_netscape_cookiefile
-from app.api.resolver_errors import classify_resolver_error
+from app.api.resolver_errors import classify_resolver_error, sanitize_provider_error
 from app.api.shared import download_public
 from app.models.schemas import DownloadRequest
 from app.models.schemas import Platform
 
 
 class ResolverErrorClassificationTests(unittest.TestCase):
+    def test_provider_timeout_and_signed_url_redaction(self):
+        raw = "request failed for https://cdn.example/video.mp4?X-Signature=secret123"
+        self.assertEqual(
+            classify_resolver_error(Platform.TIKTOK, "provider metadata resolve timed out"),
+            "PROVIDER_TIMEOUT",
+        )
+        self.assertNotIn("secret123", sanitize_provider_error(raw))
+        self.assertNotIn("video.mp4", sanitize_provider_error(raw))
+
     def test_instagram_login_and_antibot_are_not_media_not_found(self):
         cases = [
             ("Login required to access this profile", "COOKIE_REQUIRED"),

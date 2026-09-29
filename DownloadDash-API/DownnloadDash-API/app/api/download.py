@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Body, Query
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Body, Query, Request as HttpRequest
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 import httpx
 import os
@@ -18,6 +18,7 @@ router = APIRouter(tags=["download"])
 async def download_media(
     request: DownloadRequest,
     background_tasks: BackgroundTasks,
+    http_request: HttpRequest,
 ):
     url_str = str(request.url)
     platform = request.platform or detect_platform(url_str)
@@ -30,7 +31,12 @@ async def download_media(
         Platform.X,
     ):
         normalized = Platform.TWITTER if platform == Platform.X else platform
-        return await download_public(normalized, request, background_tasks)
+        return await download_public(
+            normalized,
+            request,
+            background_tasks,
+            request_id=http_request.headers.get("x-request-id"),
+        )
 
     if platform in (Platform.WHATSAPP, Platform.WHATSAPP_BUSINESS):
         status = await whatsapp_downloader.get_connection_status()

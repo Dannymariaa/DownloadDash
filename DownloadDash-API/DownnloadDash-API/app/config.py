@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     GALLERY_DL_PROXY_TIKTOK: Optional[str] = None
     GALLERY_DL_PROXY_X: Optional[str] = None
     GALLERY_DL_PROXY_TWITTER: Optional[str] = None
-    GALLERY_DL_TIMEOUT_SECONDS: int = 300
+    GALLERY_DL_TIMEOUT_SECONDS: int = 20
     
     # Platform API Keys
     INSTAGRAM_USERNAME: Optional[str] = None
@@ -129,6 +129,11 @@ class Settings(BaseSettings):
     # Worker Settings
     MAX_WORKERS: int = 4
     DOWNLOAD_TIMEOUT_SECONDS: int = 300
+    RESOLVER_TIMEOUT_SECONDS: float = 15.0
+    RESOLVER_CONCURRENCY: int = 4
+    HEAVY_MEDIA_CONCURRENCY: int = 1
+    RESOLVE_CACHE_TTL_SECONDS: int = 120
+    GALLERY_FALLBACK_TIMEOUT_SECONDS: float = 5.0
     
     model_config = ConfigDict(
         env_prefix="SMD_",

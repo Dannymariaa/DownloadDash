@@ -12,6 +12,7 @@ import re
 import httpx
 from urllib.parse import parse_qs, quote, urlencode, urlparse, urlunparse
 from ..models.schemas import Platform, Quality
+from ..config import settings
 
 class PublicPlatformDownloader:
     """Handles downloads from public social media platforms using yt-dlp"""
@@ -31,11 +32,34 @@ class PublicPlatformDownloader:
         self.proxy_url = proxy_url
         self.proxy_urls = proxy_urls or {}
         self.youtube_proxy_url = youtube_proxy_url
+        self._heavy_media_semaphores = {}
         self.user_agent = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/122.0.0.0 Safari/537.36"
         )
+
+    async def _run_heavy_media_job(self, operation, *args, **kwargs):
+        loop = asyncio.get_running_loop()
+        limit = max(1, int(settings.HEAVY_MEDIA_CONCURRENCY))
+        current = self._heavy_media_semaphores.get(loop)
+        if current is None or current[0] != limit:
+            semaphore = asyncio.Semaphore(limit)
+            self._heavy_media_semaphores[loop] = (limit, semaphore)
+        else:
+            semaphore = current[1]
+
+        async def run_in_slot():
+            async with semaphore:
+                return await operation(*args, **kwargs)
+
+        job = asyncio.create_task(run_in_slot())
+        try:
+            return await asyncio.shield(job)
+        except asyncio.CancelledError:
+            # Keep the slot until executor-backed download/transcode work really exits.
+            job.add_done_callback(lambda task: task.exception() if not task.cancelled() else None)
+            raise
 
     def _build_http_headers(self, url: str) -> Dict[str, str]:
         try:
@@ -606,6 +630,10 @@ class PublicPlatformDownloader:
 
     async def download_youtube_variant(self, url: str, variant: str = "hd") -> Dict[str, str]:
         """Download a YouTube variant to a temp file and return its path metadata."""
+        return await self._run_heavy_media_job(self._download_youtube_variant_unlocked, url, variant)
+
+    async def _download_youtube_variant_unlocked(self, url: str, variant: str = "hd") -> Dict[str, str]:
+        """Download a YouTube variant to a temp file and return its path metadata."""
         loop = asyncio.get_event_loop()
         url = self._normalize_youtube_url(url)
 
@@ -820,6 +848,14 @@ class PublicPlatformDownloader:
 
     async def download_platform_variant(self, url: str, variant: str = "hd", label: str | None = None) -> Dict[str, str]:
         """Download a combined playable provider variant to a temp file."""
+        if (variant or "hd").lower() == "image":
+            return await self._download_platform_variant_unlocked(url, variant, label)
+        return await self._run_heavy_media_job(
+            self._download_platform_variant_unlocked, url, variant, label
+        )
+
+    async def _download_platform_variant_unlocked(self, url: str, variant: str = "hd", label: str | None = None) -> Dict[str, str]:
+        """Perform a full provider transfer while the caller holds the heavy-media slot."""
         loop = asyncio.get_event_loop()
         variant = (variant or "hd").lower()
         label = label or self._platform_key_for_url(url)

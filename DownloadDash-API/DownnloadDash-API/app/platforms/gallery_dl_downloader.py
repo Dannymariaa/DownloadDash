@@ -110,7 +110,7 @@ class GalleryDLDownloader:
             command.extend(["-o", f"proxy={proxy_url}"])
         return command
 
-    async def resolve(self, url: str, limit: int = 25) -> Dict[str, Any]:
+    async def resolve(self, url: str, limit: int = 25, timeout_seconds: float | None = None) -> Dict[str, Any]:
         command = [*self._base_command(url), "-J", "-o", "output.private=false", url]
         proc = await asyncio.create_subprocess_exec(
             *command,
@@ -119,7 +119,8 @@ class GalleryDLDownloader:
         )
 
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=min(self.timeout_seconds, 90))
+            timeout = min(self.timeout_seconds, 90, timeout_seconds) if timeout_seconds is not None else min(self.timeout_seconds, 90)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
             proc.kill()
             await proc.communicate()

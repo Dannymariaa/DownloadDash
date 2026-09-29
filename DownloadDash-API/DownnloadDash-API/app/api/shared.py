@@ -33,9 +33,54 @@ GALLERY_FALLBACK_PLATFORMS = {
     Platform.YOUTUBE,
 }
 
-RESOLVE_CACHE_TTL_SECONDS = 600
 _resolve_cache: Dict[str, tuple[float, Dict[str, Any]]] = {}
 _resolve_inflight: Dict[str, asyncio.Task] = {}
+_resolver_semaphore: asyncio.Semaphore | None = None
+_resolver_semaphore_limit: int | None = None
+_resolver_semaphore_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _get_resolver_semaphore() -> asyncio.Semaphore:
+    global _resolver_semaphore, _resolver_semaphore_limit, _resolver_semaphore_loop
+    loop = asyncio.get_running_loop()
+    limit = max(1, int(getattr(settings, "RESOLVER_CONCURRENCY", 4)))
+    if (
+        _resolver_semaphore is None
+        or _resolver_semaphore_limit != limit
+        or _resolver_semaphore_loop is not loop
+    ):
+        _resolver_semaphore = asyncio.Semaphore(limit)
+        _resolver_semaphore_limit = limit
+        _resolver_semaphore_loop = loop
+    return _resolver_semaphore
+
+
+async def _run_bounded_metadata_resolve(
+    *, platform: Platform, request: DownloadRequest, url: str
+) -> Dict[str, Any]:
+    async def run_in_slot() -> Dict[str, Any]:
+        async with _get_resolver_semaphore():
+            return await universal_downloader.resolve_media(
+                url=url,
+                platform=platform,
+                quality=request.quality,
+                extract_audio=request.extract_audio,
+                media_type=request.media_type,
+                user_auth=request.user_auth,
+            )
+
+    provider_task = asyncio.create_task(run_in_slot())
+    try:
+        return await asyncio.wait_for(
+            asyncio.shield(provider_task),
+            timeout=max(0.01, float(getattr(settings, "RESOLVER_TIMEOUT_SECONDS", 20.0))),
+        )
+    except asyncio.TimeoutError:
+        # Shielding preserves the semaphore slot until executor backed provider work exits.
+        provider_task.add_done_callback(
+            lambda task: task.exception() if not task.cancelled() else None
+        )
+        raise
 
 
 def _resolve_cache_key(platform: Platform, request: DownloadRequest) -> str:
@@ -74,7 +119,8 @@ def _set_resolve_cache(key: str, value: Dict[str, Any]) -> None:
                 _resolve_cache.pop(cache_key, None)
         while len(_resolve_cache) > 384:
             _resolve_cache.pop(next(iter(_resolve_cache)))
-    _resolve_cache[key] = (time.time() + RESOLVE_CACHE_TTL_SECONDS, value)
+    ttl = max(1, int(getattr(settings, "RESOLVE_CACHE_TTL_SECONDS", 600)))
+    _resolve_cache[key] = (time.time() + ttl, value)
 
 
 def _cache_key_hash(key: str) -> str:
@@ -100,14 +146,21 @@ def _timing_payload(
     total_ms: int,
     result_count: int,
     error_code: str | None = None,
+    request_id: str | None = None,
 ) -> Dict[str, Any]:
     return {
+        "requestId": request_id,
         "platform": platform.value,
         "cacheHit": cache_hit,
         "singleFlight": single_flight,
+        "validationMs": 0,
+        "routingMs": 0,
+        "vercelMs": 0,
         "backendQueueMs": queue_wait_ms,
         "queueWaitMs": queue_wait_ms,
+        "renderQueueMs": queue_wait_ms,
         "extractorStartupMs": 0,
+        "providerMs": provider_resolve_ms,
         "providerResolveMs": provider_resolve_ms,
         "resolveMs": provider_resolve_ms,
         "normalizationMs": normalization_ms,
@@ -292,9 +345,13 @@ async def _resolve_with_gallery_fallback(
     if platform not in GALLERY_FALLBACK_PLATFORMS:
         return None
     try:
-        gallery_result = await gallery_downloader.resolve(url, limit=50)
+        gallery_result = await gallery_downloader.resolve(
+            url,
+            limit=50,
+            timeout_seconds=max(1.0, float(getattr(settings, "GALLERY_FALLBACK_TIMEOUT_SECONDS", 8.0))),
+        )
     except Exception as e:
-        print(f"Warning: gallery-dl fallback failed for {platform}: {e}")
+        print(f"Warning: gallery-dl fallback failed for {platform}: {sanitize_provider_error(str(e))[:300]}")
         return None
     return _gallery_result_to_universal(platform, url, gallery_result, extract_audio=extract_audio)
 
@@ -309,15 +366,12 @@ async def _resolve_public_metadata(
     if not _is_public_cacheable_request(request):
         resolve_started = time.perf_counter()
         try:
-            resolved = await universal_downloader.resolve_media(
-                url=url_str,
-                platform=platform,
-                quality=request.quality,
-                extract_audio=request.extract_audio,
-                media_type=request.media_type,
-                user_auth=request.user_auth,
+            resolved = await _run_bounded_metadata_resolve(
+                platform=platform, request=request, url=url_str
             )
             return resolved, None, False, _elapsed_ms(resolve_started), 0, False
+        except asyncio.TimeoutError:
+            return None, TimeoutError("provider metadata resolve timed out"), False, _elapsed_ms(resolve_started), 0, False
         except Exception as exc:
             return None, exc, False, _elapsed_ms(resolve_started), 0, False
 
@@ -328,15 +382,12 @@ async def _resolve_public_metadata(
     async def resolve_once() -> tuple[Optional[Dict[str, Any]], Optional[Exception], int]:
         resolve_started = time.perf_counter()
         try:
-            resolved = await universal_downloader.resolve_media(
-                url=url_str,
-                platform=platform,
-                quality=request.quality,
-                extract_audio=request.extract_audio,
-                media_type=request.media_type,
-                user_auth=request.user_auth,
+            resolved = await _run_bounded_metadata_resolve(
+                platform=platform, request=request, url=url_str
             )
             return resolved, None, _elapsed_ms(resolve_started)
+        except asyncio.TimeoutError as exc:
+            return None, TimeoutError("provider metadata resolve timed out"), _elapsed_ms(resolve_started)
         except Exception as exc:
             return None, exc, _elapsed_ms(resolve_started)
 
@@ -362,7 +413,8 @@ async def _resolve_public_metadata(
 
 
 async def download_public(
-    platform: Platform, request: DownloadRequest, background_tasks: BackgroundTasks
+    platform: Platform, request: DownloadRequest, background_tasks: BackgroundTasks,
+    request_id: str | None = None,
 ) -> DownloadResponse:
     total_started = time.perf_counter()
     url_str = str(request.url)
@@ -373,7 +425,9 @@ async def download_public(
         cache_key=cache_key,
     )
 
+    gallery_attempted = False
     if _should_try_gallery_enrichment(platform, url_str, result, request.extract_audio):
+        gallery_attempted = True
         gallery_started = time.perf_counter()
         gallery_result = await _resolve_with_gallery_fallback(
             platform=platform,
@@ -384,7 +438,8 @@ async def download_public(
         if _gallery_result_is_richer(result, gallery_result):
             result = gallery_result
 
-    if not result or not result.get("direct_url"):
+    resolver_timed_out = resolve_error is not None and classify_resolver_error(platform, str(resolve_error)) == "PROVIDER_TIMEOUT"
+    if (not result or not result.get("direct_url")) and not gallery_attempted and not resolver_timed_out:
         gallery_started = time.perf_counter()
         gallery_result = await _resolve_with_gallery_fallback(
             platform=platform,
@@ -413,6 +468,7 @@ async def download_public(
             total_ms=_elapsed_ms(total_started),
             result_count=0,
             error_code=error_code,
+            request_id=request_id,
         )
         _log_timing("failed", cache_key=cache_key, timing=timing)
         print(
@@ -518,6 +574,7 @@ async def download_public(
             total_ms=_elapsed_ms(total_started),
             result_count=0,
             error_code="NO_DIRECT_URL",
+            request_id=request_id,
         )
         _log_timing("failed", cache_key=cache_key, timing=timing)
         return DownloadResponse(
@@ -575,6 +632,7 @@ async def download_public(
         normalization_ms=_elapsed_ms(normalization_started),
         total_ms=_elapsed_ms(total_started),
         result_count=_result_count({"direct_url": direct_url, "downloads": downloads}),
+        request_id=request_id,
     )
     downloads["timing"] = timing
     _log_timing("complete", cache_key=cache_key, timing=timing)

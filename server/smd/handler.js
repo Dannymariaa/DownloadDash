@@ -146,8 +146,10 @@ export async function handleSmdRequest(req, res) {
   try {
     enforceRateLimit(req);
 
+    const routingStartedAt = Date.now();
     const parts = getPathParts(req);
     const route = parseRoute(parts);
+    const routingMs = Date.now() - routingStartedAt;
     const diagnostics = getServerEnvDiagnostics();
     context.platform = route.platform || null;
     context.kind = route.kind;
@@ -350,6 +352,9 @@ export async function handleSmdRequest(req, res) {
       requestId,
       platform: route.platform,
       validationMs,
+      routingMs,
+      vercelMs: result.timing?.proxyMs ?? 0,
+      renderQueueMs: result.timing?.renderQueueMs ?? result.timing?.queueWaitMs ?? 0,
       proxyMs: result.timing?.proxyMs ?? 0,
       responseMs,
       totalMs: responseMs,
