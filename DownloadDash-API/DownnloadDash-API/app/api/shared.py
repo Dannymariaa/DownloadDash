@@ -522,6 +522,10 @@ async def download_public(
             if not item_url:
                 continue
             normalized = {
+                **{key: item.get(key) for key in (
+                    "id", "index", "format", "formatId", "quality", "mimeType", "thumbnail",
+                    "thumbnailUrl", "hasAudio", "sourceUrl", "variants",
+                ) if item.get(key) is not None},
                 "url": item_url,
                 "type": item.get("type") or item.get("kind") or item.get("media_type") or "image",
                 "filename": item.get("filename"),

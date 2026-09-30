@@ -3,6 +3,29 @@ from typing import Optional, List, Dict, Any, Union
 from enum import Enum
 from datetime import datetime
 import re
+from urllib.parse import urlsplit
+
+
+_MEDIA_DOMAIN_ROOTS = (
+    "instagram.com", "tiktok.com", "facebook.com", "fb.com", "fb.watch",
+    "reddit.com", "redd.it", "pinterest.com", "pin.it", "pinimg.com",
+    "twitter.com", "x.com", "youtube.com", "youtu.be", "whatsapp.com",
+    "telegram.org", "t.me",
+)
+
+
+def validate_public_media_url(value):
+    raw = str(value).strip()
+    try:
+        parsed = urlsplit(raw)
+        hostname = (parsed.hostname or "").lower().rstrip(".")
+    except ValueError as exc:
+        raise ValueError("URL must be from a supported public media platform") from exc
+    supported = any(hostname == root or hostname.endswith("." + root) for root in _MEDIA_DOMAIN_ROOTS)
+    safe_authority = not parsed.username and not parsed.password and parsed.port is None
+    if parsed.scheme not in {"http", "https"} or not supported or not safe_authority:
+        raise ValueError("URL must be from a supported public media platform")
+    return value
 
 class Platform(str, Enum):
     INSTAGRAM = "instagram"
@@ -90,31 +113,10 @@ class DownloadRequest(BaseModel):
     user_auth: Optional[UserAuth] = None
     webhook_url: Optional[HttpUrl] = None
     
-    @field_validator('url')
-    def validate_url(cls, v):
-        url_str = str(v)
-        # Check if it's a valid social media URL
-        social_patterns = [
-            r'instagram\.com',
-            r'tiktok\.com',
-            r'facebook\.com',
-            r'fb\.com',
-            r'reddit\.com',
-            r'redd\.it',
-            r'pinterest\.com',
-            r'pin\.it',
-            r'pinimg\.com',
-            r'twitter\.com',
-            r'x\.com',
-            r'youtube\.com',
-            r'youtu\.be',
-            r'whatsapp\.com',
-            r'telegram\.org',
-            r't\.me',
-        ]
-        if not any(re.search(pattern, url_str.lower()) for pattern in social_patterns):
-            raise ValueError('URL must be from a supported social media platform')
-        return v
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, value):
+        return validate_public_media_url(value)
 
 class MediaInfo(BaseModel):
     id: str

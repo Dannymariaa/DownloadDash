@@ -1,6 +1,8 @@
 import asyncio
 import importlib.metadata
 import os
+import socket
+from urllib.parse import urlsplit
 from typing import Any
 
 import httpx
@@ -203,32 +205,86 @@ def _promote_cookie_error(platform: Platform, code: str, cookie_state: dict[str,
 
 async def _probe_proxy(proxy_url: str | None) -> dict[str, Any]:
     if not proxy_url:
-        return {"configured": False, "reachable": False, "authAccepted": False}
+        return {
+            "configured": False,
+            "dnsReachable": False,
+            "tcpReachable": False,
+            "reachable": False,
+            "authAccepted": None,
+            "quotaOrPlan": "NOT_EXPOSED_BY_PROBE",
+        }
 
     try:
-        async with httpx.AsyncClient(timeout=12.0, proxy=proxy_url) as client:
+        parsed_proxy = urlsplit(proxy_url)
+        proxy_host = parsed_proxy.hostname
+        proxy_port = parsed_proxy.port or (443 if parsed_proxy.scheme in {"https", "socks5h"} else 1080 if parsed_proxy.scheme.startswith("socks") else 80)
+        if not proxy_host:
+            raise ValueError("proxy host missing")
+
+        def resolve_and_connect() -> tuple[bool, bool]:
+            addresses = socket.getaddrinfo(proxy_host, proxy_port, type=socket.SOCK_STREAM)
+            if not addresses:
+                return False, False
+            try:
+                with socket.create_connection((proxy_host, proxy_port), timeout=3.0):
+                    return True, True
+            except OSError:
+                return True, False
+
+        dns_reachable, tcp_reachable = await asyncio.wait_for(asyncio.to_thread(resolve_and_connect), timeout=4.0)
+    except Exception as exc:
+        return {
+            "configured": True,
+            "dnsReachable": False,
+            "tcpReachable": False,
+            "reachable": False,
+            "authAccepted": None,
+            "quotaOrPlan": "NOT_EXPOSED_BY_PROBE",
+            "errorClass": type(exc).__name__,
+        }
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0, proxy=proxy_url) as client:
             response = await client.get("https://www.google.com/generate_204")
         return {
             "configured": True,
+            "dnsReachable": dns_reachable,
+            "tcpReachable": tcp_reachable,
             "reachable": response.status_code < 500,
             "authAccepted": response.status_code != 407,
             "status": response.status_code,
+            "quotaOrPlan": "NOT_EXPOSED_BY_PROBE",
         }
     except httpx.ProxyError as exc:
         text = sanitize_provider_error(str(exc))
         return {
             "configured": True,
+            "dnsReachable": dns_reachable,
+            "tcpReachable": tcp_reachable,
             "reachable": False,
             "authAccepted": "407" not in text,
             "errorClass": type(exc).__name__,
+            "quotaOrPlan": "NOT_EXPOSED_BY_PROBE",
         }
     except Exception as exc:
         return {
             "configured": True,
+            "dnsReachable": dns_reachable,
+            "tcpReachable": tcp_reachable,
             "reachable": False,
             "authAccepted": False,
             "errorClass": type(exc).__name__,
+            "quotaOrPlan": "NOT_EXPOSED_BY_PROBE",
         }
+
+
+async def _probe_direct_http() -> dict[str, Any]:
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            response = await client.get("https://www.google.com/generate_204")
+        return {"reachable": response.status_code < 500, "status": response.status_code}
+    except Exception as exc:
+        return {"reachable": False, "errorClass": type(exc).__name__}
 
 
 @router.get("/provider")
@@ -273,6 +329,7 @@ async def provider_diagnostics(
     if probe_proxy:
         response["proxyProbe"] = await _probe_proxy(proxy_url)
         response["galleryDlProxyProbe"] = await _probe_proxy(gallery_proxy_url)
+        response["directProbe"] = await _probe_direct_http()
 
     if run_resolver and url:
         if platform_value in (Platform.X, Platform.TWITTER):

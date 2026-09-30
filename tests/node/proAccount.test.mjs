@@ -241,6 +241,19 @@ test('download results place the Free Pro promo before download options with no 
   assert.ok(resultSection.indexOf('DownloadDash Pro') < resultSection.indexOf("{t('downloader.audioDownload')}"));
 });
 
+test('gallery result UI counts only canonical photos and keeps soundtrack separate', async () => {
+  const source = await readFile(new URL('../../src/components/DownloaderTemplate.jsx', import.meta.url), 'utf8');
+
+  assert.match(source, /const selectableMediaItems = canonicalMediaItems/);
+  assert.match(source, /\{selectedMediaItems\.length\} of \{selectableMediaItems\.length\} selected/);
+  assert.match(source, /audioItems\.length > 0 \? audioItems : null/);
+  assert.match(source, /extensionFromMediaItem\(item\)/);
+  assert.match(source, /requestDownload\(item\.url, 'image', `Download Image \$\{index \+ 1\}`, \[item\]\)/);
+  assert.match(source, /Download selected/);
+  assert.match(source, /Download all/);
+  assert.doesNotMatch(source, /JSZip|\.zip\(/);
+});
+
 test('Pro batch UI labels batch submission and preference persistence truthfully', async () => {
   const source = await readFile(new URL('../../src/components/DownloaderTemplate.jsx', import.meta.url), 'utf8');
 

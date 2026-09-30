@@ -143,18 +143,18 @@ class PublicPlatformDownloader:
         return opts
 
     def _platform_key_for_url(self, url: str) -> str:
-        url_lower = url.lower()
-        if "instagram.com" in url_lower or "instagr.am" in url_lower:
+        host = (urlparse(url).hostname or "").lower().rstrip(".")
+        if host == "instagr.am" or host == "instagram.com" or host.endswith(".instagram.com"):
             return "instagram"
-        if "tiktok.com" in url_lower:
+        if host == "tiktok.com" or host.endswith(".tiktok.com"):
             return "tiktok"
-        if "facebook.com" in url_lower or "fb.com" in url_lower or "fb.watch" in url_lower:
+        if host in {"facebook.com", "fb.com", "fb.watch"} or host.endswith(".facebook.com") or host.endswith(".fb.com"):
             return "facebook"
-        if "reddit.com" in url_lower or "redd.it" in url_lower:
+        if host in {"reddit.com", "redd.it"} or host.endswith(".reddit.com"):
             return "reddit"
-        if "twitter.com" in url_lower or "x.com" in url_lower:
+        if host in {"twitter.com", "x.com"} or host.endswith(".twitter.com") or host.endswith(".x.com"):
             return "x"
-        if "youtube.com" in url_lower or "youtu.be" in url_lower:
+        if host in {"youtube.com", "youtu.be"} or host.endswith(".youtube.com"):
             return "youtube"
         return "default"
 
@@ -216,7 +216,8 @@ class PublicPlatformDownloader:
         return names
 
     def _normalize_youtube_url(self, url: str) -> str:
-        if "youtube.com" not in url and "youtu.be" not in url:
+        host = (urlparse(url).hostname or "").lower().rstrip(".")
+        if host not in {"youtube.com", "youtu.be", "m.youtube.com", "www.youtube.com"}:
             return url
 
         parsed = urlparse(url)
@@ -316,7 +317,8 @@ class PublicPlatformDownloader:
         return direct_profiles + proxy_profiles
 
     def _is_youtube_url(self, url: str) -> bool:
-        return "youtube.com" in url or "youtu.be" in url
+        host = (urlparse(url).hostname or "").lower().rstrip(".")
+        return host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com")
 
     def _is_playable_video_format(self, fmt: Dict[str, Any]) -> bool:
         vcodec = fmt.get("vcodec")
@@ -950,6 +952,15 @@ class PublicPlatformDownloader:
             "mp4": "video/mp4",
             "webm": "video/webm",
         }
+        if variant == "audio":
+            media_type_by_ext.update({
+                "mp4": "audio/mp4",
+                "webm": "audio/webm",
+                "ogg": "audio/ogg",
+                "opus": "audio/ogg",
+                "aac": "audio/aac",
+                "wav": "audio/wav",
+            })
         title = info.get("title") if isinstance(info, dict) else "tiktok"
         expected_duration = info.get("duration") if isinstance(info, dict) else None
         safe_title = re.sub(r'[\\/:*?"<>|]+', "_", title or label).strip() or label
@@ -971,8 +982,9 @@ class PublicPlatformDownloader:
 
         # Instagram photo posts often fail with yt-dlp "No video formats found".
         # Try Instagram-specific fallbacks first for non-audio requests.
+        is_instagram_url = self._platform_key_for_url(url) == "instagram"
         is_instagram_reel = bool(re.search(r"instagram\.com/(reel|tv)/", url, re.IGNORECASE))
-        if ("instagram.com/" in url) and not extract_audio and not is_instagram_reel:
+        if is_instagram_url and not extract_audio and not is_instagram_reel:
             ig = await self._fallback_instagram_json(url)
             if ig:
                 return ig
@@ -992,6 +1004,15 @@ class PublicPlatformDownloader:
         ydl_opts = self.get_ydl_opts(quality, output_template)
         self._apply_cookiefile_for_url(ydl_opts, url)
         self._apply_proxy_for_url(ydl_opts, url)
+        if self._platform_key_for_url(url) == "facebook":
+            # Facebook metadata requests can otherwise multiply socket waits
+            # across yt-dlp retries before the API's overall resolve deadline.
+            ydl_opts.update({
+                "socket_timeout": 7,
+                "retries": 0,
+                "fragment_retries": 0,
+                "extractor_retries": 0,
+            })
         ydl_opts["extract_flat"] = False
         ydl_opts["noplaylist"] = True
         ydl_opts["http_headers"] = self._build_http_headers(url)
@@ -1210,7 +1231,7 @@ class PublicPlatformDownloader:
         selected_sd = pick_best_max_height(480) or pick_best_max_height(720)
         selected_info_url = info.get("url")
         selected_info_ext = info.get("ext")
-        is_youtube = "youtube.com" in url or "youtu.be" in url
+        is_youtube = self._is_youtube_url(url)
 
         # Decide kind and primary direct_url.
         if extract_audio:
@@ -1290,7 +1311,7 @@ class PublicPlatformDownloader:
                     "downloads": downloads,
                 }
 
-        direct_url = selected_info_url or (primary.get("url") if primary else info.get("url"))
+        direct_url = (primary.get("url") if primary else None) or selected_info_url
         if is_youtube and kind == "image":
             raise Exception(
                 "Resolve failed: YouTube downloads must be actual video or audio. "
@@ -1366,7 +1387,7 @@ class PublicPlatformDownloader:
         if kind == "image" and not downloads.get("image"):
             downloads["image"] = direct_url
 
-        if "tiktok.com" in url.lower() and kind in {"video", "audio"}:
+        if self._platform_key_for_url(url) == "tiktok" and kind in {"video", "audio"}:
             api_downloads = self._tiktok_api_downloads(url, title)
             downloads.update(api_downloads)
             direct_url = downloads["audio"] if kind == "audio" else downloads["videoHD"]
@@ -1374,14 +1395,22 @@ class PublicPlatformDownloader:
         selected_hd_has_audio = bool(selected_hd and selected_hd.get("acodec") and selected_hd.get("acodec") != "none")
         selected_sd_has_audio = bool(selected_sd and selected_sd.get("acodec") and selected_sd.get("acodec") != "none")
         split_audio_available = bool(selected_audio and selected_audio.get("url"))
+        is_x_hls = self._platform_key_for_url(url) == "x" and any(
+            str(candidate.get("ext") or "").lower() == "m3u8"
+            or urlparse(str(candidate.get("url") or "")).path.lower().endswith(".m3u8")
+            for candidate in (selected_hd, selected_sd)
+            if candidate
+        )
         needs_managed_mux = (
             kind == "video"
-            and split_audio_available
-            and not ("youtube.com" in url or "youtu.be" in url)
-            and "tiktok.com" not in url.lower()
+            and not is_youtube
+            and self._platform_key_for_url(url) != "tiktok"
             and (
+                is_x_hls
+                or (split_audio_available and (
                 (downloads.get("videoHD") and not selected_hd_has_audio)
                 or (downloads.get("videoSD") and not selected_sd_has_audio)
+                ))
             )
         )
         if needs_managed_mux:
@@ -1400,7 +1429,16 @@ class PublicPlatformDownloader:
                 "downloadableUrl": direct_url,
                 "thumbnail": item_thumbnail,
                 "thumbnailUrl": item_thumbnail,
-                "extension": selected_info_ext or (primary.get("ext") if primary else info.get("ext")),
+                "extension": "mp4" if needs_managed_mux else (primary.get("ext") if kind == "audio" else selected_info_ext or (primary.get("ext") if primary else info.get("ext"))),
+                "mimeType": "video/mp4" if needs_managed_mux else (
+                    "audio/mpeg" if kind == "audio" and (primary or {}).get("ext") == "mp3"
+                    else "audio/aac" if kind == "audio" and (primary or {}).get("ext") == "aac"
+                    else "audio/webm" if kind == "audio" and (primary or {}).get("ext") == "webm"
+                    else "audio/ogg" if kind == "audio" and (primary or {}).get("ext") in {"ogg", "opus"}
+                    else "audio/wav" if kind == "audio" and (primary or {}).get("ext") == "wav"
+                    else "audio/mp4" if kind == "audio" and (primary or {}).get("ext") in {"m4a", "mp4"}
+                    else None
+                ),
                 "width": (primary.get("width") if primary else info.get("width")),
                 "height": (primary.get("height") if primary else info.get("height")),
                 "hasAudio": kind == "video" and bool(
@@ -1415,7 +1453,7 @@ class PublicPlatformDownloader:
             "direct_url": direct_url,
             "title": title,
             "thumbnail": thumbnail,
-            "ext": selected_info_ext or (primary.get("ext") if primary else info.get("ext")),
+            "ext": (primary.get("ext") if kind == "audio" and primary else selected_info_ext or (primary.get("ext") if primary else info.get("ext"))),
             "filesize": (primary.get("filesize") or primary.get("filesize_approx")) if primary else info.get("filesize") or info.get("filesize_approx"),
             "kind": kind,
             "downloads": downloads,

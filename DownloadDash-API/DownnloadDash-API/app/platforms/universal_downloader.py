@@ -1,6 +1,8 @@
 import asyncio
+import html as html_lib
 import re
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 import httpx
 
@@ -21,13 +23,6 @@ try:
 except Exception:
     InstaClient = None
     _HAS_INSTAGRAPI = False
-
-try:
-    from social_media_downloader import download as sm_download  # type: ignore
-    _HAS_SMD = True
-except Exception:
-    sm_download = None
-    _HAS_SMD = False
 
 try:
     # Optional TikTok Content Scraper (unofficial).
@@ -569,55 +564,15 @@ class UniversalMediaDownloader:
         return await loop.run_in_executor(None, _scrape)
 
     async def _resolve_pinterest(self, url: str) -> Dict[str, Any]:
-        if _HAS_SMD and sm_download:
-            def _smd() -> Optional[Dict[str, Any]]:
-                try:
-                    result = sm_download(url)
-                except Exception:
-                    return None
-                if not isinstance(result, dict):
-                    return None
-                image_url = result.get("url") or result.get("image") or result.get("download_url")
-                raw_items = []
-                for key in ("items", "media", "medias", "images", "photos", "resources"):
-                    value = result.get(key)
-                    if isinstance(value, list):
-                        raw_items.extend(value)
-                if image_url:
-                    raw_items.insert(0, {"type": "image", "url": image_url})
-                items = self.public_downloader._items_from_gallery_entries(raw_items)
-                if not items:
-                    return None
-                image_url = items[0]["url"]
-                title = result.get("title") or "Pinterest Image"
-                first_image = next((item for item in items if item.get("type") == "image"), None)
-                first_video = next((item for item in items if item.get("type") == "video"), None)
-                return {
-                    "direct_url": image_url,
-                    "title": title,
-                    "thumbnail": (first_image or items[0]).get("thumbnail") or image_url,
-                    "ext": items[0].get("extension") or "jpg",
-                    "filesize": None,
-                    "kind": "album" if len(items) > 1 else items[0].get("type", "image"),
-                    "downloads": {
-                        "items": items,
-                        "images": [item for item in items if item.get("type") == "image"],
-                        **({"image": first_image["url"]} if first_image else {}),
-                        **({"videoHD": first_video["url"], "videoSD": first_video["url"]} if first_video else {}),
-                    },
-                }
-
-            loop = asyncio.get_event_loop()
-            smd_result = await loop.run_in_executor(None, _smd)
-            if smd_result:
-                return smd_result
-
-        # Fallback: OpenGraph extraction
-        og = await self._resolve_opengraph_image(url)
-        if og:
-            return og
-
-        return await self.public_downloader.resolve_media(url, Quality.HIGH, extract_audio=False)
+        try:
+            # Metadata only: do not invoke downloader helpers that may transfer
+            # a full Pin before the user selects a file.
+            return await self.public_downloader.resolve_media(url, Quality.HIGH, extract_audio=False)
+        except Exception:
+            og = await self._resolve_opengraph_image(url)
+            if og:
+                return og
+            raise
 
     async def _resolve_opengraph_image(self, url: str) -> Optional[Dict[str, Any]]:
         headers = {
@@ -631,7 +586,7 @@ class UniversalMediaDownloader:
         try:
             async with httpx.AsyncClient(
                 **self._httpx_client_kwargs(
-                    timeout=20.0,
+                    timeout=5.0,
                     follow_redirects=True,
                     headers=headers,
                 )
@@ -648,16 +603,30 @@ class UniversalMediaDownloader:
         if not match:
             return None
 
-        image_url = match.group(1)
+        image_url = html_lib.unescape(match.group(1))
+        parsed_image = urlparse(image_url)
+        if parsed_image.hostname not in {"i.pinimg.com", "i.pinimg.com.cn"} or "/originals/" not in parsed_image.path.lower():
+            return None
+        extension = parsed_image.path.rsplit(".", 1)[-1].lower() if "." in parsed_image.path else ""
+        mime_by_extension = {
+            "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+            "webp": "image/webp", "gif": "image/gif", "avif": "image/avif",
+        }
+        if extension not in mime_by_extension:
+            return None
         return {
             "direct_url": image_url,
             "title": "Pinterest Image",
             "thumbnail": image_url,
-            "ext": "jpg",
+            "ext": extension,
             "filesize": None,
             "kind": "image",
             "downloads": {
                 "image": image_url,
+                "items": [{
+                    "id": "media-0", "index": 0, "type": "image", "url": image_url,
+                    "extension": extension, "mimeType": mime_by_extension[extension],
+                }],
             },
         }
 
@@ -687,23 +656,39 @@ class UniversalMediaDownloader:
             fallback_urls = self.public_downloader.facebook_fallback_urls(url)  # type: ignore[attr-defined]
             html_diagnostics = []
 
-            for fallback_url in fallback_urls:
+            async def resolve_facebook_fallback(fallback_url: str):
                 try:
-                    fallback = await self.public_downloader._fallback_opengraph(fallback_url)  # type: ignore[attr-defined]
+                    return await asyncio.wait_for(
+                        self.public_downloader._fallback_opengraph(fallback_url),  # type: ignore[attr-defined]
+                        timeout=4.0,
+                    )
                 except Exception:
-                    fallback = None
+                    return None
+
+            # Mobile/basic variants are independent page requests. Trying them
+            # serially let three stalled responses consume the entire request budget.
+            fallbacks = await asyncio.gather(
+                *(resolve_facebook_fallback(candidate) for candidate in fallback_urls[:3])
+            )
+            for fallback in fallbacks:
                 if fallback and fallback.get("direct_url"):
                     warnings = fallback.setdefault("warnings", [])
                     warnings.append(
                         "Resolved Facebook media with HTML fallback. Stories require fresh Facebook cookies when private, expired, or login-gated."
                     )
                     return fallback
-                try:
-                    html_diagnostics.append(
-                        await self.public_downloader._facebook_html_diagnostic(fallback_url)  # type: ignore[attr-defined]
+
+            try:
+                html_diagnostics.append(
+                    await asyncio.wait_for(
+                        self.public_downloader._facebook_html_diagnostic(url),  # type: ignore[attr-defined]
+                        timeout=2.5,
                     )
-                except Exception as diagnostic_error:
-                    html_diagnostics.append(f"Facebook HTML diagnostic unavailable: {type(diagnostic_error).__name__}")
+                )
+            except asyncio.TimeoutError:
+                html_diagnostics.append("Facebook HTML diagnostic timed out")
+            except Exception as diagnostic_error:
+                html_diagnostics.append(f"Facebook HTML diagnostic unavailable: {type(diagnostic_error).__name__}")
 
             cookie_names = self.public_downloader._cookie_names_for_url(url)  # type: ignore[attr-defined]
             cookie_hint = (

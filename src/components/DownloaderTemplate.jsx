@@ -14,9 +14,9 @@ import { useAuth } from '@/lib/AuthContext';
 import adScheduler from '@/lib/adScheduler';
 import { getPlatformIcon } from '@/components/PlatformIcons';
 import { createPageUrl } from '@/utils';
-import { downloadItemsWithQueue, mediaQueueLabel } from '@/utils/downloadQueue';
+import { downloadItemsWithQueue, extensionFromMediaItem, mediaQueueLabel } from '@/utils/downloadQueue';
 import { MAX_BATCH_URLS, normalizeBatchUrls } from '@/utils/batchLinks';
-import { normalizePublicUrl, isPlatformHost } from '../../shared/publicUrl.js';
+import { normalizePublicUrl, isPlatformMediaUrl } from '../../shared/publicUrl.js';
 
 const PRO_PROMO_FEATURES = [
   'Ad-free downloads',
@@ -30,30 +30,6 @@ const PRO_PROMO_FEATURES = [
 const SUPPORTED_BATCH_PLATFORMS = ['YouTube', 'TikTok', 'Instagram', 'Facebook', 'X/Twitter', 'Pinterest', 'Reddit'];
 
 // Platform URL validation
-const hostnameMatchesPlatform = (platform, hostname) => {
-  if (platform === 'whatsapp') return true;
-  return isPlatformHost(platform === 'twitter' ? 'x' : platform, hostname);
-};
-
-const pathMatchesPlatform = (platform, parsed) => {
-  const path = parsed.pathname || '/';
-  if (platform === 'tiktok') return path.length > 1;
-  if (platform === 'instagram') return /^\/(p|reel|reels|stories|tv)\//i.test(path);
-  if (platform === 'twitter') return /\/status\//i.test(path);
-  if (platform === 'youtube') return parsed.hostname === 'youtu.be' || path === '/watch' || path.startsWith('/shorts/');
-  if (platform === 'facebook') {
-    return /^\/(share\/(p|v)|reel|watch|stories|story\.php|photo|photo\.php|permalink\.php|posts|videos)\b/i.test(path) ||
-      parsed.searchParams.has('v') ||
-      parsed.searchParams.has('story_fbid') ||
-      parsed.searchParams.has('fbid');
-  }
-  if (platform === 'reddit') return parsed.hostname === 'redd.it' || /^\/r\/[^/]+\/comments\//i.test(path);
-  if (platform === 'pinterest') return parsed.hostname === 'pin.it' || /^\/pin\//i.test(path);
-  if (platform === 'telegram') return path.length > 1;
-  if (platform === 'snapchat') return /^\/(spotlight|add|story)\//i.test(path);
-  return path.length > 1 || parsed.search.length > 1;
-};
-
 const sanitizeUrl = (url) => {
   let s = String(url || '').trim();
   s = s.replace(/^\s*[<"'`]+|[>"'`]+\s*$/g, '');
@@ -68,7 +44,7 @@ const validateUrl = (url, platform, t) => {
   let parsed;
   try { parsed = new URL(shared.url); } catch { return { valid: false, error: t('errors.invalidUrl') }; }
   if (!['http:', 'https:'].includes(parsed.protocol)) return { valid: false, error: t('errors.invalidUrl') };
-  if (!hostnameMatchesPlatform(platform, parsed.hostname) || !pathMatchesPlatform(platform, parsed)) {
+  if (!isPlatformMediaUrl(shared.url, platform === 'twitter' ? 'x' : platform)) {
     return { valid: false, error: t('errors.platformUrl', { platform }) };
   }
   return { valid: true, url: shared.url };
@@ -695,7 +671,9 @@ export default function DownloaderTemplate({
     canonicalMediaItems.length > 1 ||
     (canonicalMediaItems.length === 1 && canonicalMediaItems[0]?.type === 'image' && audioOnlyItems.length > 0);
   const hasAlbumItems = hasPostMediaList;
-  const selectableMediaItems = albumItems.filter((item) => item.type !== 'unknown');
+  // The selected source count includes canonical photos/videos only. Audio is
+  // surfaced separately as its own download option and never inflates albums.
+  const selectableMediaItems = canonicalMediaItems;
   const selectedMediaItems = selectableMediaItems.filter((item) => selectedMediaIds.includes(item.id));
   
   // Separate album items by type
@@ -707,6 +685,7 @@ export default function DownloaderTemplate({
     const itemType = (item.type || '').toLowerCase();
     return itemType === 'audio';
   });
+  const audioExtension = audioItems[0] ? extensionFromMediaItem(audioItems[0]) : 'mp3';
   const videoItems = albumItems.filter((item) => {
     const itemType = (item.type || '').toLowerCase();
     return itemType === 'video';
@@ -1326,7 +1305,7 @@ export default function DownloaderTemplate({
                                 size="sm"
                                 onClick={(event) => {
                                   event.preventDefault();
-                                  requestDownload(item.url, itemType, `Download ${mediaQueueLabel(item, index)}`);
+                                  requestDownload(item.url, itemType, `Download ${mediaQueueLabel(item, index)}`, [item]);
                                 }}
                                 className="bg-gray-800 hover:bg-gray-700 text-white"
                               >
@@ -1414,7 +1393,7 @@ export default function DownloaderTemplate({
                         onClick={() => requestDownload(
                            result.downloads?.audio || audioItems[0]?.url,
                            'audio',
-                           audioItems.length > 1 ? `All Audio (${audioItems.length})` : 'Audio / MP3',
+                           audioItems.length > 1 ? `All Audio (${audioItems.length})` : `Audio / ${audioExtension.toUpperCase()}`,
                            audioItems.length > 0 ? audioItems : null
                          )}
                         className={`${showStandaloneAudioOption ? '' : 'hidden '}w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-green-500/40 transition-all group`}
@@ -1447,7 +1426,7 @@ export default function DownloaderTemplate({
                           photoDownloadUrl,
                           hasAlbumItems ? 'album' : 'image',
                           hasAlbumItems ? `Download Photos (${photoItems.length})` : 'HD Photo',
-                          hasAlbumItems ? photoItems : null
+                          hasAlbumItems ? photoItems : photoItems[0] ? [photoItems[0]] : null
                         )
                       }
                       className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/40 hover:border-blue-500/70 transition-all group"
@@ -1473,7 +1452,7 @@ export default function DownloaderTemplate({
                         variants={downloadOptionVariants}
                         whileHover={{ scale: 1.01, boxShadow: '0 0 20px rgba(59, 130, 246, 0.24)' }}
                         whileTap={{ scale: 0.99 }}
-                        onClick={() => requestDownload(item.url, 'image', `Download Image ${index + 1}`)}
+                        onClick={() => requestDownload(item.url, 'image', `Download Image ${index + 1}`, [item])}
                         className="w-full flex items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/60 border border-gray-700/60 hover:border-blue-500/50 transition-all group"
                       >
                         <div className="flex items-center gap-3">
@@ -1485,7 +1464,7 @@ export default function DownloaderTemplate({
                             <p className="text-xs text-gray-400">{item.width && item.height ? `${item.width}x${item.height}` : 'Individual gallery image'}</p>
                           </div>
                         </div>
-                        <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-1 rounded-full">{getDownloadExtension('image', item.url).toUpperCase()}</span>
+                        <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-1 rounded-full">{extensionFromMediaItem(item).toUpperCase()}</span>
                       </motion.button>
                     ))}
                     </>

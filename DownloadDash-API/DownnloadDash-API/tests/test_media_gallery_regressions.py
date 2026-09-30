@@ -18,6 +18,7 @@ from app.api.shared import (
 from app.api.download import _filename_for_fallback
 from app.models.schemas import DownloadRequest, UserAuth
 from app.models.schemas import MediaType, Platform, Quality
+from app.models.platform_requests import RedditDownloadIn, YouTubeDownloadIn
 from app.platforms.public_platforms import PublicPlatformDownloader
 from app.platforms.universal_downloader import UniversalMediaDownloader
 
@@ -62,6 +63,169 @@ class FakeSidecarPost:
 
 
 class MediaGalleryRegressionTests(unittest.TestCase):
+    def test_platform_request_validation_accepts_reddit_share_and_youtube_live(self):
+        self.assertEqual(
+            str(RedditDownloadIn(url="https://www.reddit.com/r/nigerianfood/s/FGKVVqzTy3").url),
+            "https://www.reddit.com/r/nigerianfood/s/FGKVVqzTy3",
+        )
+        self.assertEqual(
+            str(YouTubeDownloadIn(url="https://youtube.com/live/abc123").url),
+            "https://youtube.com/live/abc123",
+        )
+
+    def test_provider_request_validation_rejects_cross_platform_and_lookalike_hosts(self):
+        from pydantic import ValidationError
+
+        for model, url in (
+            (RedditDownloadIn, "https://reddit.com.evil.example/r/test/comments/abc/title"),
+            (YouTubeDownloadIn, "https://www.reddit.com/r/test/comments/abc/title"),
+            (YouTubeDownloadIn, "https://name:password@youtube.com/watch?v=abc123"),
+            (YouTubeDownloadIn, "https://youtube.com:8443/watch?v=abc123"),
+            (YouTubeDownloadIn, "https://youtube.com/watch"),
+        ):
+            with self.assertRaises(ValidationError):
+                model(url=url)
+        with self.assertRaises(ValidationError):
+            DownloadRequest(url="https://youtube.com.evil.example/watch?v=abc123")
+        from app.models.platform_requests import TikTokDownloadIn
+        with self.assertRaises(ValidationError):
+            TikTokDownloadIn(url="https://www.tiktok.com/@creator/profile")
+
+    def test_facebook_html_fallbacks_run_in_parallel_within_bounded_time(self):
+        class FacebookStub:
+            def __init__(self):
+                self.active = 0
+                self.max_active = 0
+
+            async def resolve_media(self, *args, **kwargs):
+                raise RuntimeError("facebook primary extractor failed")
+
+            def facebook_fallback_urls(self, url):
+                return [url, "https://m.facebook.com/reel/123", "https://mbasic.facebook.com/reel/123"]
+
+            async def _fallback_opengraph(self, url):
+                self.active += 1
+                self.max_active = max(self.max_active, self.active)
+                await asyncio.sleep(0.01)
+                self.active -= 1
+                if "m.facebook.com" in url:
+                    return {"direct_url": "https://cdn.example/video.mp4", "downloads": {}, "warnings": []}
+                return None
+
+            async def _facebook_html_diagnostic(self, _url):
+                return "html_kind=challenge"
+
+            def _cookie_names_for_url(self, _url):
+                return []
+
+        public = FacebookStub()
+        result = asyncio.run(UniversalMediaDownloader(public)._resolve_facebook(
+            "https://www.facebook.com/reel/123", Quality.HIGHEST, False
+        ))
+        self.assertEqual(result["direct_url"], "https://cdn.example/video.mp4")
+        self.assertGreater(public.max_active, 1)
+
+    def test_x_hls_video_is_a_managed_mp4_download_not_a_playlist(self):
+        downloader = PublicPlatformDownloader()
+        with patch("app.platforms.public_platforms.yt_dlp.YoutubeDL") as ydl_mock:
+            ydl_mock.return_value.__enter__.return_value.extract_info.return_value = {
+                "title": "X HLS sample",
+                "url": "https://video.twimg.com/ext_tw_video/123/pu/pl/playlist.m3u8",
+                "ext": "m3u8",
+                "thumbnail": "https://pbs.twimg.com/thumb.jpg",
+                "formats": [{
+                    "url": "https://video.twimg.com/ext_tw_video/123/pu/pl/playlist.m3u8",
+                    "ext": "m3u8",
+                    "height": 720,
+                    "vcodec": "h264",
+                    "acodec": "aac",
+                }],
+            }
+            result = asyncio.run(downloader.resolve_media("https://x.com/user/status/123", Quality.HIGH))
+
+        item = result["downloads"]["items"][0]
+        self.assertTrue(result["downloads"]["videoHD"].startswith("/download/file?"))
+        self.assertTrue(result["downloads"]["videoHD"].endswith(".mp4"))
+        self.assertNotIn(".m3u8", result["downloads"]["videoHD"])
+        self.assertEqual(item["extension"], "mp4")
+        self.assertEqual(item["mimeType"], "video/mp4")
+        self.assertTrue(item["hasAudio"])
+
+    def test_audio_extraction_uses_audio_track_url_and_actual_extension(self):
+        downloader = PublicPlatformDownloader()
+        with patch("app.platforms.public_platforms.yt_dlp.YoutubeDL") as ydl_mock:
+            ydl_mock.return_value.__enter__.return_value.extract_info.return_value = {
+                "title": "Audio sample",
+                "url": "https://cdn.example/video.mp4",
+                "ext": "mp4",
+                "formats": [
+                    {"url": "https://cdn.example/video.mp4", "ext": "mp4", "vcodec": "h264", "acodec": "aac", "height": 720},
+                    {"url": "https://cdn.example/audio.mp3", "ext": "mp3", "vcodec": "none", "acodec": "mp3"},
+                ],
+            }
+            result = asyncio.run(downloader.resolve_media(
+                "https://www.instagram.com/reel/abc123/", Quality.HIGH, extract_audio=True
+            ))
+
+        item = result["downloads"]["items"][0]
+        self.assertEqual(result["direct_url"], "https://cdn.example/audio.mp3")
+        self.assertEqual(item["url"], "https://cdn.example/audio.mp3")
+        self.assertEqual(item["extension"], "mp3")
+        self.assertEqual(item["mimeType"], "audio/mpeg")
+
+    def test_pinterest_resolution_is_metadata_only_and_preserves_video_media(self):
+        class PinterestStub:
+            async def resolve_media(self, url, quality, extract_audio=False):
+                self.url = url
+                self.quality = quality
+                return {
+                    "direct_url": "https://v.pinimg.com/video.mp4",
+                    "kind": "video",
+                    "ext": "mp4",
+                    "downloads": {"videoHD": "https://v.pinimg.com/video.mp4"},
+                }
+
+        public = PinterestStub()
+        result = asyncio.run(UniversalMediaDownloader(public)._resolve_pinterest(
+            "https://www.pinterest.com/pin/123/"
+        ))
+        self.assertEqual(result["kind"], "video")
+        self.assertEqual(public.quality, Quality.HIGH)
+        self.assertEqual(public.url, "https://www.pinterest.com/pin/123/")
+
+    def test_pinterest_opengraph_fallback_accepts_only_original_format_images(self):
+        from types import SimpleNamespace
+
+        downloader = UniversalMediaDownloader(PublicPlatformDownloader())
+
+        class FakeClient:
+            def __init__(self, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return None
+
+            async def get(self, url):
+                image = (
+                    "https://i.pinimg.com/originals/a/b/cat.png"
+                    if url.endswith("/original/") else "https://i.pinimg.com/236x/a/b/cat.jpg"
+                )
+                return SimpleNamespace(
+                    status_code=200,
+                    text=f'<meta property="og:image" content="{image}">',
+                )
+
+        with patch("app.platforms.universal_downloader.httpx.AsyncClient", FakeClient):
+            preview = asyncio.run(downloader._resolve_opengraph_image("https://www.pinterest.com/pin/preview/"))
+            original = asyncio.run(downloader._resolve_opengraph_image("https://www.pinterest.com/pin/original/"))
+
+        self.assertIsNone(preview)
+        self.assertEqual(original["direct_url"], "https://i.pinimg.com/originals/a/b/cat.png")
+        self.assertEqual(original["downloads"]["items"][0]["extension"], "png")
+
     def test_instagram_p_video_uses_video_url_not_thumbnail_as_media_item(self):
         downloader = UniversalMediaDownloader(PublicPlatformDownloader())
 
@@ -340,6 +504,37 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         self.assertEqual(response.downloads["videoHD"], "https://v.pinimg.com/video.m3u8")
         self.assertEqual(response.downloads["items"][0]["type"], "video")
         self.assertNotIn("image", response.downloads)
+
+    def test_gallery_normalization_preserves_canonical_item_metadata_and_order(self):
+        class UniversalStub:
+            async def resolve_media(self, *args, **kwargs):
+                items = [
+                    {"id": "photo-1", "index": 0, "type": "image", "url": "https://cdn.example/1.webp", "extension": "webp", "mimeType": "image/webp"},
+                    {"id": "video-2", "index": 1, "type": "video", "url": "https://cdn.example/2.mp4", "extension": "mp4", "mimeType": "video/mp4", "hasAudio": True},
+                    {"id": "audio-3", "index": 2, "type": "audio", "url": "https://cdn.example/3.m4a", "extension": "m4a", "mimeType": "audio/mp4"},
+                ]
+                return {
+                    "direct_url": items[0]["url"],
+                    "title": "Mixed album",
+                    "kind": "album",
+                    "thumbnail": items[0]["url"],
+                    "downloads": {"items": items, "images": [items[0]]},
+                }
+
+        request = DownloadRequest(
+            url="https://www.instagram.com/p/abc123/",
+            platform=Platform.INSTAGRAM,
+            quality=Quality.HIGHEST,
+        )
+        with patch("app.api.shared.universal_downloader", UniversalStub()):
+            response = asyncio.run(download_public(Platform.INSTAGRAM, request, BackgroundTasks()))
+
+        items = response.downloads["items"]
+        self.assertEqual([item["id"] for item in items], ["photo-1", "video-2", "audio-3"])
+        self.assertEqual([item["index"] for item in items], [0, 1, 2])
+        self.assertEqual(items[0]["mimeType"], "image/webp")
+        self.assertTrue(items[1]["hasAudio"])
+        self.assertEqual(items[2]["extension"], "m4a")
 
     def test_concurrent_identical_public_resolves_share_one_provider_call(self):
         calls = 0

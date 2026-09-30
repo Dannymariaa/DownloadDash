@@ -3,7 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import handler from '../../api/smd/[...path].js';
-import { normalizePublicUrl } from '../../shared/publicUrl.js';
+import { isPlatformMediaUrl, normalizePublicUrl } from '../../shared/publicUrl.js';
 
 const intendedApiEntrypoints = [
   '_downloadDashProxy.js',
@@ -487,6 +487,7 @@ test('TikTok route rejects wrong domains and malformed URLs before upstream fetc
     for (const [url, expectedCode] of [
       ['https://youtube.com/watch?v=abc123', 'UNSUPPORTED_DOMAIN'],
       ['https://evil-tiktok.com/@u/video/123', 'UNSUPPORTED_DOMAIN'],
+      ['https://www.tiktok.com/@u/profile', 'INVALID_URL'],
       ['notaurl', 'INVALID_URL'],
     ]) {
       const res = await request({ path: 'tiktok/download', body: { url } });
@@ -507,6 +508,7 @@ test('shared URL normalization accepts supported copied public URL forms and rej
     ['youtube', 'https://www.youtube.com/watch?v=abc123&utm_campaign=x', 'https://www.youtube.com/watch?v=abc123'],
     ['youtube', 'https://youtu.be/abc123'],
     ['youtube', 'https://youtube.com/shorts/abc123'],
+    ['youtube', 'https://m.youtube.com/live/abc123'],
     ['instagram', 'https://instagram.com/p/ABC123/'],
     ['instagram', 'https://instagram.com/reels/ABC123/'],
     ['instagram', 'https://instagram.com/stories/user/123/'],
@@ -514,6 +516,7 @@ test('shared URL normalization accepts supported copied public URL forms and rej
     ['facebook', 'https://m.facebook.com/reel/123'],
     ['facebook', 'https://web.facebook.com/watch/?v=123'],
     ['reddit', 'https://www.reddit.com/r/test/comments/abc/title/'],
+    ['reddit', 'https://www.reddit.com/r/nigerianfood/s/FGKVVqzTy3'],
     ['reddit', 'https://redd.it/abc123'],
     ['pinterest', 'https://www.pinterest.com/pin/123/'],
     ['pinterest', 'https://pin.it/abc123'],
@@ -535,6 +538,8 @@ test('shared URL normalization accepts supported copied public URL forms and rej
     'http://localhost:3000/media',
     'http://127.0.0.1/media',
     'https://evil-tiktok.com/@user/video/123',
+    'https://user:pass@tiktok.com/@user/video/123',
+    'https://www.youtube.com:8443/watch?v=abc123',
   ]) {
     const normalized = normalizePublicUrl(rawUrl, { requireSupported: true });
     assert.equal(normalized.ok, false, rawUrl);
@@ -546,6 +551,43 @@ test('URL normalization preserves encoded query values and decodes a whole URL a
   assert.equal(normalizePublicUrl(plain, { platform: 'tiktok' }).url, plain);
   assert.equal(normalizePublicUrl(encodeURIComponent(plain), { platform: 'tiktok' }).url, plain);
   assert.equal(normalizePublicUrl(encodeURIComponent(encodeURIComponent(plain)), { platform: 'tiktok' }).ok, false);
+});
+
+test('shared media URL policy accepts Reddit share URLs and YouTube live URLs on UI paths', () => {
+  for (const [platform, url] of [
+    ['reddit', 'https://www.reddit.com/r/nigerianfood/s/FGKVVqzTy3'],
+    ['reddit', 'https://redd.it/FGKVVqzTy3'],
+    ['youtube', 'https://youtube.com/live/abc123'],
+    ['youtube', 'https://youtube.com/shorts/abc123'],
+    ['youtube', 'https://youtube.com/watch?v=abc123'],
+  ]) {
+    assert.equal(isPlatformMediaUrl(url, platform), true, url);
+  }
+  assert.equal(isPlatformMediaUrl('https://www.reddit.com/r/nigerianfood/', 'reddit'), false);
+  assert.equal(isPlatformMediaUrl('https://youtube.com/watch', 'youtube'), false);
+});
+
+test('Reddit share links expand only across HTTPS Reddit hosts', async () => {
+  await withProxyEnv(async () => {
+    const forwarded = [];
+    globalThis.fetch = async (url, init) => {
+      if (init?.method === 'HEAD') {
+        return new Response('', {
+          status: 302,
+          headers: { location: 'https://www.reddit.com/r/nigerianfood/comments/abc123/title/' },
+        });
+      }
+      forwarded.push({ url, init });
+      return new Response(JSON.stringify(upstreamSuccess), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+
+    const res = await request({ path: 'reddit/download', body: { url: 'https://www.reddit.com/r/nigerianfood/s/FGKVVqzTy3' } });
+    assert.equal(res.statusCode, 200);
+    assert.equal(JSON.parse(forwarded[0].init.body).url, 'https://www.reddit.com/r/nigerianfood/comments/abc123/title/');
+  });
 });
 
 test('all seven platform video fixtures expose playable video with audio and separate audio', async () => {

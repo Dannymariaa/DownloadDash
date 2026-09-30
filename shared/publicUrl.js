@@ -87,6 +87,49 @@ export const detectPlatformFromNormalizedUrl = (url) => {
   return null;
 };
 
+// Path validation shared by the UI and server proxy. Host validation alone
+// accepts profile/search pages that cannot identify a media item.
+export const isPlatformMediaUrl = (url, platform) => {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  const host = parsed.hostname.toLowerCase().replace(/\.$/, "");
+  const path = parsed.pathname || "/";
+  if (!isPlatformHost(platform, host)) return false;
+
+  switch (platform) {
+    case "tiktok":
+      return ["vm.tiktok.com", "vt.tiktok.com"].includes(host)
+        ? path.length > 1
+        : /^\/@[^/]+\/(video|photo)\/[^/]+/i.test(path);
+    case "youtube":
+      return host === "youtu.be"
+        ? path.length > 1
+        : (path === "/watch" && Boolean(parsed.searchParams.get("v")))
+          || /^\/(shorts|live)\/[^/]+/i.test(path);
+    case "reddit":
+      return host === "redd.it"
+        ? path.length > 1
+        : /^\/r\/[^/]+\/(s\/[^/]+|comments\/[^/]+)/i.test(path);
+    case "instagram":
+      return /^\/(p|reel|reels|stories|tv)\//i.test(path);
+    case "x":
+      return /\/status\/\d+/i.test(path);
+    case "pinterest":
+      return host === "pin.it" ? path.length > 1 : /^\/pin\/\d+/i.test(path);
+    case "facebook":
+      return /^\/(share\/(p|v)|reel|watch|stories|story\.php|photo|photo\.php|permalink\.php|posts|videos)\b/i.test(path)
+        || parsed.searchParams.has("v")
+        || parsed.searchParams.has("story_fbid")
+        || parsed.searchParams.has("fbid");
+    default:
+      return path.length > 1 || parsed.search.length > 1;
+  }
+};
+
 export const normalizePublicUrl = (rawUrl, { platform = null, requireSupported = false } = {}) => {
   const clean = stripCopiedUrlNoise(rawUrl);
   if (!clean) {
@@ -102,6 +145,10 @@ export const normalizePublicUrl = (rawUrl, { platform = null, requireSupported =
 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     return { ok: false, code: "UNSUPPORTED_PROTOCOL", message: "Only HTTP and HTTPS links are supported." };
+  }
+
+  if (parsed.username || parsed.password || parsed.port) {
+    return { ok: false, code: "INVALID_URL", message: "Enter a public platform link without embedded credentials or a custom port." };
   }
 
   parsed.hostname = parsed.hostname.toLowerCase().replace(/\.$/, "");

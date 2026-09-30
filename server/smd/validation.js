@@ -1,11 +1,12 @@
 import { publicError } from "./errors.js";
 import { PLATFORM_HOSTS, isPlatformHost, normalizePlatform } from "./platforms.js";
-import { normalizePublicUrl } from "../../shared/publicUrl.js";
+import { isPlatformMediaUrl, normalizePublicUrl } from "../../shared/publicUrl.js";
 
 const MAX_BODY_BYTES = 20_000;
 export const FREE_BATCH_URL_LIMIT = 1;
 export const PRO_BATCH_URL_LIMIT = 7;
 const TIKTOK_SHORT_HOSTS = new Set(["vm.tiktok.com", "vt.tiktok.com"]);
+const REDDIT_SHORT_HOSTS = new Set(["redd.it"]);
 const TIKTOK_MEDIA_HOSTS = ["tiktokcdn.com", "tiktokv.com", "muscdn.com", "byteoversea.com"];
 const SHORT_LINK_TIMEOUT_MS = 6_000;
 const SHORT_LINK_REDIRECT_LIMIT = 5;
@@ -43,10 +44,14 @@ export function validatePublicUrl(rawUrl, platform = null) {
   return normalized.url;
 }
 
-function isTikTokShortUrl(url) {
+function isPlatformShortUrl(url, platform) {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "https:" && TIKTOK_SHORT_HOSTS.has(parsed.hostname.toLowerCase());
+    const hostname = parsed.hostname.toLowerCase();
+    if (parsed.protocol !== "https:") return false;
+    if (platform === "tiktok") return TIKTOK_SHORT_HOSTS.has(hostname);
+    if (platform === "reddit") return REDDIT_SHORT_HOSTS.has(hostname) || /^\/r\/[^/]+\/s\/[^/]+\/?$/i.test(parsed.pathname);
+    return false;
   } catch {
     return false;
   }
@@ -60,7 +65,7 @@ function redirectLocation(currentUrl, location) {
   }
 }
 
-async function fetchTikTokRedirect(url) {
+async function fetchPlatformRedirect(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SHORT_LINK_TIMEOUT_MS);
   try {
@@ -80,44 +85,47 @@ async function fetchTikTokRedirect(url) {
 
 export async function normalizeDownloadUrl(rawUrl, platform = null) {
   let url = validatePublicUrl(rawUrl, platform);
-  if (platform !== "tiktok" || !isTikTokShortUrl(url)) return url;
+  if (!new Set(["tiktok", "reddit"]).has(platform) || !isPlatformShortUrl(url, platform)) return url;
 
   let current = url;
   for (let redirects = 0; redirects < SHORT_LINK_REDIRECT_LIMIT; redirects += 1) {
     const parsed = new URL(current);
     if (parsed.protocol !== "https:") {
-      throw publicError("UNSUPPORTED_PROTOCOL", 400, "TikTok short-link redirects must remain HTTPS");
+      throw publicError("UNSUPPORTED_PROTOCOL", 400, "Short-link redirects must remain HTTPS");
     }
-    if (!isPlatformHost("tiktok", parsed.hostname)) {
-      throw publicError("UNSUPPORTED_DOMAIN", 400, `TikTok short-link redirected to ${parsed.hostname}`);
+    if (!isPlatformHost(platform, parsed.hostname)) {
+      throw publicError("UNSUPPORTED_DOMAIN", 400, `Short-link redirected to ${parsed.hostname}`);
     }
 
     let response;
     try {
-      response = await fetchTikTokRedirect(current);
+      response = await fetchPlatformRedirect(current);
     } catch (error) {
       if (error?.name === "AbortError") {
-        throw publicError("UPSTREAM_TIMEOUT", 504, "TikTok short-link expansion timed out");
+        throw publicError("UPSTREAM_TIMEOUT", 504, "Short-link expansion timed out");
       }
-      throw publicError("UPSTREAM_UNAVAILABLE", 503, "TikTok short-link expansion failed");
+      throw publicError("UPSTREAM_UNAVAILABLE", 503, "Short-link expansion failed");
     }
 
     const location = response.headers.get("location");
     if (response.status >= 300 && response.status < 400 && location) {
-      current = validatePublicUrl(redirectLocation(current, location), "tiktok");
-      if (!isTikTokShortUrl(current)) return current;
+      current = validatePublicUrl(redirectLocation(current, location), platform);
+      if (!isPlatformShortUrl(current, platform)) return current;
       continue;
     }
 
-    return validatePublicUrl(current, "tiktok");
+    return validatePublicUrl(current, platform);
   }
 
-  throw publicError("INVALID_URL", 400, "TikTok short-link redirect limit exceeded");
+  throw publicError("INVALID_URL", 400, "Short-link redirect limit exceeded");
 }
 
 export async function validateDownloadRequest(platform, req) {
   const body = parseBody(req);
   const url = await normalizeDownloadUrl(body?.url, platform);
+  if (!isPlatformMediaUrl(url, platform)) {
+    throw publicError("INVALID_URL", 400, "Paste a public media link for this downloader.");
+  }
 
   return {
     url,
@@ -162,6 +170,10 @@ function uniqueBatchEntries(body) {
   for (const [sourceIndex, rawUrl] of rawUrls.entries()) {
     try {
       const url = validatePublicUrl(rawUrl);
+      const platform = detectPlatformFromPublicUrl(url);
+      if (!platform || !isPlatformMediaUrl(url, platform)) {
+        throw publicError("INVALID_URL", 400, "Paste a public media link from a supported platform.");
+      }
       if (seen.has(url)) {
         duplicateUrlsRemoved += 1;
         continue;
@@ -200,6 +212,10 @@ export function validateBatchDownloadRequest(req, { maxUrls = FREE_BATCH_URL_LIM
     const platform = detectPlatformFromPublicUrl(entry.url);
     if (!platform) {
       invalidItems.push(batchErrorEntry(entry.index, entry.url, publicError("UNSUPPORTED_DOMAIN", 400, `unsupported batch URL ${entry.url}`)));
+      continue;
+    }
+    if (!isPlatformMediaUrl(entry.url, platform)) {
+      invalidItems.push(batchErrorEntry(entry.index, entry.url, publicError("INVALID_URL", 400, "Paste a public media link from a supported platform.")));
       continue;
     }
     const url = validatePublicUrl(entry.url, platform);

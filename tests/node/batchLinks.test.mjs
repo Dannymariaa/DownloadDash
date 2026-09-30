@@ -43,8 +43,11 @@ test('batch URL normalization detects mixed supported platforms and caps at seve
 
 test('batch platform detection covers standard supported public URL forms', () => {
   assert.equal(detectPlatformFromUrl('https://www.youtube.com/shorts/abc123'), 'youtube');
+  assert.equal(detectPlatformFromUrl('https://www.youtube.com/live/abc123'), 'youtube');
   assert.equal(detectPlatformFromUrl('https://youtu.be/abc123'), 'youtube');
+  assert.equal(detectPlatformFromUrl('https://www.reddit.com/r/nigerianfood/s/FGKVVqzTy3'), 'reddit');
   assert.equal(detectPlatformFromUrl('https://twitter.com/user/status/123'), 'x');
   assert.equal(detectPlatformFromUrl('https://pin.it/abc123'), 'pinterest');
   assert.equal(detectPlatformFromUrl('https://example.com/nope'), null);
+  assert.equal(detectPlatformFromUrl('https://www.reddit.com/r/nigerianfood/'), null);
 });
