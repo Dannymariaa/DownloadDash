@@ -10,6 +10,7 @@ const RETRY_BASE_DELAY_MS = 40;
 function sanitizeFilename(name) {
   return String(name || "download")
     .replace(/[\\/:*?"<>|]+/g, "_")
+    .replace(/[^\x20-\x7E]/g, "_")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 160) || "download";

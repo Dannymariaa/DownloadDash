@@ -1484,6 +1484,31 @@ test('file proxy requires a trusted platform source URL and preserves file heade
   });
 });
 
+test('file proxy replaces decoded non-ASCII filename characters before setting headers', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () => new Response(new Uint8Array([1]), {
+      status: 200,
+      headers: {
+        'content-type': 'audio/mpeg',
+        'content-disposition': "attachment; filename*=UTF-8''M%C3%BAsica.mp3",
+      },
+    });
+
+    const res = await request({
+      path: 'download/file',
+      body: {
+        sourceUrl: validUrls.tiktok,
+        mediaType: 'audio',
+        filename: 'Música.mp3',
+      },
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.getHeader('Content-Type'), 'audio/mpeg');
+    assert.equal(res.getHeader('Content-Disposition'), 'attachment; filename="M_sica.mp3"');
+  });
+});
+
 test('generic file proxy streams upstream chunks progressively without full body buffering', async () => {
   await withProxyEnv(async () => {
     let emittedChunks = 0;
