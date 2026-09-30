@@ -296,25 +296,15 @@ class PublicPlatformDownloader:
         return {"youtube": youtube_args}
 
     def _youtube_client_profiles(self) -> list[tuple[str, list[str] | None, bool, bool]]:
-        base_profiles: list[tuple[str, list[str] | None, bool]] = [
-            ("default_nocookie", None, False),
-            ("android_nocookie", ["android"], False),
-            ("android_vr_nocookie", ["android_vr"], False),
-            ("web_cookie", ["web"], True),
-        ]
-
-        direct_profiles = [
-            (name, clients, use_cookies, False)
-            for name, clients, use_cookies in base_profiles
-        ]
-        if not self.youtube_proxy_url:
-            return direct_profiles
-
-        proxy_profiles = [
-            (f"{name}_proxy", clients, use_cookies, True)
-            for name, clients, use_cookies in base_profiles
-        ]
-        return direct_profiles + proxy_profiles
+        # Metadata resolution must have one primary attempt and, at most, one
+        # bounded fallback.  The former profile matrix tried eight combinations
+        # serially when a proxy was configured, which could exhaust the API
+        # deadline before yt-dlp returned metadata.  Media transfer is handled
+        # separately by the managed file endpoints.
+        primary = ("web_cookie_direct", ["web"], True, False)
+        if self.youtube_proxy_url:
+            return [primary, ("web_cookie_proxy", ["web"], True, True)]
+        return [primary, ("android_nocookie_fallback", ["android"], False, False)]
 
     def _is_youtube_url(self, url: str) -> bool:
         host = (urlparse(url).hostname or "").lower().rstrip(".")

@@ -63,6 +63,18 @@ class FakeSidecarPost:
 
 
 class MediaGalleryRegressionTests(unittest.TestCase):
+    def test_youtube_metadata_uses_one_direct_attempt_and_one_proxy_fallback(self):
+        downloader = PublicPlatformDownloader()
+        downloader.youtube_proxy_url = "http://proxy.example:8080"
+
+        profiles = downloader._youtube_client_profiles()
+
+        self.assertEqual(len(profiles), 2)
+        self.assertEqual(profiles[0][0], "web_cookie_direct")
+        self.assertFalse(profiles[0][3])
+        self.assertEqual(profiles[1][0], "web_cookie_proxy")
+        self.assertTrue(profiles[1][3])
+
     def test_platform_request_validation_accepts_reddit_share_and_youtube_live(self):
         self.assertEqual(
             str(RedditDownloadIn(url="https://www.reddit.com/r/nigerianfood/s/FGKVVqzTy3").url),
