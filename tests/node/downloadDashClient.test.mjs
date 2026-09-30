@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  buildFileProxyPayload,
   getSelectableMediaItems,
   inferMediaTypeFromUrl,
   isSingleCanonicalVideoResult,
@@ -8,6 +9,50 @@ import {
   normalizeResolvedDownloads,
   responseErrorMessage,
 } from '../../src/api/downloadDashClient.js';
+
+test('TikTok file delivery posts the managed source descriptor without a raw CDN url', () => {
+  const payload = buildFileProxyPayload(
+    'https://v16.tiktokcdn.com/video/opaque.mp4?sig=secret',
+    'clip.mp4',
+    'https://www.tiktok.com/@creator/video/123?lang=en&source=share',
+    'hd'
+  );
+
+  assert.deepEqual(payload, {
+    filename: 'clip.mp4',
+    sourceUrl: 'https://www.tiktok.com/@creator/video/123?lang=en&source=share',
+    mediaType: 'hd',
+  });
+  assert.equal('url' in payload, false);
+});
+
+test('TikTok photo file delivery retains its individual media url', () => {
+  assert.deepEqual(buildFileProxyPayload(
+    'https://p16-sign-va.tiktokcdn.com/photo.jpeg?sig=opaque',
+    'photo-3.jpg',
+    'https://www.tiktok.com/@creator/photo/123',
+    'image'
+  ), {
+    filename: 'photo-3.jpg',
+    sourceUrl: 'https://www.tiktok.com/@creator/photo/123',
+    mediaType: 'image',
+    url: 'https://p16-sign-va.tiktokcdn.com/photo.jpeg?sig=opaque',
+  });
+});
+
+test('non-TikTok managed file delivery retains its explicit media url', () => {
+  assert.deepEqual(buildFileProxyPayload(
+    'https://cdn.example/photo.jpg?sig=abc',
+    'photo.jpg',
+    'https://www.instagram.com/p/abc123/',
+    'image'
+  ), {
+    filename: 'photo.jpg',
+    sourceUrl: 'https://www.instagram.com/p/abc123/',
+    mediaType: 'image',
+    url: 'https://cdn.example/photo.jpg?sig=abc',
+  });
+});
 
 test('client media type inference does not treat extensionless signed URLs as video', () => {
   assert.equal(inferMediaTypeFromUrl('https://cdn.example/photo?expires=1&sig=abc'), '');

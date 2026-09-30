@@ -6,6 +6,7 @@ const MAX_BODY_BYTES = 20_000;
 export const FREE_BATCH_URL_LIMIT = 1;
 export const PRO_BATCH_URL_LIMIT = 7;
 const TIKTOK_SHORT_HOSTS = new Set(["vm.tiktok.com", "vt.tiktok.com"]);
+const TIKTOK_MEDIA_HOSTS = ["tiktokcdn.com", "tiktokv.com", "muscdn.com", "byteoversea.com"];
 const SHORT_LINK_TIMEOUT_MS = 6_000;
 const SHORT_LINK_REDIRECT_LIMIT = 5;
 
@@ -241,6 +242,16 @@ export function validateFileProxyRequest(req) {
   const trustedSource = Object.keys(PLATFORM_HOSTS).some((platform) => isPlatformHost(platform, source.hostname));
   if (!trustedSource) {
     throw publicError("UNSUPPORTED_DOMAIN", 400, `unsupported media source ${source.hostname}`);
+  }
+  if (url && isPlatformHost("tiktok", source.hostname)) {
+    const media = new URL(url);
+    const trustedTikTokCdn = media.protocol === "https:" &&
+      !media.username && !media.password &&
+      (media.port === "" || media.port === "443") &&
+      TIKTOK_MEDIA_HOSTS.some((domain) => media.hostname === domain || media.hostname.endsWith(`.${domain}`));
+    if (!trustedTikTokCdn) {
+      throw publicError("UNSUPPORTED_DOMAIN", 400, "TikTok media URL host is not allowed");
+    }
   }
   return { ...body, ...req.query, url, sourceUrl };
 }

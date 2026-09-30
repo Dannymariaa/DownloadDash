@@ -722,6 +722,16 @@ const findAudioUrl = (...sources) => {
   return null;
 };
 
+// TikTok file delivery is source managed on Render: it re-resolves the requested
+// variant at click time and muxes video/audio when needed. Sending a signed CDN
+// URL as `url` makes the Vercel resolver mistake media for a source page.
+export const buildFileProxyPayload = (fileUrl, filename, sourceUrl = '', mediaType = '') => {
+  const payload = { filename: sanitizeFilename(filename) || 'download', sourceUrl, mediaType };
+  const isPhoto = ['image', 'photo', 'picture'].includes(String(mediaType || '').toLowerCase());
+  if (!isTikTokSourceUrl(sourceUrl) || isPhoto) payload.url = fileUrl;
+  return payload;
+};
+
 export const downloadToDevice = async (fileUrl, filename, sourceUrl = '', mediaType = '') => {
   const safeName = sanitizeFilename(filename);
   const absoluteFileUrl = absolutizeApiUrl(fileUrl);
@@ -732,15 +742,11 @@ export const downloadToDevice = async (fileUrl, filename, sourceUrl = '', mediaT
       absoluteFileUrl.startsWith(`${baseUrl}/youtube/file`));
 
   const proxyDownload = async () => {
+    const requestPayload = buildFileProxyPayload(absoluteFileUrl, safeName || 'download', sourceUrl, mediaType);
     const proxyRes = await fetch(`${baseUrl}/download/file`, {
       method: 'POST',
       headers: buildHeaders(),
-      body: JSON.stringify({
-        url: absoluteFileUrl,
-        filename: safeName || 'download',
-        sourceUrl,
-        mediaType,
-      }),
+      body: JSON.stringify(requestPayload),
     });
     if (!proxyRes.ok) {
       const message = await getResponseMessage(proxyRes, `Proxy download failed (${proxyRes.status})`);
@@ -773,15 +779,11 @@ export const fetchMediaBlob = async (fileUrl, sourceUrl = '', mediaType = '') =>
   const baseUrl = getApiBaseUrl();
 
   const proxyFetch = async () => {
+    const requestPayload = buildFileProxyPayload(absoluteFileUrl, 'download', sourceUrl, mediaType);
     const proxyRes = await fetch(`${baseUrl}/download/file`, {
       method: 'POST',
       headers: buildHeaders(),
-      body: JSON.stringify({
-        url: absoluteFileUrl,
-        filename: 'download',
-        sourceUrl,
-        mediaType,
-      }),
+      body: JSON.stringify(requestPayload),
     });
     if (!proxyRes.ok) {
       const message = await getResponseMessage(proxyRes, `Proxy download failed (${proxyRes.status})`);

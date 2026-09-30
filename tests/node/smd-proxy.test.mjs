@@ -541,6 +541,13 @@ test('shared URL normalization accepts supported copied public URL forms and rej
   }
 });
 
+test('URL normalization preserves encoded query values and decodes a whole URL at most once', () => {
+  const plain = 'https://www.tiktok.com/@creator/video/123?token=a%2Fb&lang=en';
+  assert.equal(normalizePublicUrl(plain, { platform: 'tiktok' }).url, plain);
+  assert.equal(normalizePublicUrl(encodeURIComponent(plain), { platform: 'tiktok' }).url, plain);
+  assert.equal(normalizePublicUrl(encodeURIComponent(encodeURIComponent(plain)), { platform: 'tiktok' }).ok, false);
+});
+
 test('all seven platform video fixtures expose playable video with audio and separate audio', async () => {
   const cases = [
     ['tiktok', validUrls.tiktok],
@@ -1463,7 +1470,7 @@ test('generic file proxy streams upstream chunks progressively without full body
     await handler({
       method: 'GET',
       url: '/api/smd/download/file',
-      query: { url: 'https://cdn.example/clip.mp4', sourceUrl: validUrls.tiktok, filename: 'clip.mp4' },
+      query: { url: 'https://cdn.example/clip.mp4', sourceUrl: validUrls.instagram, filename: 'clip.mp4' },
       headers: {},
       socket: { remoteAddress: '198.51.100.10' },
     }, res);
@@ -1510,6 +1517,62 @@ test('file proxy allows managed source-only TikTok variant downloads', async () 
     assert.equal(forwardedUrl, 'https://render.example/download/file?sourceUrl=https%3A%2F%2Fwww.tiktok.com%2F%40creator%2Fvideo%2F123&mediaType=hd&filename=clip.mp4');
     assert.equal(forwardedInit.method, 'GET');
     assert.equal(forwardedInit.body, undefined);
+  });
+});
+
+test('production TikTok POST file contract accepts sourceUrl, mediaType, and filename without url', async () => {
+  await withProxyEnv(async () => {
+    let forwardedUrl = null;
+    let forwardedInit = null;
+    globalThis.fetch = async (url, init) => {
+      forwardedUrl = url;
+      forwardedInit = init;
+      return new Response(new Uint8Array([1, 2, 3]), {
+        status: 200,
+        headers: { 'content-type': 'video/mp4' },
+      });
+    };
+
+    const sourceUrl = 'https://www.tiktok.com/@creator/video/123?lang=en&source=share';
+    const res = await request({
+      path: 'download/file',
+      method: 'POST',
+      body: { sourceUrl, mediaType: 'hd', filename: 'clip.mp4' },
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(new URL(forwardedUrl).pathname, '/download/file');
+    assert.equal(new URL(forwardedUrl).search, '');
+    assert.equal(forwardedInit.method, 'POST');
+    assert.deepEqual(JSON.parse(forwardedInit.body), { sourceUrl, mediaType: 'hd', filename: 'clip.mp4' });
+  });
+});
+
+test('TikTok individual photo media URLs require an HTTPS TikTok CDN host', async () => {
+  await withProxyEnv(async () => {
+    let forwardedBody = null;
+    globalThis.fetch = async (_url, init) => {
+      forwardedBody = JSON.parse(init.body);
+      return new Response(new Uint8Array([1]), { status: 200, headers: { 'content-type': 'image/jpeg' } });
+    };
+
+    const payload = {
+      url: 'https://p16-sign-va.tiktokcdn.com/photo.jpeg?token=a%2Fb&expires=123',
+      sourceUrl: 'https://www.tiktok.com/@creator/photo/123',
+      mediaType: 'image',
+      filename: 'photo-1.jpg',
+    };
+    const accepted = await request({ path: 'download/file', body: payload });
+    assert.equal(accepted.statusCode, 200);
+    assert.equal(forwardedBody.url, payload.url);
+    assert.equal(forwardedBody.sourceUrl, payload.sourceUrl);
+
+    const rejected = await request({
+      path: 'download/file',
+      body: { ...payload, url: 'https://attacker.example/photo.jpeg' },
+    });
+    assert.equal(rejected.statusCode, 400);
+    assert.equal(readJson(rejected).error.code, 'UNSUPPORTED_DOMAIN');
   });
 });
 

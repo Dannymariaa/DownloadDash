@@ -33,11 +33,13 @@ const stripCopiedUrlNoise = (value = "") => {
   clean = clean.replace(/[\r\n\t]+/g, "");
   clean = clean.replace(/&amp;/gi, "&");
   clean = clean.replace(/\\\//g, "/");
-  try {
-    const decoded = decodeURIComponent(clean);
-    if (/^https?:\/\//i.test(decoded)) clean = decoded;
-  } catch {
-    // Keep the original copied text when it is not safely URI-encoded.
+  if (!/^https?:\/\//i.test(clean)) {
+    try {
+      const decoded = decodeURIComponent(clean);
+      if (/^https?:\/\//i.test(decoded)) clean = decoded;
+    } catch {
+      // Keep the original copied text when it is not safely URI-encoded.
+    }
   }
   return clean.trim();
 };
