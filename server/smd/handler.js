@@ -14,7 +14,10 @@ import {
 } from "./validation.js";
 import { getAccountService } from "../pro/account-service.js";
 
-const UPSTREAM_HEALTH_TIMEOUT_MS = 4_000;
+// Render can take several seconds to wake after an idle period.  This probe is
+// opt-in (`?upstream=true`) and does not affect resolver or media deadlines, so
+// allow it to observe a normal cold wake rather than reporting a false outage.
+const UPSTREAM_HEALTH_TIMEOUT_MS = 10_000;
 const DEFAULT_BATCH_CONCURRENCY = 3;
 const MAX_BATCH_CONCURRENCY = 3;
 

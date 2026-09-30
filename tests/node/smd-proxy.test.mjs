@@ -1058,8 +1058,10 @@ test('upstream health timeout remains truthful and bounded', async () => {
     assert.equal(body.upstreamReachable, false);
     assert.equal(body.upstreamStatus, null);
     assert.ok(body.upstreamLatencyMs >= 1_000);
-    assert.ok(body.upstreamLatencyMs < 6_000);
-    assert.ok(elapsed < 6_500);
+    // The opt-in probe allows a normal Render cold wake (up to ten seconds),
+    // while still remaining bounded and independent of resolver timeouts.
+    assert.ok(body.upstreamLatencyMs < 12_000);
+    assert.ok(elapsed < 12_500);
   });
 });
 
