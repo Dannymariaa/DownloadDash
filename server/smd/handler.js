@@ -207,7 +207,7 @@ export async function handleSmdRequest(req, res) {
         platform: route.platform,
         upstreamHost: env.upstreamHost,
       });
-      return proxyFileRequest({
+      return await proxyFileRequest({
         env,
         forwardPath: route.forwardPath,
         payload,
@@ -366,17 +366,20 @@ export async function handleSmdRequest(req, res) {
     });
     return json(res, 200, { ...result, timing, requestId });
   } catch (error) {
-    const code = error?.code || "INTERNAL_ERROR";
+    const normalizedError = context.kind === "file" && !error?.code
+      ? publicError("MEDIA_DELIVERY_FAILED", 502, error?.message || "file delivery failed")
+      : error;
+    const code = normalizedError?.code || "INTERNAL_ERROR";
     console.error("[DownloadDash SMD] request failed", {
       requestId,
       platform: context.platform,
       kind: context.kind,
       path: context.path,
       code,
-      status: error?.status || 500,
+      status: normalizedError?.status || 500,
       latencyMs: Date.now() - startedAt,
-      message: error?.logMessage || error?.message,
+      message: normalizedError?.logMessage || normalizedError?.message,
     });
-    return sendError(res, error, requestId);
+    return sendError(res, normalizedError, requestId);
   }
 }

@@ -40,6 +40,7 @@ export const ERROR_MESSAGES = {
   EXTRACTOR_OUTDATED: "Download service could not resolve this media.",
   EXTRACTOR_FAILED: "Download service could not resolve this media.",
   MEDIA_NOT_FOUND: "Media was not found or is no longer available.",
+  MEDIA_DELIVERY_FAILED: "Media delivery failed. Please try again.",
   PRIVATE_MEDIA: "This media is private, login-only, paid, deleted, DRM-protected, restricted, or unavailable.",
   UNSUPPORTED_MEDIA: "This media is not supported for download.",
   INTERNAL_ERROR: "Something went wrong. Please try again.",

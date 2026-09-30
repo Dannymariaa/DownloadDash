@@ -1590,6 +1590,26 @@ test('production TikTok POST file contract accepts sourceUrl, mediaType, and fil
   });
 });
 
+test('unexpected managed file proxy failures use MEDIA_DELIVERY_FAILED', async () => {
+  await withProxyEnv(async () => {
+    globalThis.fetch = async () => {
+      throw new Error('socket disconnected');
+    };
+
+    const res = await request({
+      path: 'download/file',
+      body: {
+        sourceUrl: validUrls.tiktok,
+        mediaType: 'hd',
+        filename: 'clip.mp4',
+      },
+    });
+
+    assert.equal(res.statusCode, 502);
+    assert.equal(readJson(res).error.code, 'MEDIA_DELIVERY_FAILED');
+  });
+});
+
 test('TikTok individual photo media URLs require an HTTPS TikTok CDN host', async () => {
   await withProxyEnv(async () => {
     let forwardedBody = null;
