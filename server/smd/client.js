@@ -2,7 +2,24 @@ import { publicError } from "./errors.js";
 import { normalizeDownloadResponse } from "./normalize.js";
 import { upstreamPlatform } from "./platforms.js";
 
-const REQUEST_TIMEOUT_MS = Number.parseInt(process.env.SMD_RESOLVE_TIMEOUT_MS || "", 10) || 25_000;
+// The Vercel function has a 60 second maximum duration.  Leave enough time to
+// serialize a response and avoid Vercel terminating the request, while giving
+// a cold upstream resolver materially more time than the former 25 second
+// client-side cutoff.
+const DEFAULT_RESOLVE_TIMEOUT_MS = 52_000;
+const MAX_RESOLVE_TIMEOUT_MS = 55_000;
+
+function configuredTimeout(value, fallback, maximum) {
+  const parsed = Number.parseInt(value || "", 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.min(parsed, maximum);
+}
+
+const REQUEST_TIMEOUT_MS = configuredTimeout(
+  process.env.SMD_RESOLVE_TIMEOUT_MS,
+  DEFAULT_RESOLVE_TIMEOUT_MS,
+  MAX_RESOLVE_TIMEOUT_MS
+);
 const FILE_REQUEST_TIMEOUT_MS = Number.parseInt(process.env.SMD_FILE_TIMEOUT_MS || "", 10) || 10 * 60_000;
 const MAX_TRANSIENT_RETRIES = 1;
 const RETRY_BASE_DELAY_MS = 40;
