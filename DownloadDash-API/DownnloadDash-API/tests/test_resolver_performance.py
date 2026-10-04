@@ -49,6 +49,7 @@ class ResolverPerformanceTests(unittest.TestCase):
                 cpu = time.process_time() - cpu_started
                 _, peak = tracemalloc.get_traced_memory()
                 tracemalloc.stop()
+                self.assertEqual(calls, 1, f'{size} identical requests must share one provider call')
                 ordered = sorted(latencies)
                 results[str(size)] = {
                     "providerCalls": calls,

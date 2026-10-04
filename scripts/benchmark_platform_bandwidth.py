@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from downloader import extract_metadata
-from metrics import metrics
+from downloader import extract_metadata  # noqa: E402 - repository root is added above
+from metrics import metrics  # noqa: E402
 
 
 def _snapshot():

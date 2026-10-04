@@ -11,10 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import app as api
-from config import Config
-from rate_limit import reset_rate_limits
-
+import app as api  # noqa: E402 - script must add the repository root first
+from config import Config  # noqa: E402
+from rate_limit import reset_rate_limits  # noqa: E402
 
 BENCHMARK_URL = "https://example.com/post"
 BENCHMARK_RESULT = {
@@ -57,10 +56,7 @@ def _run_scenario(name, iterations, cache_hit):
     latencies = []
     cache_hits = 0
 
-    if cache_hit:
-        cache_value = (BENCHMARK_RESULT, "memory")
-    else:
-        cache_value = (None, "miss")
+    cache_value = (BENCHMARK_RESULT, "memory") if cache_hit else (None, "miss")
 
     tracemalloc.start()
     cpu_start = time.process_time()

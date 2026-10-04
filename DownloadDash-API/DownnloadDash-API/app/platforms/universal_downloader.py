@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import httpx
 
 from app.config import settings
+from app.api.resolver_errors import TERMINAL_PROVIDER_ERRORS, classify_resolver_error
 from app.models.schemas import MediaType, Platform, Quality, UserAuth
 from app.platforms.public_platforms import PublicPlatformDownloader
 
@@ -118,17 +119,10 @@ class UniversalMediaDownloader:
         if post:
             return post
 
-        try:
-            public = await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
-            if public:
-                return public
-        except Exception:
-            pass
-
-        fallback = await self._resolve_instagram_fallbacks(url)
-        if fallback:
-            return fallback
-
+        # The public resolver already owns the JSON/HTML fallback sequence.
+        # Repeating it here loses the original restriction and spends the
+        # metadata deadline on identical requests. Gallery fallback is managed
+        # once by the shared route after this resolver returns.
         return await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
 
     async def _resolve_instagram_post(self, url: str, user_auth: Optional[UserAuth]) -> Optional[Dict[str, Any]]:
@@ -653,6 +647,8 @@ class UniversalMediaDownloader:
         try:
             return await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
         except Exception as primary_error:
+            if classify_resolver_error(Platform.FACEBOOK, str(primary_error)) in TERMINAL_PROVIDER_ERRORS:
+                raise
             fallback_urls = self.public_downloader.facebook_fallback_urls(url)  # type: ignore[attr-defined]
             html_diagnostics = []
 

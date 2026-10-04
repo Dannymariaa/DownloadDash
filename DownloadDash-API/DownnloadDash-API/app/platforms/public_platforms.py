@@ -13,6 +13,7 @@ import httpx
 from urllib.parse import parse_qs, quote, urlencode, urlparse, urlunparse
 from ..models.schemas import Platform, Quality
 from ..config import settings
+from app.api.resolver_errors import TERMINAL_PROVIDER_ERRORS, classify_resolver_error, sanitize_provider_error
 
 class PublicPlatformDownloader:
     """Handles downloads from public social media platforms using yt-dlp"""
@@ -559,8 +560,10 @@ class PublicPlatformDownloader:
                     continue
                 return info
             except Exception as e:
+                if classify_resolver_error(Platform.YOUTUBE, str(e)) in TERMINAL_PROVIDER_ERRORS:
+                    raise
                 last_error = e
-                print(f"Warning: yt-dlp {label} profile {profile_name} failed: {e}")
+                print(f"Warning: yt-dlp {label} profile {profile_name} failed: {sanitize_provider_error(str(e))}")
 
         if last_info_without_playable:
             print(f"Warning: yt-dlp {label} falling back to metadata without direct playable formats")
@@ -708,6 +711,8 @@ class PublicPlatformDownloader:
                         last_error = None
                         break
                     except Exception as e:
+                        if classify_resolver_error(Platform.YOUTUBE, str(e)) in TERMINAL_PROVIDER_ERRORS:
+                            raise
                         last_error = e
                         print(
                             "Warning: yt-dlp youtube download "
@@ -1013,6 +1018,9 @@ class PublicPlatformDownloader:
         extract_opts.pop("format", None)
         extract_opts["ignore_no_formats_error"] = True
         extract_opts["skip_download"] = True
+        # The resolver owns the single fallback; yt-dlp must not multiply it
+        # with internal network/extractor retry loops during metadata work.
+        extract_opts.update({"retries": 0, "fragment_retries": 0, "extractor_retries": 0})
         self._log_ydl_context("resolve_media.extract", url, extract_opts)
 
         def extract_info(opts):

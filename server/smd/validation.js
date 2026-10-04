@@ -252,8 +252,17 @@ export function validateFileProxyRequest(req) {
     req.query?.sourceUrl ||
     req.query?.source_url ||
     req.query?.url;
-  const sourceUrl = validatePublicUrl(rawSourceUrl);
-  const url = rawUrl ? validatePublicUrl(rawUrl) : undefined;
+  let sourceUrl;
+  let url;
+  try {
+    sourceUrl = validatePublicUrl(rawSourceUrl);
+    url = rawUrl ? validatePublicUrl(rawUrl) : undefined;
+  } catch (error) {
+    if (error?.code === 'URL_REQUIRED' || error?.code === 'INVALID_URL') {
+      throw publicError('INVALID_FILE_REQUEST', 400);
+    }
+    throw error;
+  }
   const source = new URL(sourceUrl);
   const trustedSource = Object.keys(PLATFORM_HOSTS).some((platform) => isPlatformHost(platform, source.hostname));
   if (!trustedSource) {

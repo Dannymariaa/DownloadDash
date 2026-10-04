@@ -1,6 +1,7 @@
 import { publicError } from "./errors.js";
 import { normalizeDownloadResponse } from "./normalize.js";
 import { upstreamPlatform } from "./platforms.js";
+import { createHmac } from "node:crypto";
 
 // The Vercel function has a 60 second maximum duration.  Leave enough time to
 // serialize a response and avoid Vercel terminating the request, while giving
@@ -343,6 +344,15 @@ export async function proxyFileRequest({ env, forwardPath, payload, method, quer
   });
 
   if (method === "GET" && forwardPath[0] === "youtube" && forwardPath[1] === "file") {
+    const sourceUrl = payload.url || payload.sourceUrl;
+    const variant = String(payload.variant || 'hd');
+    if (!['hd', 'sd', 'audio'].includes(variant)) throw publicError('INVALID_FILE_REQUEST', 400);
+    const expires = String(Math.floor(Date.now() / 1000) + 300);
+    const signature = createHmac('sha256', env.apiKey)
+      .update(['v1', 'GET', '/youtube/file', expires, sourceUrl, variant].join('\n')).digest('hex');
+    // Only this validated URL/quality can use the short-lived browser ticket.
+    // Never put the server API key in a URL or browser-visible header.
+    target.search = new URLSearchParams({ url: sourceUrl, variant, expires, signature }).toString();
     console.info("[DownloadDash SMD] file proxy redirected", {
       requestId,
       path: `/${forwardPath.join("/")}`,

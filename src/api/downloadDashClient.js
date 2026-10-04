@@ -95,10 +95,13 @@ export const USER_SAFE_ERROR_MESSAGES = {
   SERVICE_CONFIGURATION_ERROR: 'The download service is temporarily unavailable. Please try again shortly.',
   UPSTREAM_UNAVAILABLE: 'The download service is temporarily unavailable. Please try again shortly.',
   UPSTREAM_TIMEOUT: 'The download service is temporarily unavailable. Please try again shortly.',
+  PROVIDER_TIMEOUT: 'The media provider timed out. Please try again.',
   UPSTREAM_AUTH_FAILED: 'The download service is temporarily unavailable. Please try again shortly.',
   UPSTREAM_PROXY_FAILED: 'The download service is temporarily unavailable. Please try again shortly.',
   UPSTREAM_ROUTE_NOT_FOUND: 'The download service is temporarily unavailable. Please try again shortly.',
   INVALID_URL: 'Enter a valid link for this downloader.',
+  INVALID_FILE_REQUEST: 'This download request is incomplete or invalid. Process the source link again.',
+  MEDIA_DELIVERY_FAILED: 'Media delivery failed. Please try again.',
   URL_REQUIRED: 'Paste a link to download.',
   UNSUPPORTED_DOMAIN: 'Paste a link from the selected platform.',
   UNSUPPORTED_PROTOCOL: 'Only HTTP and HTTPS links are supported.',
@@ -123,6 +126,12 @@ export const USER_SAFE_ERROR_MESSAGES = {
 const responseErrorCode = (data) => {
   if (typeof data?.error === 'string') return data.error;
   return data?.error?.code || data?.code || null;
+};
+
+export const isRetryableDownloadError = (error) => {
+  const transient = new Set(['PROVIDER_TIMEOUT', 'UPSTREAM_TIMEOUT', 'UPSTREAM_UNAVAILABLE', 'UPSTREAM_PROXY_FAILED']);
+  if (error?.code) return transient.has(error.code);
+  return Number(error?.status) >= 500 && Number(error?.status) <= 599;
 };
 
 export const responseErrorMessage = (data, fallback) => {
@@ -158,6 +167,9 @@ const createRequestError = ({ method, url, path, headers, status, statusText, da
     ].join(' | ')
   );
   error.details = diagnostics;
+  error.code = responseErrorCode(data);
+  error.status = status;
+  error.userMessage = backendMessage;
   return error;
 };
 

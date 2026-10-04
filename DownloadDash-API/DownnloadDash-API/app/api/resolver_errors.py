@@ -23,6 +23,15 @@ PROVIDER_ERROR_CODES = {
     "PROVIDER_TIMEOUT",
 }
 
+# Retrying another extraction path cannot make restricted or unavailable media
+# public. Preserve these errors at every resolver/fallback boundary.
+TERMINAL_PROVIDER_ERRORS = {
+    'ANTI_BOT_CHALLENGE', 'COOKIE_REQUIRED', 'COOKIE_EXPIRED', 'LOGIN_REQUIRED',
+    'PRIVATE_MEDIA', 'MEDIA_NOT_FOUND', 'PROVIDER_TIMEOUT', 'RATE_LIMITED',
+    'PLATFORM_BLOCKED_PROXY', 'PROXY_BLOCKED', 'PROXY_AUTH_FAILED',
+    'PROXY_QUOTA_EXHAUSTED', 'PROXY_UNREACHABLE',
+}
+
 SECRET_PATTERNS = (
     re.compile(r"(https?://)([^:@/\s]+):([^@/\s]+)@", re.IGNORECASE),
     re.compile(r"(socks[45]h?://)([^:@/\s]+):([^@/\s]+)@", re.IGNORECASE),
@@ -140,6 +149,7 @@ def classify_resolver_error(platform: Platform | str | None, raw_error: Optional
         return "PRIVATE_MEDIA"
 
     missing_markers = (
+        "media not found",
         "does not exist",
         "page not found",
         "post not found",

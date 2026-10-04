@@ -1,9 +1,31 @@
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import handler from '../../api/smd/[...path].js';
 import { isPlatformMediaUrl, normalizePublicUrl } from '../../shared/publicUrl.js';
+import { publicError, sendError } from '../../server/smd/errors.js';
+import { validateFileProxyRequest } from '../../server/smd/validation.js';
+
+test('provider timeouts explain that the provider timed out and can be retried', () => {
+  const res = createResponse();
+  sendError(res, publicError('PROVIDER_TIMEOUT', 504), 'timeout-test');
+  assert.equal(res.statusCode, 504);
+  assert.match(readJson(res).error.message, /timed out.*try again/i);
+});
+
+test('invalid managed file descriptors have file-specific errors', () => {
+  for (const body of [{}, { sourceUrl: 'not a url' }]) {
+    assert.throws(() => validateFileProxyRequest({ method: 'POST', body, query: {} }),
+      { code: 'INVALID_FILE_REQUEST', status: 400 });
+  }
+});
+
+test('Facebook named-page video URLs are valid media links', () => {
+  assert.equal(isPlatformMediaUrl('https://www.facebook.com/NASAEarthData/videos/new-nasadem-is-here/221831485672197/', 'facebook'), true);
+  assert.equal(isPlatformMediaUrl('https://www.facebook.com/NASAEarthData/', 'facebook'), false);
+});
 
 const intendedApiEntrypoints = [
   '_downloadDashProxy.js',
@@ -1685,10 +1707,18 @@ test('youtube file downloads redirect to Render instead of buffering through Ver
 
     assert.equal(res.statusCode, 307);
     assert.equal(fetchCalled, false);
-    assert.equal(
-      res.getHeader('Location'),
-      `https://render.example/youtube/file?url=${encodeURIComponent(youtubeUrl)}&variant=hd`
-    );
+    const location = new URL(res.getHeader('Location'));
+    assert.equal(location.origin, 'https://render.example');
+    assert.equal(location.pathname, '/youtube/file');
+    assert.equal(location.searchParams.get('url'), youtubeUrl);
+    assert.equal(location.searchParams.get('variant'), 'hd');
+    const expires = location.searchParams.get('expires');
+    assert.ok(Number(expires) > Date.now() / 1000);
+    assert.ok(Number(expires) <= Date.now() / 1000 + 300);
+    const expected = createHmac('sha256', process.env.DOWNLOADDASH_API_KEY)
+      .update(['v1', 'GET', '/youtube/file', expires, youtubeUrl, 'hd'].join('\n')).digest('hex');
+    assert.equal(location.searchParams.get('signature'), expected);
+    assert.equal(location.toString().includes(process.env.DOWNLOADDASH_API_KEY), false);
   });
 });
 

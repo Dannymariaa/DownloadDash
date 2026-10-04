@@ -8,7 +8,19 @@ import {
   normalizeMediaItem,
   normalizeResolvedDownloads,
   responseErrorMessage,
+  isRetryableDownloadError,
 } from '../../src/api/downloadDashClient.js';
+
+test('Retry is offered for transient failures but not classified restrictions', () => {
+  for (const code of ['PROVIDER_TIMEOUT', 'UPSTREAM_TIMEOUT', 'UPSTREAM_UNAVAILABLE']) {
+    assert.equal(isRetryableDownloadError({ code, status: 504 }), true);
+  }
+  for (const code of ['INVALID_URL', 'INVALID_FILE_REQUEST', 'PRIVATE_MEDIA', 'COOKIE_REQUIRED', 'ANTI_BOT_CHALLENGE', 'EXTRACTOR_FAILED']) {
+    assert.equal(isRetryableDownloadError({ code, status: 502 }), false);
+  }
+  assert.equal(isRetryableDownloadError({ status: 503 }), true);
+  assert.equal(isRetryableDownloadError({ status: 400 }), false);
+});
 
 test('TikTok file delivery posts the managed source descriptor without a raw CDN url', () => {
   const payload = buildFileProxyPayload(

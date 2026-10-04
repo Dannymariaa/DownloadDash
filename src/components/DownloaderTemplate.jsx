@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import downloadDash from '@/api/downloadDashClient';
+import downloadDash, { isRetryableDownloadError } from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
 import HDVideoAdModal from './HDVideoAdModal';
 import { useI18n } from '@/lib/i18n';
@@ -355,6 +355,7 @@ export default function DownloaderTemplate({
   const [result, setResult] = useState(null);
   const [batchResult, setBatchResult] = useState(null);
   const [error, setError] = useState('');
+  const [canRetry, setCanRetry] = useState(false);
   const [selectedBatchIds, setSelectedBatchIds] = useState([]);
   const [downloadQueue, setDownloadQueue] = useState([]);
   const [preferredVideoQuality, setPreferredVideoQuality] = useState(() => localStorage.getItem('ddPreferredVideoQuality') || 'best');
@@ -417,6 +418,7 @@ export default function DownloaderTemplate({
   }
 
   const handleFetch = async () => {
+    setCanRetry(false);
     const normalizedBatch = normalizeBatchUrls(url, { maxUrls: MAX_BATCH_URLS + 1 });
     const isBatchRequest = isPro && normalizedBatch.length > 0;
     const validation = isBatchRequest ? { valid: true, url } : validateUrl(url, platform, t);
@@ -469,7 +471,8 @@ export default function DownloaderTemplate({
         }).catch(() => {});
       }
     } catch (err) {
-      setError(err.message || t('errors.fetchFailed'));
+      setError(err.userMessage || err.message || t('errors.fetchFailed'));
+      setCanRetry(isRetryableDownloadError(err));
     } finally {
       setTimeout(() => {
         setIsLoading(false);
@@ -1011,6 +1014,11 @@ export default function DownloaderTemplate({
                 className="mt-4 p-4 bg-red-500/20 border border-red-500/30 rounded-xl flex items-center gap-3 text-red-400">
                 <AlertCircle className="h-5 w-5 flex-shrink-0" />
                 <span>{error}</span>
+                {canRetry && !batchResult && (
+                  <Button type="button" variant="outline" size="sm" disabled={isLoading} onClick={handleFetch}>
+                    Retry
+                  </Button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

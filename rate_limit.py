@@ -7,7 +7,7 @@ from flask import jsonify, request
 from config import Config
 from metrics import metrics
 
-_buckets = {}
+_buckets: dict[str, list[float]] = {}
 _lock = Lock()
 
 

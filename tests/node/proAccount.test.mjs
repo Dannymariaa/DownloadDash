@@ -82,7 +82,8 @@ test('signed session cookie authenticates across isolated serverless stores', as
   assert.equal(user.fullName, 'isolated@example.com');
 });
 
-test('verified active subscription enables Pro ad-free entitlement', async () => {
+test('verified active subscription enables Pro ad-free entitlement', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-15T12:00:00.000Z') });
   const store = createMemoryStore();
   const service = createAccountService({ store, sessionSecret: 'test-secret' });
   const user = await service.createUser({ email: 'pro@example.com', password: 'Correct Horse 123' });

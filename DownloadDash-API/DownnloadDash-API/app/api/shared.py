@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 from fastapi import BackgroundTasks, HTTPException
 
 from app.api.cookie_state import inspect_netscape_cookiefile
-from app.api.resolver_errors import classify_resolver_error, sanitize_provider_error
+from app.api.resolver_errors import TERMINAL_PROVIDER_ERRORS, classify_resolver_error, sanitize_provider_error
 from app.config import settings
 from app.models.schemas import (
     DownloadRequest,
@@ -70,10 +70,14 @@ async def _run_bounded_metadata_resolve(
             )
 
     provider_task = asyncio.create_task(run_in_slot())
+    timeout_seconds = (
+        settings.YOUTUBE_RESOLVER_TIMEOUT_SECONDS if platform == Platform.YOUTUBE
+        else settings.RESOLVER_TIMEOUT_SECONDS
+    )
     try:
         return await asyncio.wait_for(
             asyncio.shield(provider_task),
-            timeout=max(0.01, float(getattr(settings, "RESOLVER_TIMEOUT_SECONDS", 20.0))),
+            timeout=max(0.01, float(timeout_seconds)),
         )
     except asyncio.TimeoutError:
         # Shielding preserves the semaphore slot until executor backed provider work exits.
@@ -438,8 +442,8 @@ async def download_public(
         if _gallery_result_is_richer(result, gallery_result):
             result = gallery_result
 
-    resolver_timed_out = resolve_error is not None and classify_resolver_error(platform, str(resolve_error)) == "PROVIDER_TIMEOUT"
-    if (not result or not result.get("direct_url")) and not gallery_attempted and not resolver_timed_out:
+    terminal_error = resolve_error is not None and classify_resolver_error(platform, str(resolve_error)) in TERMINAL_PROVIDER_ERRORS
+    if (not result or not result.get("direct_url")) and not gallery_attempted and not terminal_error:
         gallery_started = time.perf_counter()
         gallery_result = await _resolve_with_gallery_fallback(
             platform=platform,

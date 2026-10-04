@@ -122,6 +122,7 @@ export const isPlatformMediaUrl = (url, platform) => {
       return host === "pin.it" ? path.length > 1 : /^\/pin\/\d+/i.test(path);
     case "facebook":
       return /^\/(share\/(p|v)|reel|watch|stories|story\.php|photo|photo\.php|permalink\.php|posts|videos)\b/i.test(path)
+          || /^\/[^/]+\/(videos|posts)\/[^/]+(?:\/\d+)?\/?$/i.test(path)
         || parsed.searchParams.has("v")
         || parsed.searchParams.has("story_fbid")
         || parsed.searchParams.has("fbid");

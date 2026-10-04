@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.core import router as core_router
 from app.api.download import router as download_router
+from app.api.download_tickets import valid_download_ticket
 from app.config import settings
 
 # Import all platform-specific routers
@@ -144,6 +145,9 @@ async def authentication_middleware(request: Request, call_next):
     # Load secrets from the process environment; never hardcode production credentials.
     rapidapi_proxy_secret = os.getenv("RAPIDAPI_PROXY_SECRET")
     downloaddash_api_key = os.getenv("DOWNLOADDASH_API_KEY")
+
+    if valid_download_ticket(request, downloaddash_api_key):
+        return await call_next(request)
 
     # Accept trusted RapidAPI proxy requests when the RapidAPI header matches.
     if _matches_secret(
@@ -319,6 +323,7 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": time.time(),
+        "revision": os.getenv("RENDER_GIT_COMMIT"),
         "services": {
             "telegram": telegram_downloader.is_connected if hasattr(telegram_downloader, "is_connected") else False,
             "whatsapp": "not_checked",

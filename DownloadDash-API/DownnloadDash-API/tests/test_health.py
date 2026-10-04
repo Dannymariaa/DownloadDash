@@ -4,6 +4,7 @@ from app.main import app
 
 
 def test_health_is_lightweight_and_does_not_probe_optional_bridges(monkeypatch):
+    monkeypatch.setenv('RENDER_GIT_COMMIT', '0123456789abcdef0123456789abcdef01234567')
     async def fail_bridge_probe():
         raise AssertionError("health should not probe optional bridge services")
 
@@ -15,5 +16,6 @@ def test_health_is_lightweight_and_does_not_probe_optional_bridges(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "healthy"
+    assert body['revision'] == '0123456789abcdef0123456789abcdef01234567'
     assert body["services"]["whatsapp"] == "not_checked"
     assert body["services"]["whatsapp_business"] == "not_checked"

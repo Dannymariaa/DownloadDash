@@ -66,7 +66,7 @@ def _unpack(payload):
         if len(raw) > Config.MAX_CACHE_PAYLOAD_BYTES:
             raise ValueError("Cached payload exceeds maximum size.")
         return json.loads(raw.decode("utf-8"))
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (OSError, EOFError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ValueError("Cached payload is invalid.") from exc
 
 
@@ -122,12 +122,16 @@ def get_cache(url):
     if cached is None:
         return None, "miss"
 
-    memory_cache.set(key, cached)
     try:
-        return _unpack(cached), "redis"
+        data = _unpack(cached)
     except ValueError as exc:
         logger.warning("redis cached payload rejected: %s", exc)
         return None, "miss"
+    # Memory entries use JSON text; Redis entries use compressed bytes.
+    # Promote only successfully decoded values so later memory/stale reads
+    # cannot receive gzip bytes or a rejected payload.
+    memory_cache.set(key, json.dumps(data, separators=(",", ":"), sort_keys=True))
+    return data, "redis"
 
 
 def set_cache(url, data):

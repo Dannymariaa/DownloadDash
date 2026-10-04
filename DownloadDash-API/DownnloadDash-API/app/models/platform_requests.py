@@ -39,6 +39,7 @@ class BasePlatformDownloadIn(BaseModel):
                 "tiktok": host in {"vm.tiktok.com", "vt.tiktok.com"} and len(path) > 1
                 or bool(re.match(r"^/@[^/]+/(video|photo)/[^/]+", path, re.I)),
                 "facebook": bool(re.match(r"^/(share/(p|v)|reel|watch|stories|story\.php|photo|photo\.php|permalink\.php|posts|videos)\b", path, re.I))
+                or bool(re.match(r"^/[^/]+/(videos|posts)/[^/]+(?:/\d+)?/?$", path, re.I))
                 or "v=" in query or "story_fbid=" in query or "fbid=" in query,
                 "reddit": host == "redd.it" and len(path) > 1
                 or bool(re.match(r"^/r/[^/]+/(s/[^/]+|comments/[^/]+)", path, re.I)),
