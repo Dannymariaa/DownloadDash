@@ -1,5 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Body, Query, Request as HttpRequest
-from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 import httpx
 import os
 import re
@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from app.api.shared import detect_platform, download_public
 from app.config import settings
+from app.routers.youtube import _file_failure
 from app.models.schemas import DownloadRequest, DownloadResponse, DownloadStatus, Platform
 from app.state import public_downloader, whatsapp_downloader
 
@@ -81,6 +82,18 @@ def _httpx_client_kwargs(**kwargs):
     return kwargs
 
 
+def _validate_media_target(url: str):
+    parsed = urlparse(url)
+    allowed = ('googlevideo.com', 'ytimg.com', 'fbcdn.net', 'cdninstagram.com',
+               'tiktokcdn.com', 'tiktokv.com', 'muscdn.com', 'byteoversea.com',
+               'twimg.com', 'pinimg.com', 'redd.it', 'redditmedia.com')
+    host = (parsed.hostname or '').lower()
+    if (parsed.scheme != 'https' or parsed.username or parsed.password
+            or parsed.port not in (None, 443)
+            or not any(host == domain or host.endswith('.' + domain) for domain in allowed)):
+        raise HTTPException(status_code=400, detail='Unsupported media host')
+
+
 def _should_redirect_direct(url: str, media_type: str | None = None) -> bool:
     media_key = (media_type or "").lower()
     if media_key in {"hd", "sd", "video", "audio", "image", "photo", "album"}:
@@ -145,6 +158,7 @@ async def _serve_download_file(
     filename: str | None,
     source_url: str | None,
     media_type: str | None,
+    range_header: str | None = None,
 ):
     source_url = source_url if isinstance(source_url, str) else ""
     url = url if isinstance(url, str) else ""
@@ -154,15 +168,7 @@ async def _serve_download_file(
         try:
             fallback = await public_downloader.download_tiktok_variant(source_url, variant) if "tiktok.com" in source_url.lower() else await public_downloader.download_platform_variant(source_url, variant)
         except Exception as exc:
-            raw_error = re.sub(r"\s+", " ", str(exc)).strip()
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Server-side media assembly failed. The original signed media URL was not reused; "
-                    "the API tried to fetch a fresh combined file from the public source URL instead. "
-                    f"Fallback error: {raw_error}"
-                ),
-            )
+            return _file_failure(exc)
 
         path = fallback["path"]
         if not os.path.exists(path):
@@ -183,22 +189,31 @@ async def _serve_download_file(
         raise HTTPException(status_code=400, detail="url must be http(s)")
 
     safe_name = _safe_filename(filename or "download")
-    if _should_redirect_direct(url, media_type):
-        print(
-            "Info: direct_media_redirect "
-            f"filename={safe_name} media_type={media_type or ''} proxy_used=false url_host={urlparse(url).netloc}"
-        )
-        return RedirectResponse(url=url, status_code=302)
-
+    _validate_media_target(url)
     started = time.monotonic()
+    headers = _download_headers(url, source_url)
+    if range_header:
+        headers['Range'] = range_header
     client = httpx.AsyncClient(
-        **_httpx_client_kwargs(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=True)
+        **_httpx_client_kwargs(timeout=httpx.Timeout(60.0, connect=10.0), follow_redirects=False, trust_env=False)
     )
     try:
         upstream = await client.send(
-            client.build_request("GET", url, headers=_download_headers(url, source_url)),
+            client.build_request("GET", url, headers=headers),
             stream=True,
         )
+        from urllib.parse import urljoin
+        for _ in range(5):
+            if upstream.status_code not in (301, 302, 303, 307, 308):
+                break
+            redirected = urljoin(url, upstream.headers.get('location', ''))
+            await upstream.aclose()
+            _validate_media_target(redirected)
+            url = redirected
+            upstream = await client.send(client.build_request('GET', url, headers=headers), stream=True)
+        if upstream.status_code in (301, 302, 303, 307, 308):
+            await upstream.aclose()
+            raise HTTPException(status_code=502, detail='Media redirect limit exceeded')
         if upstream.status_code in (403, 429):
             await upstream.aclose()
             upstream = await client.send(
@@ -254,6 +269,10 @@ async def _serve_download_file(
 
     content_type = upstream.headers.get("content-type") or "application/octet-stream"
     content_length = upstream.headers.get("content-length")
+    extension = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
+                 'video/mp4': '.mp4', 'audio/mp4': '.m4a', 'audio/mpeg': '.mp3'}.get(content_type.split(';')[0])
+    if extension:
+        safe_name = os.path.splitext(safe_name)[0] + extension
 
     async def iter_direct_media():
         bytes_sent = 0
@@ -272,11 +291,14 @@ async def _serve_download_file(
             await upstream.aclose()
             await client.aclose()
 
-    response = StreamingResponse(iter_direct_media(), media_type=content_type)
+    response = StreamingResponse(iter_direct_media(), media_type=content_type, status_code=upstream.status_code)
     response.headers["Content-Disposition"] = f'attachment; filename="{safe_name}"'
     response.headers["X-Proxy-Used"] = "false"
     if content_length:
         response.headers["Content-Length"] = content_length
+    for header in ('Content-Range', 'Accept-Ranges'):
+        if upstream.headers.get(header):
+            response.headers[header] = upstream.headers[header]
     return response
 
 
@@ -297,6 +319,7 @@ async def download_file_proxy(
 @router.get("/download/file")
 async def download_file_proxy_get(
     background_tasks: BackgroundTasks,
+    request: HttpRequest,
     url: str | None = Query(default=None),
     filename: str | None = Query(default="download"),
     sourceUrl: str | None = Query(default=None),
@@ -310,4 +333,5 @@ async def download_file_proxy_get(
         filename=filename,
         source_url=sourceUrl or source_url,
         media_type=mediaType or media_type or "",
+        range_header=request.headers.get('range'),
     )

@@ -1,5 +1,6 @@
 import asyncio
 import html as html_lib
+import json
 import re
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
@@ -140,6 +141,8 @@ class UniversalMediaDownloader:
                 save_metadata=False,
                 compress_json=False,
                 quiet=True,
+                request_timeout=5,
+                max_connection_attempts=1,
             )
 
             creds = self._pick_instagram_credentials(user_auth)
@@ -166,8 +169,8 @@ class UniversalMediaDownloader:
                             "url": node.video_url,
                             "downloadableUrl": node.video_url,
                             "type": "video",
-                            "width": node.video_url_width,
-                            "height": node.video_url_height,
+                            "width": getattr(node, 'video_url_width', None),
+                            "height": getattr(node, 'video_url_height', None),
                             "thumbnail": node.display_url,
                             "thumbnailUrl": node.display_url,
                             "extension": "mp4",
@@ -181,8 +184,8 @@ class UniversalMediaDownloader:
                             "url": node.display_url,
                             "downloadableUrl": node.display_url,
                             "type": "image",
-                            "width": node.display_url_width,
-                            "height": node.display_url_height,
+                            "width": getattr(node, 'display_url_width', None),
+                            "height": getattr(node, 'display_url_height', None),
                             "thumbnail": node.display_url,
                             "thumbnailUrl": node.display_url,
                             "extension": "jpg",
@@ -484,6 +487,15 @@ class UniversalMediaDownloader:
         return await self.public_downloader.resolve_media(url, quality, extract_audio=extract_audio)
 
     async def _resolve_tiktok_photos(self, url: str) -> Optional[Dict[str, Any]]:
+        async with httpx.AsyncClient(timeout=6, follow_redirects=False, trust_env=False) as client:
+            # TikTok publishes imagePost hydration on the canonical /video/ page too.
+            # The /photo/ shell often contains only SEO metadata.
+            response = await client.get(url.replace('/photo/', '/video/'), headers=self.public_downloader._build_http_headers(url))
+        if response.status_code == 200:
+            media_id = re.search(r'/(?:photo|video)/(\d+)', url)
+            result = self._tiktok_photo_payload(response.text, media_id.group(1) if media_id else '')
+            if result:
+                return result
         if not _HAS_TIKTOK_SCRAPER:
             return None
 
@@ -556,6 +568,54 @@ class UniversalMediaDownloader:
 
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _scrape)
+
+    def _tiktok_photo_payload(self, html: str, media_id: str):
+        def find_item(value):
+            if isinstance(value, dict):
+                if value.get('imagePost') and (not media_id or str(value.get('id')) == media_id):
+                    return value
+                for child in value.values():
+                    found = find_item(child)
+                    if found:
+                        return found
+            elif isinstance(value, list):
+                for child in value:
+                    found = find_item(child)
+                    if found:
+                        return found
+            return None
+
+        for script in re.findall(r'<script\b[^>]*>(.*?)</script>', html, re.S | re.I):
+            try:
+                item = find_item(json.loads(script))
+            except (ValueError, RecursionError):
+                continue
+            if not item:
+                continue
+            images = []
+            seen = set()
+            for source in item['imagePost'].get('images', []):
+                urls = (source.get('imageURL') or {}).get('urlList') or []
+                asset = next((u for u in urls if isinstance(u, str) and u.startswith('https://')), None)
+                if not asset or asset in seen:
+                    continue
+                seen.add(asset)
+                ext = urlparse(asset).path.rsplit('.', 1)[-1].lower()
+                images.append({'id': f'media-{len(images)}', 'index': len(images), 'type': 'image',
+                               'url': asset, 'width': source.get('imageWidth'), 'height': source.get('imageHeight'),
+                               **({'extension': ext} if ext in {'jpg', 'jpeg', 'png', 'webp', 'avif'} else {})})
+            if not images:
+                continue
+            items = list(images)
+            downloads = {'image': images[0]['url'], 'images': images, 'items': items}
+            audio = (item.get('music') or {}).get('playUrl')
+            if isinstance(audio, str) and audio.startswith('https://'):
+                downloads['audio'] = audio
+                items.append({'id': f'media-{len(items)}', 'index': len(items), 'type': 'audio', 'url': audio})
+            return {'direct_url': images[0]['url'], 'title': item.get('desc') or 'TikTok Photos',
+                    'thumbnail': images[0]['url'], 'kind': 'album' if len(images) > 1 else 'image',
+                    'ext': images[0].get('extension'), 'downloads': downloads}
+        return None
 
     async def _resolve_pinterest(self, url: str) -> Dict[str, Any]:
         try:

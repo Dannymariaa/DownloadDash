@@ -1458,232 +1458,43 @@ test('upstream timeout and malformed JSON responses are normalized safely', asyn
   });
 });
 
-test('file proxy requires a trusted platform source URL and preserves file headers', async () => {
-  await withProxyEnv(async () => {
-    let forwardedBody = null;
-    globalThis.fetch = async (_url, init) => {
-      forwardedBody = JSON.parse(init.body);
-      return new Response(new Uint8Array([1, 2, 3]), {
-        status: 200,
-        headers: { 'content-type': 'image/jpeg' },
-      });
-    };
-
-    const res = await request({
-      path: 'download/file',
-      body: {
-        url: 'https://cdn.example/signed-image?sig=abc',
-        sourceUrl: validUrls.instagram,
-        filename: 'photo.jpg',
-        mediaType: 'image',
-      },
+test('generic file downloads hand off GET and POST to scoped Render tickets without transferring bytes', async () => {
+  for (const method of ['GET', 'POST']) {
+    await withProxyEnv(async () => {
+      globalThis.fetch = async () => { assert.fail('Vercel must not transfer the file'); };
+      const payload = { url: 'https://p16.tiktokcdn.com/photo.jpg', sourceUrl: validUrls.tiktok,
+        mediaType: 'image', filename: 'photo.jpg' };
+      const res = await request({ path: 'download/file', method,
+        ...(method === 'GET' ? { query: payload } : { body: payload }) });
+      assert.equal(res.statusCode, 303);
+      const location = new URL(res.getHeader('Location'));
+      assert.equal(location.origin, 'https://render.example');
+      assert.equal(location.pathname, '/download/file');
+      for (const [key, value] of Object.entries(payload)) assert.equal(location.searchParams.get(key), value);
+      const expires = location.searchParams.get('expires');
+      const expected = createHmac('sha256', process.env.DOWNLOADDASH_API_KEY)
+        .update(['v2', 'GET', '/download/file', expires, payload.url, payload.sourceUrl,
+          payload.mediaType, payload.filename].join('\n')).digest('hex');
+      assert.equal(location.searchParams.get('signature'), expected);
+      assert.equal(location.toString().includes(process.env.DOWNLOADDASH_API_KEY), false);
+      assert.equal(res.getHeader('Cache-Control'), 'no-store');
+      const rejected = await request({ path: 'download/file', body: { ...payload, url: 'https://attacker.example/a.jpg' } });
+      assert.equal(rejected.statusCode, 400);
     });
-
-    assert.equal(res.statusCode, 200);
-    assert.equal(res.getHeader('Content-Type'), 'image/jpeg');
-    assert.equal(res.getHeader('Content-Disposition'), 'attachment; filename="photo.jpg"');
-    assert.equal(forwardedBody.url, 'https://cdn.example/signed-image?sig=abc');
-    assert.equal(forwardedBody.sourceUrl, validUrls.instagram);
-  });
-
-  await withProxyEnv(async () => {
-    let fetchCalled = false;
-    globalThis.fetch = async () => {
-      fetchCalled = true;
-      return new Response('', { status: 200 });
-    };
-
-    const res = await request({
-      path: 'download/file',
-      body: {
-        url: 'https://cdn.example/signed-image?sig=abc',
-        sourceUrl: 'https://example.com/post/123',
-        filename: 'photo.jpg',
-      },
-    });
-
-    assert.equal(res.statusCode, 400);
-    assert.equal(readJson(res).error.code, 'UNSUPPORTED_DOMAIN');
-    assert.equal(fetchCalled, false);
-  });
+  }
 });
 
-test('file proxy replaces decoded non-ASCII filename characters before setting headers', async () => {
+test('source-only heavy file handoff preserves selected variant and filename', async () => {
   await withProxyEnv(async () => {
-    globalThis.fetch = async () => new Response(new Uint8Array([1]), {
-      status: 200,
-      headers: {
-        'content-type': 'audio/mpeg',
-        'content-disposition': "attachment; filename*=UTF-8''M%C3%BAsica.mp3",
-      },
-    });
-
-    const res = await request({
-      path: 'download/file',
-      body: {
-        sourceUrl: validUrls.tiktok,
-        mediaType: 'audio',
-        filename: 'Música.mp3',
-      },
-    });
-
-    assert.equal(res.statusCode, 200);
-    assert.equal(res.getHeader('Content-Type'), 'audio/mpeg');
-    assert.equal(res.getHeader('Content-Disposition'), 'attachment; filename="M_sica.mp3"');
-  });
-});
-
-test('generic file proxy streams upstream chunks progressively without full body buffering', async () => {
-  await withProxyEnv(async () => {
-    let emittedChunks = 0;
-    globalThis.fetch = async () => new Response(new ReadableStream({
-      async start(controller) {
-        controller.enqueue(new Uint8Array([1, 2]));
-        await new Promise((resolve) => setTimeout(resolve, 5));
-        assert.equal(emittedChunks, 1, 'first chunk reached the response before upstream finished');
-        controller.enqueue(new Uint8Array([3, 4]));
-        controller.close();
-      },
-    }), {
-      status: 206,
-      headers: {
-        'content-type': 'video/mp4',
-        'content-disposition': 'attachment; filename="clip.mp4"',
-      },
-    });
-
-    const res = createResponse();
-    const originalWrite = res.write;
-    res.write = function (chunk) {
-      emittedChunks += 1;
-      return originalWrite.call(this, chunk);
-    };
-    await handler({
-      method: 'GET',
-      url: '/api/smd/download/file',
-      query: { url: 'https://cdn.example/clip.mp4', sourceUrl: validUrls.instagram, filename: 'clip.mp4' },
-      headers: {},
-      socket: { remoteAddress: '198.51.100.10' },
-    }, res);
-
-    assert.equal(res.statusCode, 206);
-    assert.equal(res.getHeader('Content-Type'), 'video/mp4');
-    assert.equal(res.getHeader('Content-Disposition'), 'attachment; filename="clip.mp4"');
-    assert.deepEqual([...res.body], [1, 2, 3, 4]);
-    const clientSource = await readFile(new URL('../../server/smd/client.js', import.meta.url), 'utf8');
-    assert.doesNotMatch(clientSource, /upstream\.arrayBuffer\(\)/);
-  });
-});
-
-test('file proxy allows managed source-only TikTok variant downloads', async () => {
-  await withProxyEnv(async () => {
-    let forwardedUrl = null;
-    let forwardedInit = null;
-    globalThis.fetch = async (url, init) => {
-      forwardedUrl = url;
-      forwardedInit = init;
-      return new Response(new Uint8Array([1, 2, 3]), {
-        status: 200,
-        headers: {
-          'content-type': 'video/mp4',
-          'content-disposition': 'attachment; filename="clip.mp4"',
-        },
-      });
-    };
-
-    const sourceUrl = 'https://www.tiktok.com/@creator/video/123';
-    const res = await request({
-      path: 'download/file',
-      method: 'GET',
-      query: {
-        sourceUrl,
-        mediaType: 'hd',
-        filename: 'clip.mp4',
-      },
-    });
-
-    assert.equal(res.statusCode, 200);
-    assert.equal(res.getHeader('Content-Type'), 'video/mp4');
-    assert.equal(res.getHeader('Content-Disposition'), 'attachment; filename="clip.mp4"');
-    assert.equal(forwardedUrl, 'https://render.example/download/file?sourceUrl=https%3A%2F%2Fwww.tiktok.com%2F%40creator%2Fvideo%2F123&mediaType=hd&filename=clip.mp4');
-    assert.equal(forwardedInit.method, 'GET');
-    assert.equal(forwardedInit.body, undefined);
-  });
-});
-
-test('production TikTok POST file contract accepts sourceUrl, mediaType, and filename without url', async () => {
-  await withProxyEnv(async () => {
-    let forwardedUrl = null;
-    let forwardedInit = null;
-    globalThis.fetch = async (url, init) => {
-      forwardedUrl = url;
-      forwardedInit = init;
-      return new Response(new Uint8Array([1, 2, 3]), {
-        status: 200,
-        headers: { 'content-type': 'video/mp4' },
-      });
-    };
-
-    const sourceUrl = 'https://www.tiktok.com/@creator/video/123?lang=en&source=share';
-    const res = await request({
-      path: 'download/file',
-      method: 'POST',
-      body: { sourceUrl, mediaType: 'hd', filename: 'clip.mp4' },
-    });
-
-    assert.equal(res.statusCode, 200);
-    assert.equal(new URL(forwardedUrl).pathname, '/download/file');
-    assert.equal(new URL(forwardedUrl).search, '');
-    assert.equal(forwardedInit.method, 'POST');
-    assert.deepEqual(JSON.parse(forwardedInit.body), { sourceUrl, mediaType: 'hd', filename: 'clip.mp4' });
-  });
-});
-
-test('unexpected managed file proxy failures use MEDIA_DELIVERY_FAILED', async () => {
-  await withProxyEnv(async () => {
-    globalThis.fetch = async () => {
-      throw new Error('socket disconnected');
-    };
-
-    const res = await request({
-      path: 'download/file',
-      body: {
-        sourceUrl: validUrls.tiktok,
-        mediaType: 'hd',
-        filename: 'clip.mp4',
-      },
-    });
-
-    assert.equal(res.statusCode, 502);
-    assert.equal(readJson(res).error.code, 'MEDIA_DELIVERY_FAILED');
-  });
-});
-
-test('TikTok individual photo media URLs require an HTTPS TikTok CDN host', async () => {
-  await withProxyEnv(async () => {
-    let forwardedBody = null;
-    globalThis.fetch = async (_url, init) => {
-      forwardedBody = JSON.parse(init.body);
-      return new Response(new Uint8Array([1]), { status: 200, headers: { 'content-type': 'image/jpeg' } });
-    };
-
-    const payload = {
-      url: 'https://p16-sign-va.tiktokcdn.com/photo.jpeg?token=a%2Fb&expires=123',
-      sourceUrl: 'https://www.tiktok.com/@creator/photo/123',
-      mediaType: 'image',
-      filename: 'photo-1.jpg',
-    };
-    const accepted = await request({ path: 'download/file', body: payload });
-    assert.equal(accepted.statusCode, 200);
-    assert.equal(forwardedBody.url, payload.url);
-    assert.equal(forwardedBody.sourceUrl, payload.sourceUrl);
-
-    const rejected = await request({
-      path: 'download/file',
-      body: { ...payload, url: 'https://attacker.example/photo.jpeg' },
-    });
-    assert.equal(rejected.statusCode, 400);
-    assert.equal(readJson(rejected).error.code, 'UNSUPPORTED_DOMAIN');
+    globalThis.fetch = async () => { assert.fail('heavy work belongs on Render'); };
+    const res = await request({ path: 'download/file', body: {
+      sourceUrl: validUrls.pinterest, mediaType: 'sd', filename: 'clip.mp4' } });
+    assert.equal(res.statusCode, 303);
+    const target = new URL(res.getHeader('Location'));
+    assert.equal(target.searchParams.get('url'), '');
+    assert.equal(target.searchParams.get('sourceUrl'), validUrls.pinterest);
+    assert.equal(target.searchParams.get('mediaType'), 'sd');
+    assert.equal(target.searchParams.get('filename'), 'clip.mp4');
   });
 });
 

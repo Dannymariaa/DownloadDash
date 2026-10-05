@@ -4,6 +4,11 @@ from typing import Dict, Any, Optional
 import base64
 import html as html_lib
 import json
+import copy
+import time
+import tempfile
+import hashlib
+from pathlib import Path
 import os
 import shutil
 import subprocess
@@ -14,6 +19,8 @@ from urllib.parse import parse_qs, quote, urlencode, urlparse, urlunparse
 from ..models.schemas import Platform, Quality
 from ..config import settings
 from app.api.resolver_errors import TERMINAL_PROVIDER_ERRORS, classify_resolver_error, sanitize_provider_error
+
+RESOLVED_MEDIA_DIRECTORY = Path(tempfile.gettempdir()) / 'downloaddash-resolved-media'
 
 class PublicPlatformDownloader:
     """Handles downloads from public social media platforms using yt-dlp"""
@@ -34,6 +41,52 @@ class PublicPlatformDownloader:
         self.proxy_urls = proxy_urls or {}
         self.youtube_proxy_url = youtube_proxy_url
         self._heavy_media_semaphores = {}
+        self._resolved_dir = RESOLVED_MEDIA_DIRECTORY
+        self._initialize_user_agent()
+
+    def remember_resolved_media(self, url, info):
+        if not info.get('formats'):
+            return
+        self._resolved_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+        for entry in self._resolved_dir.glob('*.json'):
+            try:
+                if time.time() - entry.stat().st_mtime > 300:
+                    entry.unlink(missing_ok=True)
+            except OSError:
+                pass
+        if len(list(self._resolved_dir.glob('*.json'))) >= 256:
+            return
+        key = hashlib.sha256(self._normalize_youtube_url(url).encode()).hexdigest()
+        target = self._resolved_dir / (key + '.json')
+        fd, temporary = tempfile.mkstemp(dir=self._resolved_dir)
+        try:
+            with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+                json.dump({'expires': time.time() + 300, 'info': info}, handle, default=str)
+            os.replace(temporary, target)
+        finally:
+            if os.path.exists(temporary):
+                os.remove(temporary)
+
+    def get_resolved_media(self, url):
+        key = hashlib.sha256(self._normalize_youtube_url(url).encode()).hexdigest()
+        try:
+            payload = json.loads((self._resolved_dir / (key + '.json')).read_text(encoding='utf-8'))
+            if payload['expires'] > time.time():
+                return payload['info']
+        except (OSError, ValueError, KeyError):
+            pass
+        return None
+
+    def _download_resolved_or_extract(self, ydl, url):
+        cached = self.get_resolved_media(url)
+        if cached:
+            # Select formats again from approved metadata, without running an extractor.
+            cached.pop('requested_downloads', None)
+            cached.pop('requested_formats', None)
+            return ydl.process_ie_result(copy.deepcopy(cached), download=True)
+        return ydl.extract_info(url, download=True)
+
+    def _initialize_user_agent(self):
         self.user_agent = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -681,7 +734,7 @@ class PublicPlatformDownloader:
 
         def run_download(download_opts: Dict[str, Any]):
             with yt_dlp.YoutubeDL(download_opts) as ydl:
-                return ydl.extract_info(url, download=True)
+                return self._download_resolved_or_extract(ydl, url)
 
         info = None
         last_error: Exception | None = None
@@ -907,7 +960,7 @@ class PublicPlatformDownloader:
 
         def run_download(download_opts: Dict[str, Any]):
             with yt_dlp.YoutubeDL(download_opts) as ydl:
-                return ydl.extract_info(url, download=True)
+                return self._download_resolved_or_extract(ydl, url)
 
         info = None
         last_error: Exception | None = None
@@ -921,6 +974,8 @@ class PublicPlatformDownloader:
                 info = await loop.run_in_executor(None, lambda attempt_opts=attempt_opts: run_download(attempt_opts))
                 break
             except Exception as e:
+                if classify_resolver_error(self._platform_key_for_url(url), str(e)) in TERMINAL_PROVIDER_ERRORS:
+                    raise
                 last_error = e
                 print(f"Warning: yt-dlp {label}.download.{variant} failed with {format_selector}: {e}")
 
@@ -975,23 +1030,7 @@ class PublicPlatformDownloader:
         loop = asyncio.get_event_loop()
         url = self._normalize_youtube_url(url)
 
-        # Instagram photo posts often fail with yt-dlp "No video formats found".
-        # Try Instagram-specific fallbacks first for non-audio requests.
-        is_instagram_url = self._platform_key_for_url(url) == "instagram"
         is_instagram_reel = bool(re.search(r"instagram\.com/(reel|tv)/", url, re.IGNORECASE))
-        if is_instagram_url and not extract_audio and not is_instagram_reel:
-            ig = await self._fallback_instagram_json(url)
-            if ig:
-                return ig
-            html = await self._fallback_instagram_html(url)
-            if html:
-                return html
-            oembed = await self._fallback_instagram_oembed(url)
-            if oembed:
-                return oembed
-            og = await self._fallback_opengraph(url)
-            if og:
-                return og
 
         # For best compatibility, prefer formats that include both audio+video when not extracting audio.
         file_id = str(uuid.uuid4())
@@ -1018,6 +1057,7 @@ class PublicPlatformDownloader:
         extract_opts.pop("format", None)
         extract_opts["ignore_no_formats_error"] = True
         extract_opts["skip_download"] = True
+        extract_opts["socket_timeout"] = 5
         # The resolver owns the single fallback; yt-dlp must not multiply it
         # with internal network/extractor retry loops during metadata work.
         extract_opts.update({"retries": 0, "fragment_retries": 0, "extractor_retries": 0})
@@ -1124,6 +1164,8 @@ class PublicPlatformDownloader:
         if not info:
             raise Exception("Resolve failed: no info returned")
 
+        self.remember_resolved_media(url, info)
+
         # Preserve gallery/carousel entries instead of collapsing to the first item.
         if isinstance(info, dict) and isinstance(info.get("entries"), list) and info["entries"]:
             entry_items = self._items_from_gallery_entries(info["entries"])
@@ -1179,6 +1221,16 @@ class PublicPlatformDownloader:
         formats = info.get("formats") or []
         thumbnail = info.get("thumbnail")
         title = info.get("title", "Untitled")
+        if not formats and 'pinterest.' in (urlparse(url).hostname or ''):
+            originals = [image for image in info.get('thumbnails', [])
+                         if '/originals/' in urlparse(image.get('url') or '').path
+                         and (urlparse(image.get('url') or '').hostname or '').endswith('.pinimg.com')]
+            if originals:
+                original = max(originals, key=lambda image: (image.get('width') or 0) * (image.get('height') or 0))
+                asset = original['url']
+                ext = urlparse(asset).path.rsplit('.', 1)[-1].lower()
+                return {'direct_url': asset, 'title': title, 'thumbnail': asset, 'ext': ext, 'kind': 'image',
+                        'downloads': {'image': asset, 'items': [{**original, 'type': 'image', 'extension': ext}]}}
         if "youtube.com" in url or "youtu.be" in url:
             direct_format_count = sum(1 for f in formats if f.get("url"))
             print(
@@ -1244,70 +1296,8 @@ class PublicPlatformDownloader:
 
         downloads: Dict[str, str] = {}
 
-        async def _resolve_youtube_requested_url(format_selector: str) -> Optional[Dict[str, Any]]:
-            opts = dict(ydl_opts)
-            opts["extract_flat"] = False
-            opts["noplaylist"] = True
-            opts["skip_download"] = True
-            opts["ignore_no_formats_error"] = True
-            opts["format"] = format_selector
-            try:
-                extracted = await self._extract_youtube_with_profiles(
-                    loop,
-                    url,
-                    opts,
-                    extract_info,
-                    "youtube.requested_url",
-                    require_playable=True,
-                    extract_audio=("audio" in format_selector and "video" not in format_selector),
-                )
-            except Exception:
-                return None
-            return self._requested_url_from_info(extracted)
-
-        # If YouTube extraction returns metadata without any real media URL, try explicit format extraction.
-        if is_youtube:
-            if extract_audio and not (selected_audio and selected_audio.get("url")) and not selected_info_url:
-                requested_audio = await _resolve_youtube_requested_url("bestaudio/best")
-                if requested_audio and requested_audio.get("url"):
-                    selected_audio = requested_audio
-                    selected_info_url = selected_info_url or requested_audio.get("url")
-                    selected_info_ext = selected_info_ext or requested_audio.get("ext")
-
-            if not extract_audio and not (selected_hd and selected_hd.get("url")) and not selected_info_url:
-                requested_video = None
-                for fmt in ("bestvideo+bestaudio/best", "best[ext=mp4]/best", "best"):
-                    requested_video = await _resolve_youtube_requested_url(fmt)
-                    if requested_video and requested_video.get("url"):
-                        break
-                if requested_video and requested_video.get("url"):
-                    selected_hd = requested_video
-                    selected_sd = selected_sd or requested_video
-                    selected_info_url = selected_info_url or requested_video.get("url")
-                    selected_info_ext = selected_info_ext or requested_video.get("ext")
-
-            if extract_audio and not (selected_audio and selected_audio.get("url")) and not selected_info_url:
-                downloads = self._youtube_api_downloads(url, "audio")
-                return {
-                    "direct_url": downloads["audio"],
-                    "title": title,
-                    "thumbnail": thumbnail,
-                    "ext": "m4a",
-                    "filesize": None,
-                    "kind": "audio",
-                    "downloads": downloads,
-                }
-            if not extract_audio and not (selected_hd and selected_hd.get("url")) and not selected_info_url:
-                downloads = self._youtube_api_downloads(url)
-                return {
-                    "direct_url": downloads["videoHD"],
-                    "title": title,
-                    "thumbnail": thumbnail,
-                    "ext": "mp4",
-                    "filesize": None,
-                    "kind": "video",
-                    "downloads": downloads,
-                }
+        if is_youtube and not (selected_hd or selected_audio or selected_info_url):
+            raise Exception("Resolve failed: no playable YouTube formats")
 
         direct_url = (primary.get("url") if primary else None) or selected_info_url
         if is_youtube and kind == "image":
@@ -1462,7 +1452,7 @@ class PublicPlatformDownloader:
         cookies = self._load_cookiefile(url)
         try:
             client_kwargs = self._httpx_client_kwargs(
-                timeout=20.0,
+                timeout=5.0,
                 follow_redirects=True,
                 headers=headers,
                 cookies=cookies,
@@ -1618,7 +1608,7 @@ class PublicPlatformDownloader:
 
         try:
             client_kwargs = self._httpx_client_kwargs(
-                timeout=20.0,
+                timeout=5.0,
                 follow_redirects=True,
                 headers=self._build_http_headers(url),
                 cookies=self._load_cookiefile(url),
@@ -1716,7 +1706,7 @@ class PublicPlatformDownloader:
         try:
             async with httpx.AsyncClient(
                 **self._httpx_client_kwargs(
-                    timeout=20.0,
+                    timeout=5.0,
                     follow_redirects=True,
                     headers=headers,
                     cookies=cookies,
@@ -1857,7 +1847,7 @@ class PublicPlatformDownloader:
         try:
             async with httpx.AsyncClient(
                 **self._httpx_client_kwargs(
-                    timeout=20.0,
+                    timeout=5.0,
                     follow_redirects=True,
                     headers=headers,
                     cookies=cookies,
@@ -1948,7 +1938,7 @@ class PublicPlatformDownloader:
         try:
             async with httpx.AsyncClient(
                 **self._httpx_client_kwargs(
-                    timeout=20.0,
+                    timeout=5.0,
                     follow_redirects=True,
                     headers=headers,
                 )

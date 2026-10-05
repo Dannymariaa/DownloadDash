@@ -132,7 +132,7 @@ class Settings(BaseSettings):
     RESOLVER_TIMEOUT_SECONDS: float = 15.0
     # Measured cold YouTube metadata took 22.5s in production. Keep its bounded
     # cold-start budget separate from fast provider metadata and heavy transfers.
-    YOUTUBE_RESOLVER_TIMEOUT_SECONDS: float = 30.0
+    YOUTUBE_RESOLVER_TIMEOUT_SECONDS: float = 20.0
     RESOLVER_CONCURRENCY: int = 4
     HEAVY_MEDIA_CONCURRENCY: int = 1
     RESOLVE_CACHE_TTL_SECONDS: int = 120

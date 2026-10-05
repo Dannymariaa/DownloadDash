@@ -343,6 +343,24 @@ export async function proxyFileRequest({ env, forwardPath, payload, method, quer
     });
   });
 
+  if (['GET', 'POST'].includes(method) && forwardPath.join('/') === 'download/file') {
+    const fields = {
+      url: String(payload.url || ''), sourceUrl: String(payload.sourceUrl || ''),
+      mediaType: String(payload.mediaType || payload.media_type || ''),
+      filename: sanitizeFilename(payload.filename),
+      expires: String(Math.floor(Date.now() / 1000) + 300),
+    };
+    fields.signature = createHmac('sha256', env.apiKey).update([
+      'v2', 'GET', '/download/file', fields.expires, fields.url,
+      fields.sourceUrl, fields.mediaType, fields.filename,
+    ].join('\n')).digest('hex');
+    target.search = new URLSearchParams(fields).toString();
+    res.status(303);
+    res.setHeader('Location', target.toString());
+    res.setHeader('Cache-Control', 'no-store');
+    return res.end('');
+  }
+
   if (method === "GET" && forwardPath[0] === "youtube" && forwardPath[1] === "file") {
     const sourceUrl = payload.url || payload.sourceUrl;
     const variant = String(payload.variant || 'hd');

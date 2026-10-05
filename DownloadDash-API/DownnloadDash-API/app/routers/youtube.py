@@ -51,7 +51,7 @@ async def download_youtube_file(
         raise HTTPException(status_code=400, detail="Invalid YouTube file source") from None
     extract_audio = variant == "audio"
     try:
-        resolved = await public_downloader.resolve_media(
+        resolved = {} if public_downloader.get_resolved_media(url) else await public_downloader.resolve_media(
             url,
             Quality.HIGH,
             extract_audio=extract_audio,

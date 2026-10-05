@@ -123,7 +123,7 @@ def _set_resolve_cache(key: str, value: Dict[str, Any]) -> None:
                 _resolve_cache.pop(cache_key, None)
         while len(_resolve_cache) > 384:
             _resolve_cache.pop(next(iter(_resolve_cache)))
-    ttl = max(1, int(getattr(settings, "RESOLVE_CACHE_TTL_SECONDS", 600)))
+    ttl = min(240, max(1, int(getattr(settings, "RESOLVE_CACHE_TTL_SECONDS", 600))))
     _resolve_cache[key] = (time.time() + ttl, value)
 
 

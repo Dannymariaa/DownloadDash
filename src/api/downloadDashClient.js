@@ -340,6 +340,18 @@ const sanitizeFilename = (name) =>
 
 const triggerBrowserDownload = async (res, filename) => {
   const blob = await res.blob();
+  if (!blob.size) throw new Error('The downloaded file is empty.');
+  const disposition = res.headers.get('content-disposition') || '';
+  const supplied = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1]
+    || /filename="([^"]+)"/i.exec(disposition)?.[1];
+  if (supplied) {
+    try { filename = sanitizeFilename(decodeURIComponent(supplied)); }
+    catch { filename = sanitizeFilename(supplied); }
+  }
+  const extension = { 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'video/mp4': 'mp4',
+    'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+    'video/webm': 'webm', 'audio/webm': 'webm' }[blob.type.split(';')[0]];
+  if (extension) filename = `${String(filename || 'download').replace(/\.[a-z0-9]{2,5}$/i, '')}.${extension}`;
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = objectUrl;
@@ -740,7 +752,8 @@ const findAudioUrl = (...sources) => {
 export const buildFileProxyPayload = (fileUrl, filename, sourceUrl = '', mediaType = '') => {
   const payload = { filename: sanitizeFilename(filename) || 'download', sourceUrl, mediaType };
   const isPhoto = ['image', 'photo', 'picture'].includes(String(mediaType || '').toLowerCase());
-  if (!isTikTokSourceUrl(sourceUrl) || isPhoto) payload.url = fileUrl;
+  const isPhotoSoundtrack = /\/photo\//i.test(sourceUrl) && String(mediaType).toLowerCase() === 'audio';
+  if (!isTikTokSourceUrl(sourceUrl) || isPhoto || isPhotoSoundtrack) payload.url = fileUrl;
   return payload;
 };
 
