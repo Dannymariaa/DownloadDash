@@ -1393,7 +1393,7 @@ class PublicPlatformDownloader:
         selected_hd_has_audio = bool(selected_hd and selected_hd.get("acodec") and selected_hd.get("acodec") != "none")
         selected_sd_has_audio = bool(selected_sd and selected_sd.get("acodec") and selected_sd.get("acodec") != "none")
         split_audio_available = bool(selected_audio and selected_audio.get("url"))
-        is_x_hls = self._platform_key_for_url(url) == "x" and any(
+        is_hls = any(
             str(candidate.get("ext") or "").lower() == "m3u8"
             or urlparse(str(candidate.get("url") or "")).path.lower().endswith(".m3u8")
             for candidate in (selected_hd, selected_sd)
@@ -1404,7 +1404,7 @@ class PublicPlatformDownloader:
             and not is_youtube
             and self._platform_key_for_url(url) != "tiktok"
             and (
-                is_x_hls
+                is_hls
                 or (split_audio_available and (
                 (downloads.get("videoHD") and not selected_hd_has_audio)
                 or (downloads.get("videoSD") and not selected_sd_has_audio)

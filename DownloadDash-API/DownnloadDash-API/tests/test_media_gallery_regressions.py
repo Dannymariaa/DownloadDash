@@ -163,6 +163,32 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         self.assertEqual(item["mimeType"], "video/mp4")
         self.assertTrue(item["hasAudio"])
 
+    def test_pinterest_hls_video_is_a_managed_mp4_download_not_a_playlist(self):
+        downloader = PublicPlatformDownloader()
+        with patch("app.platforms.public_platforms.yt_dlp.YoutubeDL") as ydl_mock:
+            ydl_mock.return_value.__enter__.return_value.extract_info.return_value = {
+                "title": "Pinterest HLS sample",
+                "url": "https://v1.pinimg.com/videos/playlist.m3u8",
+                "ext": "m3u8",
+                "thumbnail": "https://i.pinimg.com/thumb.jpg",
+                "formats": [{
+                    "url": "https://v1.pinimg.com/videos/playlist.m3u8",
+                    "ext": "m3u8",
+                    "height": 720,
+                    "vcodec": "h264",
+                    "acodec": "aac",
+                }],
+            }
+            result = asyncio.run(downloader.resolve_media("https://www.pinterest.com/pin/664281013778109217/", Quality.HIGH))
+
+        item = result["downloads"]["items"][0]
+        self.assertTrue(result["downloads"]["videoHD"].startswith("/download/file?"))
+        self.assertTrue(result["downloads"]["videoHD"].endswith(".mp4"))
+        self.assertNotIn(".m3u8", result["downloads"]["videoHD"])
+        self.assertEqual(item["extension"], "mp4")
+        self.assertEqual(item["mimeType"], "video/mp4")
+        self.assertTrue(item["hasAudio"])
+
     def test_audio_extraction_uses_audio_track_url_and_actual_extension(self):
         downloader = PublicPlatformDownloader()
         with patch("app.platforms.public_platforms.yt_dlp.YoutubeDL") as ydl_mock:
