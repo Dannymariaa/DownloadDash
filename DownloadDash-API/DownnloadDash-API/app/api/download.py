@@ -85,7 +85,7 @@ def _httpx_client_kwargs(**kwargs):
 def _validate_media_target(url: str):
     parsed = urlparse(url)
     allowed = ('googlevideo.com', 'ytimg.com', 'fbcdn.net', 'cdninstagram.com',
-               'tiktokcdn.com', 'tiktokv.com', 'muscdn.com', 'byteoversea.com',
+               'tiktokcdn.com', 'tiktokcdn-us.com', 'tiktokv.com', 'muscdn.com', 'byteoversea.com',
                'twimg.com', 'pinimg.com', 'redd.it', 'redditmedia.com')
     host = (parsed.hostname or '').lower()
     if (parsed.scheme != 'https' or parsed.username or parsed.password
@@ -268,6 +268,8 @@ async def _serve_download_file(
         raise HTTPException(status_code=502, detail=detail)
 
     content_type = upstream.headers.get("content-type") or "application/octet-stream"
+    if media_type == 'audio' and content_type.split(';')[0] == 'video/mp4':
+        content_type = 'audio/mp4'
     content_length = upstream.headers.get("content-length")
     extension = {'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp',
                  'video/mp4': '.mp4', 'audio/mp4': '.m4a', 'audio/mpeg': '.mp3'}.get(content_type.split(';')[0])

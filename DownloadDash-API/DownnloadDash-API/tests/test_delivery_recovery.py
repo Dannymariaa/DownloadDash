@@ -25,6 +25,24 @@ def test_cached_download_never_invokes_extractor(monkeypatch, tmp_path):
     assert 'requested_downloads' not in downloader.process_ie_result.call_args.args[0]
 
 
+def test_single_entry_video_retains_split_audio_for_managed_delivery(monkeypatch):
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from app.models.schemas import Quality
+    public = PublicPlatformDownloader()
+    entry = {'id': 'one', 'url': 'https://cdn.example/video.mp4', 'ext': 'mp4', 'formats': [
+        {'url': 'https://cdn.example/video.mp4', 'vcodec': 'h264', 'acodec': 'none', 'ext': 'mp4', 'height': 720},
+        {'url': 'https://cdn.example/audio.m4a', 'vcodec': 'none', 'acodec': 'aac', 'ext': 'm4a'}]}
+    factory = MagicMock()
+    factory.return_value.__enter__.return_value.extract_info.return_value = {'entries': [entry]}
+    monkeypatch.setattr('app.platforms.public_platforms.yt_dlp.YoutubeDL', factory)
+    source = 'https://www.instagram.com/reel/example/'
+    result = asyncio.run(public.resolve_media(source, Quality.HIGH))
+    assert result['downloads']['videoHD'].startswith('/download/file?')
+    assert len(public.get_resolved_media(source)['formats']) == 2
+
+
 def test_direct_delivery_streams_ranges_and_closes_upstream(monkeypatch):
     import asyncio
 

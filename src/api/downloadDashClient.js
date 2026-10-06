@@ -752,7 +752,7 @@ const findAudioUrl = (...sources) => {
 export const buildFileProxyPayload = (fileUrl, filename, sourceUrl = '', mediaType = '') => {
   const payload = { filename: sanitizeFilename(filename) || 'download', sourceUrl, mediaType };
   const isPhoto = ['image', 'photo', 'picture'].includes(String(mediaType || '').toLowerCase());
-  const isPhotoSoundtrack = /\/photo\//i.test(sourceUrl) && String(mediaType).toLowerCase() === 'audio';
+  const isPhotoSoundtrack = String(mediaType).toLowerCase() === 'audio';
   if (!isTikTokSourceUrl(sourceUrl) || isPhoto || isPhotoSoundtrack) payload.url = fileUrl;
   return payload;
 };
@@ -780,7 +780,7 @@ export const downloadToDevice = async (fileUrl, filename, sourceUrl = '', mediaT
     return triggerBrowserDownload(proxyRes, safeName || 'download');
   };
 
-  if (isTikTokMediaUrl(absoluteFileUrl, sourceUrl) && !isApiManagedDownload) {
+  if ((isTikTokMediaUrl(absoluteFileUrl, sourceUrl) || String(mediaType).toLowerCase() === 'audio') && !isApiManagedDownload) {
     return proxyDownload();
   }
 

@@ -8,6 +8,15 @@ import { isPlatformMediaUrl, normalizePublicUrl } from '../../shared/publicUrl.j
 import { publicError, sendError } from '../../server/smd/errors.js';
 import { validateFileProxyRequest } from '../../server/smd/validation.js';
 
+test('observed TikTok US media hosts and Reddit gallery paths are accepted precisely', () => {
+  const payload = { sourceUrl: 'https://www.tiktok.com/@chillezy/photo/7240568259186019630',
+    url: 'https://p19-common-sign.tiktokcdn-us.com/photo.jpg', mediaType: 'image' };
+  assert.equal(validateFileProxyRequest({ method: 'POST', body: payload }).url, payload.url);
+  assert.throws(() => validateFileProxyRequest({ method: 'POST', body: { ...payload, url: 'https://tiktokcdn-us.com.attacker.example/a.jpg' } }));
+  assert.equal(isPlatformMediaUrl('https://www.reddit.com/gallery/hrrh23', 'reddit'), true);
+  assert.equal(isPlatformMediaUrl('https://www.reddit.com/user/example/comments/abc/title/', 'reddit'), true);
+});
+
 test('provider timeouts explain that the provider timed out and can be retried', () => {
   const res = createResponse();
   sendError(res, publicError('PROVIDER_TIMEOUT', 504), 'timeout-test');

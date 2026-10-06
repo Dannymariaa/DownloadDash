@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   buildFileProxyPayload,
+  downloadToDevice,
   getSelectableMediaItems,
   inferMediaTypeFromUrl,
   isSingleCanonicalVideoResult,
@@ -10,6 +11,21 @@ import {
   responseErrorMessage,
   isRetryableDownloadError,
 } from '../../src/api/downloadDashClient.js';
+
+test('audio CDN files use managed delivery to correct provider video MIME headers', async () => {
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    return new Response('unavailable', { status: 502 });
+  };
+  try {
+    await assert.rejects(downloadToDevice('https://scontent.fbcdn.net/audio.mp4', 'audio.m4a',
+      'https://www.facebook.com/watch/?v=123', 'audio'));
+    assert.equal(calls.length, 1);
+    assert.match(calls[0], /\/download\/file$/);
+  } finally { globalThis.fetch = original; }
+});
 
 test('Retry is offered for transient failures but not classified restrictions', () => {
   for (const code of ['PROVIDER_TIMEOUT', 'UPSTREAM_TIMEOUT', 'UPSTREAM_UNAVAILABLE']) {

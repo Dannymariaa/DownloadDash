@@ -70,9 +70,10 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         profiles = downloader._youtube_client_profiles()
 
         self.assertEqual(len(profiles), 2)
-        self.assertEqual(profiles[0][0], "web_cookie_direct")
+        self.assertEqual(profiles[0][0], "public_default")
+        self.assertIsNone(profiles[0][1])
         self.assertFalse(profiles[0][3])
-        self.assertEqual(profiles[1][0], "web_cookie_proxy")
+        self.assertEqual(profiles[1][0], "configured_session")
         self.assertTrue(profiles[1][3])
 
     def test_platform_request_validation_accepts_reddit_share_and_youtube_live(self):

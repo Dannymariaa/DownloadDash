@@ -7,7 +7,7 @@ export const FREE_BATCH_URL_LIMIT = 1;
 export const PRO_BATCH_URL_LIMIT = 7;
 const TIKTOK_SHORT_HOSTS = new Set(["vm.tiktok.com", "vt.tiktok.com"]);
 const REDDIT_SHORT_HOSTS = new Set(["redd.it"]);
-const TIKTOK_MEDIA_HOSTS = ["tiktokcdn.com", "tiktokv.com", "muscdn.com", "byteoversea.com"];
+const TIKTOK_MEDIA_HOSTS = ["tiktokcdn.com", "tiktokcdn-us.com", "tiktokv.com", "muscdn.com", "byteoversea.com"];
 const SHORT_LINK_TIMEOUT_MS = 6_000;
 const SHORT_LINK_REDIRECT_LIMIT = 5;
 

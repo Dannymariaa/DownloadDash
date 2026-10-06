@@ -42,7 +42,8 @@ class BasePlatformDownloadIn(BaseModel):
                 or bool(re.match(r"^/[^/]+/(videos|posts)/[^/]+(?:/\d+)?/?$", path, re.I))
                 or "v=" in query or "story_fbid=" in query or "fbid=" in query,
                 "reddit": host == "redd.it" and len(path) > 1
-                or bool(re.match(r"^/r/[^/]+/(s/[^/]+|comments/[^/]+)", path, re.I)),
+                or bool(re.match(r"^/(r|user)/[^/]+/(s/[^/]+|comments/[^/]+)", path, re.I))
+                or bool(re.match(r"^/(gallery|comments)/[a-z0-9]+(?:/|$)", path, re.I)),
                 "pinterest": host == "pin.it" and len(path) > 1 or bool(re.match(r"^/pin/\d+", path, re.I)),
                 "x": bool(re.search(r"/status/\d+", path, re.I)),
                 "youtube": host == "youtu.be" and len(path) > 1

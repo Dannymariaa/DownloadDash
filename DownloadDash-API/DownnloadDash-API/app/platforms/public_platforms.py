@@ -355,10 +355,10 @@ class PublicPlatformDownloader:
         # serially when a proxy was configured, which could exhaust the API
         # deadline before yt-dlp returned metadata.  Media transfer is handled
         # separately by the managed file endpoints.
-        primary = ("web_cookie_direct", ["web"], True, False)
+        primary = ("public_default", None, False, False)
         if self.youtube_proxy_url:
-            return [primary, ("web_cookie_proxy", ["web"], True, True)]
-        return [primary, ("android_nocookie_fallback", ["android"], False, False)]
+            return [primary, ("configured_session", None, True, True)]
+        return [primary, ("configured_session", None, True, False)]
 
     def _is_youtube_url(self, url: str) -> bool:
         host = (urlparse(url).hostname or "").lower().rstrip(".")
@@ -912,8 +912,8 @@ class PublicPlatformDownloader:
 
         if variant == "audio":
             format_selectors = ["bestaudio[ext=m4a]/bestaudio/best", "bestaudio/best", "best"]
-            extension = "m4a"
-            media_type = "audio/mp4"
+            extension = "mp3"
+            media_type = "audio/mpeg"
         elif variant == "image":
             format_selectors = ["best"]
             extension = "jpg"
@@ -957,6 +957,8 @@ class PublicPlatformDownloader:
                     "api_hostname": ["api22-normal-c-useast1a.tiktokv.com"],
                 }
             }
+        if variant == 'audio':
+            opts['postprocessors'] = [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]
 
         def run_download(download_opts: Dict[str, Any]):
             with yt_dlp.YoutubeDL(download_opts) as ydl:
@@ -1031,6 +1033,11 @@ class PublicPlatformDownloader:
         url = self._normalize_youtube_url(url)
 
         is_instagram_reel = bool(re.search(r"instagram\.com/(reel|tv)/", url, re.IGNORECASE))
+        instagram_json_tried = self._platform_key_for_url(url) == 'instagram' and not is_instagram_reel
+        if instagram_json_tried:
+            photo = await self._fallback_instagram_json(url)
+            if photo:
+                return photo
 
         # For best compatibility, prefer formats that include both audio+video when not extracting audio.
         file_id = str(uuid.uuid4())
@@ -1145,7 +1152,7 @@ class PublicPlatformDownloader:
                 raise Exception(f"Resolve failed: {msg}")
 
             if info is None and ("no video formats found" in lowered or "no formats found" in lowered) and not extract_audio:
-                ig = await self._fallback_instagram_json(url)
+                ig = None if instagram_json_tried else await self._fallback_instagram_json(url)
                 if ig:
                     return ig
                 html = await self._fallback_instagram_html(url)
@@ -1197,6 +1204,11 @@ class PublicPlatformDownloader:
 
             if len(entry_items) == 1:
                 item = entry_items[0]
+                entry = info['entries'][0]
+                if item['type'] == 'video' and isinstance(entry, dict) and entry.get('formats'):
+                    self.remember_resolved_media(url, entry)
+                    item['url'] = self._api_file_download_url(url, 'hd', 'video.mp4')
+                    item['downloadableUrl'] = item['url']
                 downloads = {"items": entry_items}
                 if item["type"] == "video":
                     downloads["videoHD"] = item["url"]

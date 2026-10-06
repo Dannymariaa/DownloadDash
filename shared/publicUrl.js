@@ -113,7 +113,8 @@ export const isPlatformMediaUrl = (url, platform) => {
     case "reddit":
       return host === "redd.it"
         ? path.length > 1
-        : /^\/r\/[^/]+\/(s\/[^/]+|comments\/[^/]+)/i.test(path);
+        : /^\/(?:r|user)\/[^/]+\/(s\/[^/]+|comments\/[^/]+)/i.test(path)
+          || /^\/(gallery|comments)\/[a-z0-9]+(?:\/|$)/i.test(path);
     case "instagram":
       return /^\/(p|reel|reels|stories|tv)\//i.test(path);
     case "x":
