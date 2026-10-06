@@ -190,7 +190,15 @@ class MetadataTransport:
                 # HTTPX decodes the content, while num_bytes_downloaded counts
                 # the encoded payload consumed from the network, including errors.
                 try:
-                    body = response.read()
+                    if response.status_code >= 400:
+                        preview = bytearray()
+                        for chunk in response.iter_bytes(chunk_size=8192):
+                            preview.extend(chunk)
+                            if len(preview) >= 8192:
+                                break
+                        body = bytes(preview[:8192])
+                    else:
+                        body = response.read()
                 finally:
                     self.metrics.proxyDownloadBytes += response.num_bytes_downloaded
                 clean_headers = dict(response.headers)

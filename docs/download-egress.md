@@ -32,6 +32,11 @@ connection or rejected media response may have zero body bytes but a nonzero
 request count. Cache hits and single-flight followers report zero additional
 proxy bytes. Only the operation owner reports its cost.
 
+Error responses stop after the 8 KiB decoded preview used for classification.
+Measured encoded bytes can exceed that preview because of transport buffering;
+the counters retain that actual consumption. Successful metadata has no such
+budget cap, and classification never required the rest of an error page.
+
 Provider diagnostics expose worker-local recent successes/failures and a small
 circuit breaker. Proxy authentication/quota/connect failures open it for 60
 seconds; two consecutive other infrastructure failures also open it. Direct resolution

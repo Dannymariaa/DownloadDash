@@ -214,3 +214,19 @@ def test_metadata_transport_never_requests_media_or_manifests(extension):
     )) as client:
         with pytest.raises(ValueError, match='media'):
             client.request('https://www.youtube.com/asset.' + extension)
+
+
+def test_proxy_error_reads_only_the_preview_used_for_classification():
+    from yt_dlp.networking.exceptions import HTTPError
+    class ErrorPage(httpx.SyncByteStream):
+        def __iter__(self):
+            yield b'Forbidden' + b' ' * (8192 - len(b'Forbidden'))
+            pytest.fail('unused remainder of an error page consumed proxy bandwidth')
+    metrics = ProxyMetrics()
+    with MetadataTransport('http://proxy.test', metrics, transport=httpx.MockTransport(
+        lambda req: httpx.Response(403, headers={'content-type': 'text/html'}, stream=ErrorPage())
+    )) as client:
+        with pytest.raises(HTTPError):
+            client.request('https://www.reddit.com/comments/example.json')
+    assert metrics.proxyRequestCount == 1
+    assert metrics.proxyDownloadBytes == 8192
