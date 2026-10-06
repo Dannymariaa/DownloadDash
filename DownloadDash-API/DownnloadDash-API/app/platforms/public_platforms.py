@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, quote, urlencode, urlparse, urlunparse
 from ..models.schemas import Platform, Quality
 from ..config import settings
 from app.api.resolver_errors import TERMINAL_PROVIDER_ERRORS, classify_resolver_error, sanitize_provider_error
+from app.platforms.egress import public_resolution, public_metadata, cache_ttl, MetadataTransport
 
 RESOLVED_MEDIA_DIRECTORY = Path(tempfile.gettempdir()) / 'downloaddash-resolved-media'
 
@@ -45,7 +46,11 @@ class PublicPlatformDownloader:
         self._initialize_user_agent()
 
     def remember_resolved_media(self, url, info):
-        if not info.get('formats'):
+        if not public_resolution.get() or not info.get('formats'):
+            return
+        info = public_metadata(info)
+        ttl = cache_ttl(info)
+        if not ttl:
             return
         self._resolved_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
         for entry in self._resolved_dir.glob('*.json'):
@@ -61,7 +66,7 @@ class PublicPlatformDownloader:
         fd, temporary = tempfile.mkstemp(dir=self._resolved_dir)
         try:
             with os.fdopen(fd, 'w', encoding='utf-8') as handle:
-                json.dump({'expires': time.time() + 300, 'info': info}, handle, default=str)
+                json.dump({'expires': time.time() + ttl, 'info': info}, handle, default=str)
             os.replace(temporary, target)
         finally:
             if os.path.exists(temporary):
@@ -192,7 +197,10 @@ class PublicPlatformDownloader:
             'user_agent': self.user_agent,
         }
 
-        if self.cookiefile and os.path.exists(self.cookiefile):
+        opts['proxy'] = ''  # Explicitly disable environment proxies, including downloads.
+        opts['hls_prefer_native'] = True
+        opts['external_downloader_args'] = {'ffmpeg_i': ['-http_proxy', '']}
+        if not public_resolution.get() and self.cookiefile and os.path.exists(self.cookiefile):
             opts["cookiefile"] = self.cookiefile
         return opts
 
@@ -206,6 +214,8 @@ class PublicPlatformDownloader:
             return "facebook"
         if host in {"reddit.com", "redd.it"} or host.endswith(".reddit.com"):
             return "reddit"
+        if host in {'pinterest.com', 'pin.it'} or host.endswith('.pinterest.com'):
+            return 'pinterest'
         if host in {"twitter.com", "x.com"} or host.endswith(".twitter.com") or host.endswith(".x.com"):
             return "x"
         if host in {"youtube.com", "youtu.be"} or host.endswith(".youtube.com"):
@@ -220,7 +230,7 @@ class PublicPlatformDownloader:
         return None
 
     def _apply_cookiefile_for_url(self, opts: Dict[str, Any], url: str) -> Dict[str, Any]:
-        cookiefile = self._cookiefile_for_url(url)
+        cookiefile = None if public_resolution.get() else self._cookiefile_for_url(url)
         if cookiefile:
             opts["cookiefile"] = cookiefile
         else:
@@ -229,14 +239,10 @@ class PublicPlatformDownloader:
 
     def _proxy_for_url(self, url: str) -> str | None:
         platform_key = self._platform_key_for_url(url)
-        return self.proxy_urls.get(platform_key) or self.proxy_urls.get("default")
+        return self.proxy_urls.get(platform_key) or (self.youtube_proxy_url if platform_key == 'youtube' else None) or self.proxy_urls.get("default") or self.proxy_url
 
     def _apply_proxy_for_url(self, opts: Dict[str, Any], url: str) -> Dict[str, Any]:
-        proxy_url = self._proxy_for_url(url)
-        if proxy_url:
-            opts["proxy"] = proxy_url
-        else:
-            opts.pop("proxy", None)
+        opts['proxy'] = ''
         return opts
 
     def _log_ydl_context(self, label: str, url: str, opts: Dict[str, Any]) -> None:
@@ -355,10 +361,7 @@ class PublicPlatformDownloader:
         # serially when a proxy was configured, which could exhaust the API
         # deadline before yt-dlp returned metadata.  Media transfer is handled
         # separately by the managed file endpoints.
-        primary = ("public_default", None, False, False)
-        if self.youtube_proxy_url:
-            return [primary, ("configured_session", None, True, True)]
-        return [primary, ("configured_session", None, True, False)]
+        return [("public_default", None, False, False)]
 
     def _is_youtube_url(self, url: str) -> bool:
         host = (urlparse(url).hostname or "").lower().rstrip(".")
@@ -598,10 +601,7 @@ class PublicPlatformDownloader:
             if not use_cookies:
                 opts.pop("cookiefile", None)
 
-            if use_proxy and self.youtube_proxy_url:
-                opts["proxy"] = self.youtube_proxy_url
-            else:
-                opts.pop("proxy", None)
+            opts['proxy'] = ''
 
             self._log_ydl_context(f"{label}.{profile_name}", url, opts)
             try:
@@ -749,10 +749,7 @@ class PublicPlatformDownloader:
                         opts.pop("extractor_args", None)
                     if not use_cookies:
                         opts.pop("cookiefile", None)
-                    if use_proxy and self.youtube_proxy_url:
-                        opts["proxy"] = self.youtube_proxy_url
-                    else:
-                        opts.pop("proxy", None)
+                    opts['proxy'] = ''
 
                     self._log_ydl_context(
                         f"youtube.download.{variant}.{profile_name}.{format_selector}",
@@ -1027,6 +1024,68 @@ class PublicPlatformDownloader:
             raise Exception(f"{label} {variant} download failed media verification: {verification}")
         return {"path": filepath, "filename": filename, "media_type": media_type_by_ext.get(actual_ext, media_type), "verification": verification}
     
+    async def resolve_proxy_metadata(self, url, quality, extract_audio, metrics):
+        """Exactly one anonymous extraction operation; never a media download."""
+        proxy = self._proxy_for_url(url)
+        if not proxy:
+            raise RuntimeError('PROXY_UNREACHABLE')
+
+        def extract():
+            with MetadataTransport(proxy, metrics) as transport:
+                reddit_id = re.search(r'/(?:gallery|comments)/([a-z0-9]+)', url, re.I)
+                if self._platform_key_for_url(url) == 'reddit' and reddit_id:
+                    reply = transport.request(f'https://www.reddit.com/comments/{reddit_id[1]}.json?raw_json=1&limit=1')
+                    data = json.loads(reply.read())
+                    post = data[0]['data']['children'][0]['data']
+                    if post.get('removed_by_category'):
+                        raise RuntimeError('MEDIA_NOT_FOUND')
+                    entries = []
+                    for item in (post.get('gallery_data') or {}).get('items', []):
+                        media = (post.get('media_metadata') or {}).get(item['media_id'], {})
+                        source = media.get('s') or {}
+                        asset = source.get('mp4') or source.get('u') or source.get('gif')
+                        if asset:
+                            is_video = bool(source.get('mp4'))
+                            entries.append({'id': item['media_id'], 'url': html_lib.unescape(asset),
+                                            'ext': 'mp4' if is_video else 'jpg',
+                                            'vcodec': 'h264' if is_video else 'none', 'acodec': 'none',
+                                            'width': source.get('x'), 'height': source.get('y')})
+                    if entries:
+                        return {'entries': entries, 'title': post.get('title')}
+                    video = ((post.get('secure_media') or post.get('media') or {}).get('reddit_video') or {})
+                    if video:
+                        asset = video.get('hls_url') or video.get('fallback_url')
+                        return {'title': post.get('title'), 'formats': [{'url': asset, 'ext': 'mp4',
+                            'vcodec': 'h264', 'acodec': 'none' if video.get('is_gif') else 'aac',
+                            'protocol': 'm3u8_native' if video.get('hls_url') else 'https',
+                            'width': video.get('width'), 'height': video.get('height')}]}
+                    asset = post.get('url_overridden_by_dest') or ''
+                    if (urlparse(asset).hostname or '') == 'i.redd.it':
+                        return {'entries': [{'url': asset, 'ext': asset.split('?')[0].rsplit('.', 1)[-1],
+                                             'vcodec': 'none', 'acodec': 'none'}], 'title': post.get('title')}
+                    raise RuntimeError('UNSUPPORTED_MEDIA')
+
+                class QuietLogger:
+                    def debug(self, *_): pass
+                    def warning(self, *_): pass
+                    def error(self, *_): pass
+
+                opts = {'quiet': True, 'no_warnings': True, 'logger': QuietLogger(),
+                        'proxy': '', 'skip_download': True, 'noplaylist': True,
+                        'retries': 0, 'extractor_retries': 0, 'fragment_retries': 0,
+                        'socket_timeout': 5, 'ignore_no_formats_error': True,
+                        'http_headers': self._build_http_headers(url)}
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    # All extractor network calls use the same measured pool.
+                    ydl.urlopen = transport.urlopen
+                    return ydl.extract_info(url, download=False)
+
+        try:
+            info = await asyncio.to_thread(extract)
+            return self._normalize_resolved_info(url, public_metadata(info), extract_audio)
+        except Exception as exc:
+            raise RuntimeError(classify_resolver_error(self._platform_key_for_url(url), str(exc))) from None
+
     async def resolve_media(self, url: str, quality: Quality, extract_audio: bool = False) -> Dict[str, Any]:
         """Resolve a direct media URL without downloading or saving files."""
         loop = asyncio.get_event_loop()
@@ -1120,26 +1179,8 @@ class PublicPlatformDownloader:
                     lowered = ""
             if retried_successfully:
                 pass
-            elif (
-                ("youtube.com" in url or "youtu.be" in url)
-                and ("sign in to confirm you're not a bot" in lowered or "use --cookies-from-browser or --cookies" in lowered)
-            ):
-                raise Exception(
-                    "YouTube is temporarily blocking downloads from the API server. "
-                    "Please try again in a bit. If this keeps happening, the API needs fresh YouTube cookies configured on the backend."
-                )
-            elif "403" in lowered and "forbidden" in lowered:
-                raise Exception(
-                    "403 Forbidden from the platform. "
-                    "TikTok/Instagram often block server IPs or require cookies/login. "
-                    "Fix: export your browser cookies (Netscape format) and set SMD_YTDLP_COOKIEFILE to that file path, "
-                    "or run the API from a different network/VPN."
-                )
-            elif "varnish" in lowered or "error 54113" in lowered:
-                raise Exception(
-                    "Blocked by an upstream cache (Varnish / Error 54113). "
-                    "This is usually an IP/rate-limit block. Try a different network/VPN, or configure cookies via SMD_YTDLP_COOKIEFILE."
-                )
+            elif classify_resolver_error(self._platform_key_for_url(url), msg) in TERMINAL_PROVIDER_ERRORS:
+                raise Exception(msg) from None
             # Retry with relaxed format selection for image-only posts.
             elif ("no video formats found" in lowered or "no formats found" in lowered) and not extract_audio:
                 relaxed_opts = dict(ydl_opts)
@@ -1168,6 +1209,9 @@ class PublicPlatformDownloader:
                         return og
                 raise Exception(msg)
 
+        return self._normalize_resolved_info(url, info, extract_audio)
+
+    def _normalize_resolved_info(self, url, info, extract_audio=False):
         if not info:
             raise Exception("Resolve failed: no info returned")
 
@@ -1469,10 +1513,11 @@ class PublicPlatformDownloader:
                 headers=headers,
                 cookies=cookies,
             )
-            platform_proxy = self._proxy_for_url(url)
+            platform_proxy = None  # Metadata fallbacks remain direct.
             if platform_proxy:
                 client_kwargs["proxy"] = platform_proxy
             async with httpx.AsyncClient(
+                trust_env=False,
                 **client_kwargs
             ) as client:
                 resp = await client.get(url)
@@ -1614,7 +1659,7 @@ class PublicPlatformDownloader:
     async def _facebook_html_diagnostic(self, url: str) -> str:
         cookiefile = self._cookiefile_for_url(url)
         cookie_ok = bool(cookiefile and os.path.exists(cookiefile))
-        proxy_url = self._proxy_for_url(url)
+        proxy_url = None  # Only resolve_proxy_metadata may use residential egress.
         status = "not_verified"
         html_kind = "not_verified"
 
@@ -1627,7 +1672,7 @@ class PublicPlatformDownloader:
             )
             if proxy_url:
                 client_kwargs["proxy"] = proxy_url
-            async with httpx.AsyncClient(**client_kwargs) as client:
+            async with httpx.AsyncClient(trust_env=False, **client_kwargs) as client:
                 resp = await client.get(url)
                 status = str(resp.status_code)
                 lowered = (resp.text or "").lower()
@@ -1717,6 +1762,7 @@ class PublicPlatformDownloader:
 
         try:
             async with httpx.AsyncClient(
+                trust_env=False,
                 **self._httpx_client_kwargs(
                     timeout=5.0,
                     follow_redirects=True,
@@ -1858,6 +1904,7 @@ class PublicPlatformDownloader:
         cookies = self._load_cookiefile(url)
         try:
             async with httpx.AsyncClient(
+                trust_env=False,
                 **self._httpx_client_kwargs(
                     timeout=5.0,
                     follow_redirects=True,
@@ -1949,6 +1996,7 @@ class PublicPlatformDownloader:
         headers = self._build_http_headers(url)
         try:
             async with httpx.AsyncClient(
+                trust_env=False,
                 **self._httpx_client_kwargs(
                     timeout=5.0,
                     follow_redirects=True,
@@ -1994,6 +2042,8 @@ class PublicPlatformDownloader:
         return match.group(2) if match else None
 
     def _load_cookiefile(self, url: str | None = None) -> httpx.Cookies:
+        if public_resolution.get():
+            return {}
         jar = httpx.Cookies()
         cookiefile = self._cookiefile_for_url(url or "") if url else self.cookiefile
         if not cookiefile or not os.path.exists(cookiefile):

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.config import settings
+from app.platforms.egress import public_resolution
 
 
 MEDIA_EXTENSIONS = {
@@ -101,13 +102,11 @@ class GalleryDLDownloader:
         )
 
     def _base_command(self, url: str) -> List[str]:
-        command = [sys.executable, "-m", "gallery_dl", "--no-colors"]
-        cookiefile = self._cookiefile_for_url(url)
-        proxy_url = self._proxy_for_url(url)
+        command = [sys.executable, "-m", "gallery_dl", "--ignore-config", "--no-colors",
+                   "-o", "proxy=", "-o", "proxy-env=false", "-o", "retries=0"]
+        cookiefile = None if public_resolution.get() else self._cookiefile_for_url(url)
         if cookiefile:
             command.extend(["-o", f"cookies={cookiefile}"])
-        if proxy_url:
-            command.extend(["-o", f"proxy={proxy_url}"])
         return command
 
     async def resolve(self, url: str, limit: int = 25, timeout_seconds: float | None = None) -> Dict[str, Any]:

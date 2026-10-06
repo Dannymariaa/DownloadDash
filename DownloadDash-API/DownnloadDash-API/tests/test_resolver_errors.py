@@ -147,6 +147,9 @@ class ResolverErrorClassificationTests(unittest.TestCase):
             def _cookiefile_for_url(self, url):
                 return self.cookiefile
 
+            def _proxy_for_url(self, url):
+                return None
+
         with TemporaryDirectory() as temp_dir:
             cookiefile = Path(temp_dir) / "cookies.txt"
             cookiefile.write_text(

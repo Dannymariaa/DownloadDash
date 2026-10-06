@@ -26,6 +26,7 @@ PROVIDER_ERROR_CODES = {
 # Retrying another extraction path cannot make restricted or unavailable media
 # public. Preserve these errors at every resolver/fallback boundary.
 TERMINAL_PROVIDER_ERRORS = {
+    'INVALID_URL', 'UNSUPPORTED_MEDIA', 'PUBLIC_NETWORK_ERROR',
     'ANTI_BOT_CHALLENGE', 'COOKIE_REQUIRED', 'COOKIE_EXPIRED', 'LOGIN_REQUIRED',
     'PRIVATE_MEDIA', 'MEDIA_NOT_FOUND', 'PROVIDER_TIMEOUT', 'RATE_LIMITED',
     'PLATFORM_BLOCKED_PROXY', 'PROXY_BLOCKED', 'PROXY_AUTH_FAILED',
@@ -77,11 +78,30 @@ def classify_resolver_error(platform: Platform | str | None, raw_error: Optional
     text = sanitize_provider_error(raw_error).lower()
     platform_key = _platform_value(platform)
 
+    # Restrictions outrank a generic status/timeout included in the same error.
+    restrictions = ('ANTI_BOT_CHALLENGE', 'PRIVATE_MEDIA', 'COOKIE_EXPIRED', 'COOKIE_REQUIRED',
+                    'LOGIN_REQUIRED', 'MEDIA_NOT_FOUND', 'INVALID_URL', 'UNSUPPORTED_MEDIA')
+    for code in restrictions:
+        if code.lower() in text:
+            return code
+    if any(marker in text for marker in ('captcha', 'challenge', 'checkpoint', "confirm you're not a bot")):
+        return 'ANTI_BOT_CHALLENGE'
+    if any(marker in text for marker in ('private', 'followers only', 'paid content', 'subscription required')):
+        return 'PRIVATE_MEDIA'
+    if '407' in text or 'proxy authentication' in text or 'proxy auth' in text:
+        return 'PROXY_AUTH_FAILED'
+    if platform_key in {'twitter', 'x'} and any(marker in text for marker in ('temporarily locked', 'unlock your account', 'authorization: denied by access control')):
+        return 'LOGIN_REQUIRED'
+    if any(marker in text for marker in ('login required', 'log in', 'sign in', 'authentication required')):
+        return 'COOKIE_REQUIRED'
+    if '404' in text or 'not found' in text:
+        return 'MEDIA_NOT_FOUND'
+    for code in ('PROXY_AUTH_FAILED', 'PROXY_QUOTA_EXHAUSTED', 'PROXY_UNREACHABLE', 'PUBLIC_NETWORK_ERROR', 'PLATFORM_BLOCKED_PROXY'):
+        if code.lower() in text:
+            return code
+
     if not text:
         return "EXTRACTOR_FAILED"
-
-    if any(token in text for token in ("provider metadata resolve timed out", "resolver timed out", "timed out")):
-        return "PROVIDER_TIMEOUT"
 
     if "407" in text or "proxy authentication" in text or "proxy auth" in text:
         return "PROXY_AUTH_FAILED"
@@ -89,6 +109,11 @@ def classify_resolver_error(platform: Platform | str | None, raw_error: Optional
         return "PROXY_QUOTA_EXHAUSTED"
     if "proxy" in text and any(token in text for token in ("connection refused", "timed out", "unreachable", "name resolution", "cannot connect")):
         return "PROXY_UNREACHABLE"
+
+    if any(token in text for token in ('timed out', 'timeout')):
+        return 'PROVIDER_TIMEOUT'
+    if any(token in text for token in ('connection refused', 'network is unreachable', 'name resolution', 'connection reset', 'connecterror')):
+        return 'PUBLIC_NETWORK_ERROR'
 
     if any(token in text for token in ("429", "too many requests", "rate limit", "temporarily blocked", "please wait a few minutes")):
         return "RATE_LIMITED"

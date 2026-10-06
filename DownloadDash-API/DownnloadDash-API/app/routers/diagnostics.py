@@ -13,6 +13,7 @@ from app.api.cookie_state import inspect_netscape_cookiefile
 from app.api.resolver_errors import classify_resolver_error, sanitize_provider_error
 from app.models.schemas import Platform, Quality
 from app.state import gallery_downloader, public_downloader, universal_downloader
+from app.platforms.egress import egress_policy
 
 router = APIRouter(prefix="/diagnostics", tags=["diagnostics"])
 
@@ -294,6 +295,7 @@ async def provider_diagnostics(
     probe_proxy: bool = Query(default=False),
     run_resolver: bool = Query(default=False),
     run_gallery: bool = Query(default=False),
+    probe_media: bool = Query(default=False),
 ):
     platform_value = _platform_from_value(platform)
     platform_key = "x" if platform_value in (Platform.X, Platform.TWITTER) else platform_value.value
@@ -306,6 +308,9 @@ async def provider_diagnostics(
     gallery_cookie_state = inspect_netscape_cookiefile(gallery_cookiefile)
 
     response: dict[str, Any] = {
+        'egressPolicy': {'directFirst': True, 'proxyMediaTransfer': False,
+                         'recentHealth': egress_policy.snapshot().get(platform_key, {}),
+                         'healthScope': 'current worker'},
         "platform": platform_key,
         "cookiesConfigured": bool(ytdlp_cookie_state["loaded"]),
         "cookieCount": int(ytdlp_cookie_state["cookieCount"]),
@@ -332,14 +337,15 @@ async def provider_diagnostics(
         response["directProbe"] = await _probe_direct_http()
 
     if run_resolver and url:
-        if platform_value in (Platform.X, Platform.TWITTER):
-            response["ytDlpTrace"] = await _probe_ytdlp_trace(url, platform_value, ytdlp_cookie_state)
         try:
-            result = await universal_downloader.resolve_media(
-                url=url,
-                platform=platform_value,
-                quality=Quality.HIGHEST,
-            )
+            from app.api.shared import _resolve_public_metadata, _resolve_cache_key
+            from app.models.schemas import DownloadRequest
+            request = DownloadRequest(url=url, platform=platform_value, quality=Quality.HIGH)
+            result, failure, *_ = await _resolve_public_metadata(
+                platform=platform_value, request=request, cache_key=_resolve_cache_key(platform_value, request))
+            if failure:
+                raise failure
+            response['egress'] = (result or {}).get('egress', {})
             response["resolver"] = {
                 "attempted": True,
                 "summary": _summarize_universal_result(result),
@@ -347,6 +353,7 @@ async def provider_diagnostics(
         except Exception as exc:
             sanitized = sanitize_provider_error(str(exc))
             error_code = classify_resolver_error(platform_value, sanitized)
+            response['egress'] = getattr(exc, 'egress', {})
             response["resolver"] = {
                 "attempted": True,
                 "summary": {"metadataReturned": False, "directUrlReturned": False, "entryCount": 0},
@@ -377,6 +384,44 @@ async def provider_diagnostics(
                 "classifierRule": _promote_cookie_error(platform_value, error_code, gallery_cookie_state),
             }
 
+    if probe_media and url:
+        response['directMediaProbe'] = await _probe_cached_media(url)
+    response['egressPolicy']['recentHealth'] = egress_policy.snapshot().get(platform_key, {})
+
     # Yield once so slow probes do not monopolize the event loop in single-worker runs.
     await asyncio.sleep(0)
     return response
+
+
+async def _probe_cached_media(source_url):
+    """Probe cached CDN formats directly; never re-extract or retry with a proxy."""
+    from app.api.download import _validate_media_target
+    info = public_downloader.get_resolved_media(source_url)
+    if not info:
+        return {'phase': 'media_cdn', 'cachedFormats': False, 'proxyTotalBytes': 0, 'samples': []}
+    formats = [f for f in info.get('formats', []) if f.get('url') and f.get('protocol') in (None, 'https', 'http')]
+    samples = []
+    # At most one video and one audio probe; no duplicate HEAD then GET.
+    chosen = []
+    for kind in ('video', 'audio'):
+        candidate = next((f for f in formats if (f.get('vcodec') == 'none') == (kind == 'audio')), None)
+        if candidate and candidate['url'] not in {f['url'] for f in chosen}:
+            chosen.append(candidate)
+    async with httpx.AsyncClient(timeout=5, trust_env=False, follow_redirects=False) as client:
+        for fmt in chosen:
+            target = fmt['url']
+            try:
+                _validate_media_target(target)
+                headers = public_downloader._build_http_headers(source_url)
+                headers['Range'] = 'bytes=0-1023'
+                async with client.stream('GET', target, headers=headers) as res:
+                    count = 0
+                    async for chunk in res.aiter_raw(chunk_size=1024):
+                        count += len(chunk)
+                        break  # Close even if the provider ignores Range.
+                    samples.append({'host': urlsplit(target).hostname, 'status': res.status_code,
+                                    'contentType': res.headers.get('content-type'), 'sampleBytes': count,
+                                    'rangeHonored': res.status_code == 206})
+            except Exception as exc:
+                samples.append({'phase': 'media_cdn', 'errorClass': type(exc).__name__})
+    return {'phase': 'media_cdn', 'cachedFormats': True, 'proxyTotalBytes': 0, 'samples': samples}

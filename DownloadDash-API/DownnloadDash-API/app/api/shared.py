@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import hashlib
 import json
 import uuid
@@ -20,6 +21,7 @@ from app.models.schemas import (
     Platform,
 )
 from app.state import gallery_downloader, public_downloader, universal_downloader
+from app.platforms.egress import egress_policy, public_resolution, public_metadata, cache_ttl, reused_metrics, ProxyMetrics
 
 
 GALLERY_FALLBACK_PLATFORMS = {
@@ -58,9 +60,16 @@ def _get_resolver_semaphore() -> asyncio.Semaphore:
 async def _run_bounded_metadata_resolve(
     *, platform: Platform, request: DownloadRequest, url: str
 ) -> Dict[str, Any]:
-    async def run_in_slot() -> Dict[str, Any]:
-        async with _get_resolver_semaphore():
-            return await universal_downloader.resolve_media(
+    timeout_seconds = (
+        settings.YOUTUBE_RESOLVER_TIMEOUT_SECONDS if platform == Platform.YOUTUBE
+        else settings.RESOLVER_TIMEOUT_SECONDS
+    )
+    deadline = time.monotonic() + float(timeout_seconds)
+
+    async def direct():
+        result, error = None, None
+        try:
+            result = await universal_downloader.resolve_media(
                 url=url,
                 platform=platform,
                 quality=request.quality,
@@ -68,12 +77,33 @@ async def _run_bounded_metadata_resolve(
                 media_type=request.media_type,
                 user_auth=request.user_auth,
             )
+        except Exception as exc:
+            error = exc
+            if classify_resolver_error(platform, str(exc)) in TERMINAL_PROVIDER_ERRORS:
+                raise
+        if _should_try_gallery_enrichment(platform, url, result, request.extract_audio) or not result or not result.get('direct_url'):
+            gallery = await _resolve_with_gallery_fallback(platform, url, request.extract_audio)
+            if gallery and (not result or _gallery_result_is_richer(result, gallery)):
+                result = gallery
+        if not result or not result.get('direct_url'):
+            raise error or RuntimeError((result or {}).get('error') or 'EXTRACTOR_FAILED')
+        return result
+
+    async def proxy(metrics):
+        return await public_downloader.resolve_proxy_metadata(url, request.quality, request.extract_audio, metrics)
+
+    async def run_in_slot() -> Dict[str, Any]:
+        async with _get_resolver_semaphore():
+            token = public_resolution.set(_is_public_cacheable_request(request))
+            try:
+                if not _is_public_cacheable_request(request):
+                    return await direct()
+                return await egress_policy.resolve(platform, direct,
+                    proxy if public_downloader._proxy_for_url(url) else None, deadline=deadline)
+            finally:
+                public_resolution.reset(token)
 
     provider_task = asyncio.create_task(run_in_slot())
-    timeout_seconds = (
-        settings.YOUTUBE_RESOLVER_TIMEOUT_SECONDS if platform == Platform.YOUTUBE
-        else settings.RESOLVER_TIMEOUT_SECONDS
-    )
     try:
         return await asyncio.wait_for(
             asyncio.shield(provider_task),
@@ -112,7 +142,9 @@ def _get_resolve_cache(key: str) -> Optional[Dict[str, Any]]:
         _resolve_cache.pop(key, None)
         return None
     print(f"Info: resolve_cache_hit cacheKeyHash={_cache_key_hash(key)}")
-    return value
+    result = copy.deepcopy(value)
+    result['egress'] = reused_metrics(result.get('egress', {}))
+    return result
 
 
 def _set_resolve_cache(key: str, value: Dict[str, Any]) -> None:
@@ -123,8 +155,9 @@ def _set_resolve_cache(key: str, value: Dict[str, Any]) -> None:
                 _resolve_cache.pop(cache_key, None)
         while len(_resolve_cache) > 384:
             _resolve_cache.pop(next(iter(_resolve_cache)))
-    ttl = min(240, max(1, int(getattr(settings, "RESOLVE_CACHE_TTL_SECONDS", 600))))
-    _resolve_cache[key] = (time.time() + ttl, value)
+    ttl = cache_ttl(value, maximum=min(240, max(1, int(getattr(settings, "RESOLVE_CACHE_TTL_SECONDS", 600)))))
+    if ttl:
+        _resolve_cache[key] = (time.time() + ttl, copy.deepcopy(public_metadata(value)))
 
 
 def _cache_key_hash(key: str) -> str:
@@ -389,6 +422,8 @@ async def _resolve_public_metadata(
             resolved = await _run_bounded_metadata_resolve(
                 platform=platform, request=request, url=url_str
             )
+            if resolved and resolved.get('direct_url'):
+                _set_resolve_cache(cache_key, resolved)
             return resolved, None, _elapsed_ms(resolve_started)
         except asyncio.TimeoutError as exc:
             return None, TimeoutError("provider metadata resolve timed out"), _elapsed_ms(resolve_started)
@@ -407,12 +442,16 @@ async def _resolve_public_metadata(
 
     queue_started = time.perf_counter()
     try:
-        result, resolve_error, provider_resolve_ms = await task
+        result, resolve_error, provider_resolve_ms = await asyncio.shield(task)
     finally:
-        if _resolve_inflight.get(cache_key) is task:
+        if task.done() and _resolve_inflight.get(cache_key) is task:
             _resolve_inflight.pop(cache_key, None)
 
     queue_wait_ms = _elapsed_ms(queue_started) if single_flight else 0
+    if result:
+        result = copy.deepcopy(result)
+        if single_flight:
+            result['egress'] = reused_metrics(result.get('egress', {}))
     return result, resolve_error, False, provider_resolve_ms, queue_wait_ms, single_flight
 
 
@@ -428,34 +467,6 @@ async def download_public(
         request=request,
         cache_key=cache_key,
     )
-
-    gallery_attempted = False
-    if _should_try_gallery_enrichment(platform, url_str, result, request.extract_audio):
-        gallery_attempted = True
-        gallery_started = time.perf_counter()
-        gallery_result = await _resolve_with_gallery_fallback(
-            platform=platform,
-            url=url_str,
-            extract_audio=request.extract_audio,
-        )
-        provider_resolve_ms += _elapsed_ms(gallery_started)
-        if _gallery_result_is_richer(result, gallery_result):
-            result = gallery_result
-
-    terminal_error = resolve_error is not None and classify_resolver_error(platform, str(resolve_error)) in TERMINAL_PROVIDER_ERRORS
-    if (not result or not result.get("direct_url")) and not gallery_attempted and not terminal_error:
-        gallery_started = time.perf_counter()
-        gallery_result = await _resolve_with_gallery_fallback(
-            platform=platform,
-            url=url_str,
-            extract_audio=request.extract_audio,
-        )
-        provider_resolve_ms += _elapsed_ms(gallery_started)
-        if gallery_result:
-            result = gallery_result
-
-    if result and result.get("direct_url") and _is_public_cacheable_request(request):
-        _set_resolve_cache(cache_key, result)
 
     if not result:
         raw_error = str(resolve_error) if resolve_error else "No media resolver returned a result"
@@ -474,6 +485,7 @@ async def download_public(
             error_code=error_code,
             request_id=request_id,
         )
+        timing.update(getattr(resolve_error, "egress", ProxyMetrics().report()))
         _log_timing("failed", cache_key=cache_key, timing=timing)
         print(
             "Warning: resolver_failed "
@@ -642,6 +654,7 @@ async def download_public(
         result_count=_result_count({"direct_url": direct_url, "downloads": downloads}),
         request_id=request_id,
     )
+    timing.update(result.get("egress", ProxyMetrics().report()))
     downloads["timing"] = timing
     _log_timing("complete", cache_key=cache_key, timing=timing)
 

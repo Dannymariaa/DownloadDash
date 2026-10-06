@@ -63,18 +63,16 @@ class FakeSidecarPost:
 
 
 class MediaGalleryRegressionTests(unittest.TestCase):
-    def test_youtube_metadata_uses_one_direct_attempt_and_one_proxy_fallback(self):
+    def test_youtube_profiles_cannot_proxy_file_transfers(self):
         downloader = PublicPlatformDownloader()
         downloader.youtube_proxy_url = "http://proxy.example:8080"
 
         profiles = downloader._youtube_client_profiles()
 
-        self.assertEqual(len(profiles), 2)
+        self.assertEqual(len(profiles), 1)
         self.assertEqual(profiles[0][0], "public_default")
         self.assertIsNone(profiles[0][1])
         self.assertFalse(profiles[0][3])
-        self.assertEqual(profiles[1][0], "configured_session")
-        self.assertTrue(profiles[1][3])
 
     def test_platform_request_validation_accepts_reddit_share_and_youtube_live(self):
         self.assertEqual(
@@ -305,7 +303,11 @@ class MediaGalleryRegressionTests(unittest.TestCase):
         downloader = UniversalMediaDownloader(PublicPlatformDownloader())
 
         with patch("app.platforms.universal_downloader._HAS_TIKTOK_SCRAPER", True), \
-             patch("app.platforms.universal_downloader.TikTokScraper") as scraper_mock:
+             patch("app.platforms.universal_downloader.TikTokScraper") as scraper_mock, \
+             patch("app.platforms.universal_downloader.httpx.AsyncClient") as http_client:
+            from types import SimpleNamespace
+            http_client.return_value.__aenter__.return_value.get = AsyncMock(
+                return_value=SimpleNamespace(status_code=200, text=''))
             scraper_mock.return_value.get_data.return_value = {
                 "images": ["https://cdn.example/1.jpg", "https://cdn.example/2.jpg"],
                 "music_url": "https://cdn.example/song.m4a",

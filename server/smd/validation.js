@@ -290,7 +290,7 @@ export function validateDiagnosticsRequest(req) {
 
   const payload = { platform };
   if (req.query?.url) payload.url = validatePublicUrl(String(req.query.url), platform === "twitter" ? "x" : platform);
-  for (const key of ["probe_proxy", "run_resolver", "run_gallery"]) {
+  for (const key of ["probe_proxy", "run_resolver", "run_gallery", "probe_media"]) {
     const value = req.query?.[key];
     if (value === "1" || value === "true" || value === true) payload[key] = "true";
   }

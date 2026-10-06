@@ -46,7 +46,7 @@ class UniversalMediaDownloader:
         self.public_downloader = public_downloader
 
     def _httpx_client_kwargs(self, **kwargs: Any) -> Dict[str, Any]:
-        return kwargs
+        return {**kwargs, "trust_env": False}
 
     async def resolve_media(
         self,
@@ -622,7 +622,9 @@ class UniversalMediaDownloader:
             # Metadata only: do not invoke downloader helpers that may transfer
             # a full Pin before the user selects a file.
             return await self.public_downloader.resolve_media(url, Quality.HIGH, extract_audio=False)
-        except Exception:
+        except Exception as exc:
+            if classify_resolver_error(Platform.PINTEREST, str(exc)) in TERMINAL_PROVIDER_ERRORS:
+                raise
             og = await self._resolve_opengraph_image(url)
             if og:
                 return og
@@ -699,8 +701,6 @@ class UniversalMediaDownloader:
     def _pick_instagram_credentials(self, user_auth: Optional[UserAuth]) -> Optional[Dict[str, str]]:
         if user_auth and user_auth.username and user_auth.password:
             return {"username": user_auth.username, "password": user_auth.password}
-        if settings.INSTAGRAM_USERNAME and settings.INSTAGRAM_PASSWORD:
-            return {"username": settings.INSTAGRAM_USERNAME, "password": settings.INSTAGRAM_PASSWORD}
         return None
 
     async def _resolve_facebook(self, url: str, quality: Quality, extract_audio: bool) -> Dict[str, Any]:

@@ -27,9 +27,15 @@ def test_provider_diagnostics_redacts_cookie_proxy_and_auth_details(monkeypatch,
         def _build_http_headers(self, _url):
             return {"Authorization": "Bearer should-not-leak"}
 
+        def _proxy_for_url(self, _url):
+            return None
+
     class GalleryDownloaderStub:
         proxy_urls = {"x": "socks5://gallery-user:gallery-pass@proxy.example:1080"}
         cookiefiles = {"x": str(cookiefile)}
+
+        async def resolve(self, *args, **kwargs):
+            raise RuntimeError('gallery disabled for test')
 
     async def resolver_failure(**_kwargs):
         raise RuntimeError(
@@ -45,6 +51,9 @@ def test_provider_diagnostics_redacts_cookie_proxy_and_auth_details(monkeypatch,
     monkeypatch.setattr("app.routers.diagnostics.public_downloader", PublicDownloaderStub())
     monkeypatch.setattr("app.routers.diagnostics.gallery_downloader", GalleryDownloaderStub())
     monkeypatch.setattr("app.routers.diagnostics.universal_downloader", UniversalDownloaderStub())
+    monkeypatch.setattr("app.api.shared.universal_downloader", UniversalDownloaderStub())
+    monkeypatch.setattr("app.api.shared.public_downloader", PublicDownloaderStub())
+    monkeypatch.setattr("app.api.shared.gallery_downloader", GalleryDownloaderStub())
 
     response = TestClient(app).get(
         "/diagnostics/provider",
