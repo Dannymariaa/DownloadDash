@@ -26,6 +26,15 @@ def _package_version(name: str) -> str | None:
         return None
 
 
+def _youtube_runtime_status() -> dict[str, Any]:
+    # Use the pinned extractor's runtime discovery and version support rules.
+    # No extraction, network requests, custom clients, or executable paths exposed.
+    with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True, 'proxy': ''}) as ydl:
+        available = any(runtime is not None and runtime.info is not None and runtime.info.supported
+                        for runtime in ydl._js_runtimes.values())
+    return {'jsRuntimeAvailable': available, 'extractorVersion': _package_version('yt-dlp')}
+
+
 def _platform_from_value(value: str) -> Platform:
     normalized = value.lower().strip()
     if normalized == "twitter":
@@ -336,6 +345,9 @@ async def provider_diagnostics(
         response["proxyProbe"] = await _probe_proxy(proxy_url)
         response["galleryDlProxyProbe"] = await _probe_proxy(gallery_proxy_url)
         response["directProbe"] = await _probe_direct_http()
+
+    if platform_key == 'youtube':
+        response['youtubeRuntime'] = await asyncio.to_thread(_youtube_runtime_status)
 
     if run_resolver and url:
         evidence = [] if platform_key in {'youtube', 'reddit'} else None
