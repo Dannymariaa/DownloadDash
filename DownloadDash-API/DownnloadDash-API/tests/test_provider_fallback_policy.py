@@ -74,6 +74,8 @@ def test_metadata_extraction_does_not_multiply_provider_retries(monkeypatch):
     class Extractor:
         def __init__(self, opts):
             captured.append(opts)
+        def urlopen(self, request):
+            raise AssertionError('The extractor fixture must not make network requests')
         def __enter__(self):
             return self
         def __exit__(self, *args):

@@ -45,6 +45,7 @@ def test_reddit_proxy_retains_bounded_http_rejection_without_retry():
                 asyncio.run(downloader.resolve_proxy_metadata('https://www.reddit.com/gallery/hrrh23', Quality.HIGH, False, ProxyMetrics()))
             assert request.call_count == 1
         assert records[0]['httpStatuses'] == [403]
+        assert records[0]['extractor'] == 'reddit_public_json'
         assert records[0]['responseKind'] == 'html'
         assert records[0]['rejectionMarker'] == 'network_security'
     finally:

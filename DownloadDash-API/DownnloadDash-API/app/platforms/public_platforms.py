@@ -1038,6 +1038,7 @@ class PublicPlatformDownloader:
             with MetadataTransport(proxy, metrics) as transport:
                 reddit_id = re.search(r'/(?:gallery|comments)/([a-z0-9]+)', url, re.I)
                 if self._platform_key_for_url(url) == 'reddit' and reddit_id:
+                    evidence.record.update(extractor='reddit_public_json', client='anonymous')
                     try:
                         reply = transport.request(f'https://www.reddit.com/comments/{reddit_id[1]}.json?raw_json=1&limit=1')
                     except Exception as exc:
