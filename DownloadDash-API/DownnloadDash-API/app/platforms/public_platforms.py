@@ -20,6 +20,7 @@ from ..models.schemas import Platform, Quality
 from ..config import settings
 from app.api.resolver_errors import TERMINAL_PROVIDER_ERRORS, classify_resolver_error, sanitize_provider_error
 from app.platforms.egress import public_resolution, public_metadata, cache_ttl, MetadataTransport
+from app.platforms.provider_evidence import ProviderEvidence
 
 RESOLVED_MEDIA_DIRECTORY = Path(tempfile.gettempdir()) / 'downloaddash-resolved-media'
 
@@ -1030,11 +1031,19 @@ class PublicPlatformDownloader:
         if not proxy:
             raise RuntimeError('PROXY_UNREACHABLE')
 
+        provider = self._platform_key_for_url(url)
+        evidence = ProviderEvidence(provider, 'proxy_metadata') if provider in {'youtube', 'reddit'} else None
+
         def extract():
             with MetadataTransport(proxy, metrics) as transport:
                 reddit_id = re.search(r'/(?:gallery|comments)/([a-z0-9]+)', url, re.I)
                 if self._platform_key_for_url(url) == 'reddit' and reddit_id:
-                    reply = transport.request(f'https://www.reddit.com/comments/{reddit_id[1]}.json?raw_json=1&limit=1')
+                    try:
+                        reply = transport.request(f'https://www.reddit.com/comments/{reddit_id[1]}.json?raw_json=1&limit=1')
+                    except Exception as exc:
+                        evidence.failure(exc, bounded_proxy_body=True)
+                        raise
+                    evidence.response(reply)
                     data = json.loads(reply.read())
                     post = data[0]['data']['children'][0]['data']
                     if post.get('removed_by_category'):
@@ -1075,10 +1084,17 @@ class PublicPlatformDownloader:
                         'retries': 0, 'extractor_retries': 0, 'fragment_retries': 0,
                         'socket_timeout': 5, 'ignore_no_formats_error': True,
                         'http_headers': self._build_http_headers(url)}
+                if evidence:
+                    opts.update(logger=evidence, no_warnings=False)
                 with yt_dlp.YoutubeDL(opts) as ydl:
                     # All extractor network calls use the same measured pool.
                     ydl.urlopen = transport.urlopen
-                    return ydl.extract_info(url, download=False)
+                    info = ydl.extract_info(url, download=False)
+                    if evidence:
+                        evidence.formats(info, self)
+                        if provider == 'youtube' and not self._has_youtube_playable_media(info, extract_audio) and evidence.restriction():
+                            raise RuntimeError(evidence.restriction())
+                    return info
 
         try:
             info = await asyncio.to_thread(extract)
@@ -1129,9 +1145,30 @@ class PublicPlatformDownloader:
         extract_opts.update({"retries": 0, "fragment_retries": 0, "extractor_retries": 0})
         self._log_ydl_context("resolve_media.extract", url, extract_opts)
 
+        provider = self._platform_key_for_url(url)
+        evidence = ProviderEvidence(provider, 'direct') if provider in {'youtube', 'reddit'} else None
+        if evidence:
+            extract_opts.update(logger=evidence, no_warnings=False)
+
         def extract_info(opts):
             with yt_dlp.YoutubeDL(opts) as ydl:
-                return ydl.extract_info(url, download=False)
+                if evidence:
+                    original_urlopen = ydl.urlopen
+                    def observed_urlopen(request):
+                        try:
+                            reply = original_urlopen(request)
+                        except Exception as exc:
+                            evidence.failure(exc)
+                            raise
+                        evidence.response(reply)
+                        return reply
+                    ydl.urlopen = observed_urlopen
+                info = ydl.extract_info(url, download=False)
+                if evidence:
+                    evidence.formats(info, self)
+                    if provider == 'youtube' and not self._has_youtube_playable_media(info, extract_audio) and evidence.restriction():
+                        raise RuntimeError(evidence.restriction())
+                return info
 
         def _strip_ansi(text: str) -> str:
             return re.sub(r"\x1b\[[0-9;]*m", "", text or "")

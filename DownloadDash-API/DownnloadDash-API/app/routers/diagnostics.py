@@ -14,6 +14,7 @@ from app.api.resolver_errors import classify_resolver_error, sanitize_provider_e
 from app.models.schemas import Platform, Quality
 from app.state import gallery_downloader, public_downloader, universal_downloader
 from app.platforms.egress import egress_policy
+from app.platforms.provider_evidence import provider_evidence
 
 router = APIRouter(prefix="/diagnostics", tags=["diagnostics"])
 
@@ -337,6 +338,8 @@ async def provider_diagnostics(
         response["directProbe"] = await _probe_direct_http()
 
     if run_resolver and url:
+        evidence = [] if platform_key in {'youtube', 'reddit'} else None
+        evidence_token = provider_evidence.set(evidence)
         try:
             from app.api.shared import _resolve_public_metadata, _resolve_cache_key
             from app.models.schemas import DownloadRequest
@@ -362,6 +365,10 @@ async def provider_diagnostics(
                 "sanitizedFailure": sanitized[:500],
                 "classifierRule": _promote_cookie_error(platform_value, error_code, ytdlp_cookie_state),
             }
+        finally:
+            provider_evidence.reset(evidence_token)
+            if evidence is not None:
+                response['providerEvidence'] = evidence
 
     if run_gallery and url:
         try:
