@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
+import downloadDash, {
   buildFileProxyPayload,
   downloadToDevice,
   getSelectableMediaItems,
@@ -10,7 +10,35 @@ import {
   normalizeResolvedDownloads,
   responseErrorMessage,
   isRetryableDownloadError,
+  canRetryProviderLater,
 } from '../../src/api/downloadDashClient.js';
+
+test('blocked providers get a neutral message and manual retry-later without automatic retry', () => {
+  const message = responseErrorMessage({ error: { code: 'ANTI_BOT_CHALLENGE' } });
+  assert.doesNotMatch(message, /Facebook|processing failed/i);
+  assert.match(message, /try again later/i);
+  for (const code of ['ANTI_BOT_CHALLENGE', 'PLATFORM_BLOCKED_PROXY', 'LOGIN_REQUIRED', 'COOKIE_REQUIRED', 'PRIVATE_MEDIA']) {
+    assert.equal(canRetryProviderLater({ code }), true);
+    assert.equal(isRetryableDownloadError({ code, status: 502 }), false);
+  }
+});
+
+test('a terminal response rejects once and never becomes phantom media', async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return new Response(JSON.stringify({ success: false, error: { code: 'ANTI_BOT_CHALLENGE' },
+      downloads: { videoHD: 'https://invalid.example/phantom.mp4' } }),
+    { status: 403, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    await assert.rejects(downloadDash.functions.invoke('downloadVideo', {
+      platform: 'youtube', url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+    }), (error) => error.code === 'ANTI_BOT_CHALLENGE');
+    assert.equal(calls, 1);
+  } finally { globalThis.fetch = original; }
+});
 
 test('audio CDN files use managed delivery to correct provider video MIME headers', async () => {
   const original = globalThis.fetch;
@@ -252,11 +280,11 @@ test('client maps backend downloader error codes to user-safe messages', () => {
   const cases = [
     ['MEDIA_NOT_FOUND', 'Media was not found or is no longer available.'],
     ['PRIVATE_MEDIA', 'This media is private, login-only, paid, deleted, DRM-protected, restricted, or unavailable.'],
-    ['LOGIN_REQUIRED', 'X is currently requiring an authenticated session for this media. Please try again later.'],
+    ['LOGIN_REQUIRED', 'The platform requires an authenticated session for this media. Please try again later.'],
     ['COOKIE_REQUIRED', 'This media currently requires an authenticated platform session. Please try again later.'],
     ['COOKIE_EXPIRED', 'This media currently requires a refreshed platform session. Please try again later.'],
-    ['ANTI_BOT_CHALLENGE', 'Facebook temporarily blocked access to this public post. Try again later or try another public link.'],
-    ['PLATFORM_BLOCKED_PROXY', 'The platform temporarily blocked this request. Please try again later.'],
+    ['ANTI_BOT_CHALLENGE', 'This provider temporarily blocked automated access from our server. Please try again later.'],
+    ['PLATFORM_BLOCKED_PROXY', 'This provider temporarily blocked this request from our server. Please try again later.'],
     ['PROXY_BLOCKED', 'The download service is temporarily blocked by the platform. Please try again later.'],
     ['RATE_LIMITED', 'Too many requests. Please try again later.'],
     ['EXTRACTOR_OUTDATED', 'This media cannot be resolved right now. Please try again later.'],

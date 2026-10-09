@@ -38,7 +38,7 @@ def test_eligible_failure_uses_exactly_one_attempt_and_counts_failure():
         policy = EgressPolicy()
         for _ in range(3):
             with pytest.raises(Exception):
-                await policy.resolve('reddit', AsyncMock(side_effect=RuntimeError('HTTP Error 403: Forbidden')), proxy)
+                await policy.resolve('reddit', AsyncMock(side_effect=RuntimeError('connection reset')), proxy)
         assert proxy.await_count == 1
         assert policy.snapshot()['reddit']['proxyCircuitOpen'] is True
         # Direct success remains usable while the proxy circuit is open.
@@ -54,7 +54,8 @@ def test_proxy_success_is_cached_and_single_flight_precedes_proxy(monkeypatch):
         shared._resolve_cache.clear()
         shared._resolve_inflight.clear()
         monkeypatch.setattr(shared, 'egress_policy', EgressPolicy())
-        direct = AsyncMock(side_effect=RuntimeError('HTTP Error 403: Forbidden'))
+        monkeypatch.setattr(shared.settings, 'ENABLE_METADATA_PROXY_FALLBACK', True)
+        direct = AsyncMock(side_effect=RuntimeError('connection reset'))
         async def fallback(url, quality, extract_audio, metrics):
             await asyncio.sleep(0.01)
             metrics.proxyRequestCount += 1
@@ -191,7 +192,7 @@ def test_proxy_attempt_does_not_start_after_resolution_deadline():
         proxy = AsyncMock()
         with pytest.raises(RuntimeError):
             await EgressPolicy(clock=lambda: 10).resolve('reddit',
-                AsyncMock(side_effect=RuntimeError('HTTP 403')), proxy, deadline=5)
+                AsyncMock(side_effect=RuntimeError('connection reset')), proxy, deadline=5)
         proxy.assert_not_called()
     asyncio.run(run())
 
@@ -201,7 +202,7 @@ def test_provider_restrictions_do_not_open_infrastructure_breaker():
         policy = EgressPolicy()
         for _ in range(3):
             with pytest.raises(RuntimeError):
-                await policy.resolve('youtube', AsyncMock(side_effect=RuntimeError('HTTP 403')),
+                await policy.resolve('youtube', AsyncMock(side_effect=RuntimeError('connection reset')),
                     AsyncMock(side_effect=RuntimeError('ANTI_BOT_CHALLENGE')))
         assert policy.snapshot()['youtube']['proxyCircuitOpen'] is False
     asyncio.run(run())

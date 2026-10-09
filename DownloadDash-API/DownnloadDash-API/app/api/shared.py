@@ -37,6 +37,9 @@ GALLERY_FALLBACK_PLATFORMS = {
 
 _resolve_cache: Dict[str, tuple[float, Dict[str, Any]]] = {}
 _resolve_inflight: Dict[str, asyncio.Task] = {}
+TERMINAL_FAILURE_CACHE_SECONDS = 20
+TEMPORARY_FAILURE_CODES = {'ANTI_BOT_CHALLENGE', 'LOGIN_REQUIRED', 'COOKIE_REQUIRED',
+                           'COOKIE_EXPIRED', 'PRIVATE_MEDIA', 'PLATFORM_BLOCKED_PROXY', 'PROXY_BLOCKED'}
 _resolver_semaphore: asyncio.Semaphore | None = None
 _resolver_semaphore_limit: int | None = None
 _resolver_semaphore_loop: asyncio.AbstractEventLoop | None = None
@@ -99,7 +102,8 @@ async def _run_bounded_metadata_resolve(
                 if not _is_public_cacheable_request(request):
                     return await direct()
                 return await egress_policy.resolve(platform, direct,
-                    proxy if public_downloader._proxy_for_url(url) else None, deadline=deadline)
+                    proxy if getattr(settings, 'ENABLE_METADATA_PROXY_FALLBACK', False)
+                    and public_downloader._proxy_for_url(url) else None, deadline=deadline)
             finally:
                 public_resolution.reset(token)
 
@@ -147,7 +151,7 @@ def _get_resolve_cache(key: str) -> Optional[Dict[str, Any]]:
     return result
 
 
-def _set_resolve_cache(key: str, value: Dict[str, Any]) -> None:
+def _set_resolve_cache(key: str, value: Dict[str, Any], ttl_seconds: int | None = None) -> None:
     if len(_resolve_cache) > 512:
         now = time.time()
         for cache_key, (expires_at, _) in list(_resolve_cache.items()):
@@ -156,6 +160,8 @@ def _set_resolve_cache(key: str, value: Dict[str, Any]) -> None:
         while len(_resolve_cache) > 384:
             _resolve_cache.pop(next(iter(_resolve_cache)))
     ttl = cache_ttl(value, maximum=min(240, max(1, int(getattr(settings, "RESOLVE_CACHE_TTL_SECONDS", 600)))))
+    if ttl_seconds is not None:
+        ttl = min(ttl, ttl_seconds)
     if ttl:
         _resolve_cache[key] = (time.time() + ttl, copy.deepcopy(public_metadata(value)))
 
@@ -414,6 +420,10 @@ async def _resolve_public_metadata(
 
     cached = _get_resolve_cache(cache_key)
     if cached is not None:
+        if cached.get('_failure_code'):
+            failure = RuntimeError(cached['_failure_code'])
+            failure.egress = cached['egress']
+            return None, failure, True, 0, 0, False
         return cached, None, True, 0, 0, False
 
     async def resolve_once() -> tuple[Optional[Dict[str, Any]], Optional[Exception], int]:
@@ -428,6 +438,11 @@ async def _resolve_public_metadata(
         except asyncio.TimeoutError as exc:
             return None, TimeoutError("provider metadata resolve timed out"), _elapsed_ms(resolve_started)
         except Exception as exc:
+            code = classify_resolver_error(platform, str(exc))
+            if code in TEMPORARY_FAILURE_CODES:
+                _set_resolve_cache(cache_key, {'_failure_code': code,
+                    'egress': getattr(exc, 'egress', ProxyMetrics().report())},
+                    ttl_seconds=TERMINAL_FAILURE_CACHE_SECONDS)
             return None, exc, _elapsed_ms(resolve_started)
 
     task = _resolve_inflight.get(cache_key)
@@ -452,6 +467,10 @@ async def _resolve_public_metadata(
         result = copy.deepcopy(result)
         if single_flight:
             result['egress'] = reused_metrics(result.get('egress', {}))
+    if resolve_error and single_flight:
+        failure = RuntimeError(classify_resolver_error(platform, str(resolve_error)))
+        failure.egress = reused_metrics(getattr(resolve_error, 'egress', {}))
+        resolve_error = failure
     return result, resolve_error, False, provider_resolve_ms, queue_wait_ms, single_flight
 
 

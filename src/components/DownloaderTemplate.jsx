@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import downloadDash, { isRetryableDownloadError } from '@/api/downloadDashClient';
+import downloadDash, { isRetryableDownloadError, canRetryProviderLater } from '@/api/downloadDashClient';
 import AdBanner from './AdBanner';
 import HDVideoAdModal from './HDVideoAdModal';
 import { useI18n } from '@/lib/i18n';
@@ -472,11 +472,9 @@ export default function DownloaderTemplate({
       }
     } catch (err) {
       setError(err.userMessage || err.message || t('errors.fetchFailed'));
-      setCanRetry(isRetryableDownloadError(err));
+      setCanRetry(isRetryableDownloadError(err) || canRetryProviderLater(err));
     } finally {
-      setTimeout(() => {
-        setIsLoading(false);
-      }, 500);
+      setIsLoading(false);
     }
   };
 
@@ -1016,7 +1014,7 @@ export default function DownloaderTemplate({
                 <span>{error}</span>
                 {canRetry && !batchResult && (
                   <Button type="button" variant="outline" size="sm" disabled={isLoading} onClick={handleFetch}>
-                    Retry
+                    Try again later
                   </Button>
                 )}
               </motion.div>

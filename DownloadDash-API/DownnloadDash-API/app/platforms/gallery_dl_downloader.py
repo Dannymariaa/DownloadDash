@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.config import settings
-from app.platforms.egress import public_resolution
+from app.platforms.egress import public_resolution, direct_subprocess_env
 
 
 MEDIA_EXTENSIONS = {
@@ -113,6 +113,7 @@ class GalleryDLDownloader:
         command = [*self._base_command(url), "-J", "-o", "output.private=false", url]
         proc = await asyncio.create_subprocess_exec(
             *command,
+            env=direct_subprocess_env(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -183,6 +184,7 @@ class GalleryDLDownloader:
 
         proc = await asyncio.create_subprocess_exec(
             *command,
+            env=direct_subprocess_env(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

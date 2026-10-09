@@ -108,11 +108,11 @@ export const USER_SAFE_ERROR_MESSAGES = {
   BLOCKED_HOST: 'Paste a public platform link.',
   MEDIA_NOT_FOUND: 'Media was not found or is no longer available.',
   PRIVATE_MEDIA: 'This media is private, login-only, paid, deleted, DRM-protected, restricted, or unavailable.',
-  LOGIN_REQUIRED: 'X is currently requiring an authenticated session for this media. Please try again later.',
+  LOGIN_REQUIRED: 'The platform requires an authenticated session for this media. Please try again later.',
   COOKIE_REQUIRED: 'This media currently requires an authenticated platform session. Please try again later.',
   COOKIE_EXPIRED: 'This media currently requires a refreshed platform session. Please try again later.',
-  ANTI_BOT_CHALLENGE: 'Facebook temporarily blocked access to this public post. Try again later or try another public link.',
-  PLATFORM_BLOCKED_PROXY: 'The platform temporarily blocked this request. Please try again later.',
+  ANTI_BOT_CHALLENGE: 'This provider temporarily blocked automated access from our server. Please try again later.',
+  PLATFORM_BLOCKED_PROXY: 'This provider temporarily blocked this request from our server. Please try again later.',
   PROXY_BLOCKED: 'The download service is temporarily blocked by the platform. Please try again later.',
   RATE_LIMITED: 'Too many requests. Please try again later.',
   EXTRACTOR_OUTDATED: 'This media cannot be resolved right now. Please try again later.',
@@ -133,6 +133,12 @@ export const isRetryableDownloadError = (error) => {
   if (error?.code) return transient.has(error.code);
   return Number(error?.status) >= 500 && Number(error?.status) <= 599;
 };
+
+// A user action only; terminal restrictions must never trigger automatic retries.
+export const canRetryProviderLater = (error) => new Set([
+  'ANTI_BOT_CHALLENGE', 'LOGIN_REQUIRED', 'COOKIE_REQUIRED', 'COOKIE_EXPIRED',
+  'PRIVATE_MEDIA', 'PLATFORM_BLOCKED_PROXY', 'PROXY_BLOCKED',
+]).has(error?.code);
 
 export const responseErrorMessage = (data, fallback) => {
   const code = responseErrorCode(data);

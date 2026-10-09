@@ -15,6 +15,7 @@ from app.models.schemas import Platform, Quality
 from app.state import gallery_downloader, public_downloader, universal_downloader
 from app.platforms.egress import egress_policy
 from app.platforms.provider_evidence import provider_evidence
+from app.config import settings
 
 router = APIRouter(prefix="/diagnostics", tags=["diagnostics"])
 
@@ -319,6 +320,7 @@ async def provider_diagnostics(
 
     response: dict[str, Any] = {
         'egressPolicy': {'directFirst': True, 'proxyMediaTransfer': False,
+                         'metadataProxyFallbackEnabled': settings.ENABLE_METADATA_PROXY_FALLBACK,
                          'recentHealth': egress_policy.snapshot().get(platform_key, {}),
                          'healthScope': 'current worker'},
         "platform": platform_key,

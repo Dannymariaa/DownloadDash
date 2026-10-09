@@ -1,5 +1,6 @@
 """Public resolution policy. Residential egress is never a media transport."""
 import io
+import os
 import re
 import time
 from contextvars import ContextVar
@@ -14,6 +15,12 @@ from yt_dlp.networking.exceptions import HTTPError
 from app.api.resolver_errors import classify_resolver_error
 
 public_resolution = ContextVar('public_resolution', default=True)
+
+
+def direct_subprocess_env():
+    return {key: value for key, value in os.environ.items()
+            if key.lower() not in {'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'}}
+
 SECRET_KEYS = {'cookie', 'cookies', 'cookiefile', 'authorization', 'proxy-authorization',
                'password', 'token', 'access_token', 'refresh_token', 'session', 'proxy'}
 
@@ -93,7 +100,7 @@ class EgressPolicy:
             state['directFailures'] += 1
             reason = classify_resolver_error(provider, str(error))
             state['lastDirectError'] = reason
-            eligible = reason in {'PLATFORM_BLOCKED_PROXY', 'PUBLIC_NETWORK_ERROR', 'PROVIDER_TIMEOUT'}
+            eligible = reason in {'PUBLIC_NETWORK_ERROR', 'PROVIDER_TIMEOUT'}
             if not eligible or proxy is None or state['openUntil'] > self.clock() or (deadline is not None and self.clock() >= deadline):
                 error.egress = metrics.report()
                 raise

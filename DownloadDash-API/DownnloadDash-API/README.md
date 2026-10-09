@@ -98,3 +98,15 @@ Messaging:
 - WhatsApp/WhatsApp Business status/story saving requires the Node bridges running (`whatsapp-bridge`) (optional; not started by default).
 - Telegram media sync requires the Telegram bridge and a bot token (see section 1c).
 - Stories/status downloading for other platforms requires login/cookies/session support (not implemented yet).
+# Public provider egress
+
+Residential proxies are optional and disabled by default. Normal public metadata
+and all media delivery use direct connections. `SMD_ENABLE_METADATA_PROXY_FALLBACK=true`
+opts into at most one metadata-only fallback for connection failures or timeouts,
+when a provider proxy is explicitly configured. HTTP 403, security challenges,
+login and private-media restrictions never qualify. No current provider requires
+this optional fallback for normal operation.
+
+Public terminal failures are cached for 20 seconds per resolver key and worker,
+with the existing single-flight protection. Cache entries contain only the error
+classification and egress counters, never upstream bodies or sessions.

@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     OUTBOUND_PROXY: Optional[str] = None
     YTDLP_PROXY: Optional[str] = None
     USE_GLOBAL_PROXY_FOR_METADATA: bool = False
+    ENABLE_METADATA_PROXY_FALLBACK: bool = False
     YTDLP_PROXY_FACEBOOOK: Optional[str] = None
     YTDLP_PROXY_FACEBOOK: Optional[str] = None
     YTDLP_PROXY_INSTAGRAM: Optional[str] = None
